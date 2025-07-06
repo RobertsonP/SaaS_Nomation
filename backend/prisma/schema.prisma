@@ -1,0 +1,127 @@
+// Nomation Database Schema
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  projects  Project[]
+  
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // NEW: Multiple URLs per project
+  urls        ProjectUrl[]
+  elements    ProjectElement[]
+  tests       Test[]
+  
+  @@map("projects")
+}
+
+model ProjectUrl {
+  id          String   @id @default(cuid())
+  url         String
+  title       String?
+  description String?
+  analyzed    Boolean  @default(false)
+  analysisDate DateTime?
+  createdAt   DateTime @default(now())
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Elements found on this specific URL
+  elements    ProjectElement[]
+  
+  @@map("project_urls")
+}
+
+model Test {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // NEW: Test has its own starting URL
+  startingUrl String
+  
+  steps       Json     // Test steps as JSON
+  status      String   @default("draft") // draft, active, archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  executions  TestExecution[]
+  
+  @@map("tests")
+}
+
+model TestExecution {
+  id          String   @id @default(cuid())
+  status      String   // running, passed, failed, error
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  duration    Int?     // Duration in milliseconds
+  
+  // Enhanced results structure
+  results     Json?    // Detailed step-by-step results
+  screenshots Json?    // Screenshot URLs for each step
+  logs        Json?    // Detailed execution logs
+  metrics     Json?    // Performance metrics
+  errorMsg    String?
+  
+  testId      String
+  test        Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  
+  @@map("test_executions")
+}
+
+model ProjectElement {
+  id          String   @id @default(cuid())
+  selector    String
+  elementType String   // button, input, link, form, navigation, text
+  description String
+  confidence  Float    // AI confidence score 0-1
+  attributes  Json?    // Additional element attributes
+  
+  // NEW: Element grouping and categorization
+  category    String?  // header, footer, form, navigation, content
+  group       String?  // Elements that appear together
+  isCommon    Boolean  @default(false) // Appears on multiple URLs
+  
+  // URL where this element was found
+  sourceUrlId String?
+  sourceUrl   ProjectUrl? @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("project_elements")
+  @@unique([projectId, selector, sourceUrlId])
+}

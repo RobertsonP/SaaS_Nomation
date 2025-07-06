@@ -1,0 +1,156 @@
+# Removed version as it's obsolete in newer Docker Compose
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: nomation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nomation
+      POSTGRES_USER: nomation_user
+      POSTGRES_PASSWORD: nomation_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - nomation-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nomation_user -d nomation"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: nomation-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://nomation_user:nomation_password@postgres:5432/nomation
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - PORT=3002
+      # Playwright configuration
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=false
+      # Prisma configuration for Debian Linux
+      - PRISMA_CLI_BINARY_TARGETS=debian-openssl-1.1.x,debian-openssl-3.0.x
+    volumes:
+      # Mount source for hot reload
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - ./backend/test:/app/test
+      # Preserve node_modules and browser cache
+      - backend_node_modules:/app/node_modules
+      - playwright_cache:/opt/playwright
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nomation-network
+    command: sh -c "npx prisma db push && npm run dev"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: nomation-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:3002
+    volumes:
+      # Mount source for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      # Preserve node_modules
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    networks:
+      - nomation-network
+    command: npm run dev
+
+  # Optional: Prisma Studio for database management
+  prisma-studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: nomation-prisma-studio
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://nomation_user:nomation_password@postgres:5432/nomation
+    volumes:
+      - ./backend/prisma:/app/prisma
+      - backend_node_modules:/app/node_modules
+    ports:
+      - "5555:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nomation-network
+    command: npx prisma studio --port 5555 --hostname 0.0.0.0
+    profiles:
+      - tools
+
+  # Ollama Local AI
+  ollama:
+    image: ollama/ollama:latest
+    container_name: nomation-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - nomation-network
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    profiles:
+      - ai
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+  playwright_cache:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  nomation-network:
+    driver: bridge
