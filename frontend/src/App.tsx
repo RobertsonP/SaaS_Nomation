@@ -12,6 +12,7 @@ import { TestBuilderPage } from './pages/tests/TestBuilderPage'
 import { TestResultsPage } from './pages/tests/TestResultsPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
+import { AuthSetupPage } from './pages/auth/AuthSetupPage'
 import './index.css'
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
             <Route index element={<DashboardPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="projects/:projectId" element={<ProjectDetailsPage />} />
+            <Route path="projects/:projectId/auth/setup" element={<AuthSetupPage />} />
             <Route path="projects/:id/tests" element={<TestsPage />} />
             <Route path="projects/:projectId/tests/new" element={<TestBuilderPage />} />
             <Route path="projects/:projectId/tests/:testId/edit" element={<TestBuilderPage />} />

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "node",
+      "args": ["node_modules/@modelcontextprotocol/server-filesystem/dist/index.js", "/mnt/d/SaaS_Nomation"]
+    },
+    "postgres-db": {
+      "command": "node", 
+      "args": ["node_modules/@modelcontextprotocol/server-postgres/dist/index.js"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "postgresql://nomation_user:nomation_password@localhost:5432/nomation_db"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["mcp-server-playwright", "--headless"]
+    }
+  }
+}

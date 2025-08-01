@@ -13,12 +13,15 @@ export interface ProjectElement {
     tag?: string;
     id?: string;
     class?: string;
+    type?: string;
   };
   sourceUrl?: {
     id: string;
     url: string;
     title?: string;
+    description?: string;
   };
+  screenshot?: string | null; // Base64 encoded screenshot
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +32,7 @@ export interface PageAnalysisResult {
   analysisDate: string;
   success: boolean;
   errorMessage?: string;
+  totalUrls?: number;
 }
 
 export interface SelectorValidationResult {

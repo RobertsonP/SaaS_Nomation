@@ -25,7 +25,8 @@ export function TestsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newTest, setNewTest] = useState({
     name: '',
-    description: ''
+    description: '',
+    startingUrl: ''
   })
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function TestsPage() {
         projectId: projectId!,
         steps: []
       })
-      setNewTest({ name: '', description: '' })
+      setNewTest({ name: '', description: '', startingUrl: '' })
       setShowCreateForm(false)
       loadProjectAndTests()
     } catch (error) {
@@ -102,14 +103,8 @@ export function TestsPage() {
             onClick={() => setShowCreateForm(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
-            Create Test (Form)
+            Create Test
           </button>
-          <Link
-            to={`/projects/${projectId}/tests/new`}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Build Test (Visual)
-          </Link>
         </div>
       </div>
 
@@ -143,6 +138,19 @@ export function TestsPage() {
                   rows={3}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Starting URL
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={newTest.startingUrl}
+                  onChange={(e) => setNewTest({ ...newTest, startingUrl: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://example.com"
+                />
+              </div>
             </div>
             <div className="flex space-x-4">
               <button
@@ -172,15 +180,8 @@ export function TestsPage() {
                 onClick={() => setShowCreateForm(true)}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
               >
-                Create Test (Form)
+                Create Test
               </button>
-              <br />
-              <Link
-                to={`/projects/${projectId}/tests/new`}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-              >
-                Build Test (Visual)
-              </Link>
             </div>
           </div>
         ) : (
