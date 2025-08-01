@@ -16,12 +16,12 @@ import { StandaloneTemplatesController } from './auth-flows/standalone-templates
   imports: [
     PrismaModule,
     AuthModule,
-    // ProjectsModule, // Temporarily disabled - depends on AuthFlowsModule
+    ProjectsModule, // Restored - dependency issue fixed
     TestsModule,
     ExecutionModule,
     AiModule,
     BrowserModule,
-    // AuthFlowsModule, // Temporarily disabled - has dependency issues
+    AuthFlowsModule, // Restored - circular dependency fixed
     McpModule,
     AnalysisModule,
   ],

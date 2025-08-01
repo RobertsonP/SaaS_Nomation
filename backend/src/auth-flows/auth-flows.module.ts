@@ -11,6 +11,6 @@ import { UnifiedAuthService } from '../auth/unified-auth.service';
   imports: [PrismaModule],
   controllers: [AuthFlowsController, PublicTemplatesController],
   providers: [AuthFlowsService, AuthFlowTemplatesService, SimplifiedAuthService, UnifiedAuthService],
-  exports: [AuthFlowsService, AuthFlowTemplatesService, SimplifiedAuthService],
+  exports: [AuthFlowsService, AuthFlowTemplatesService, SimplifiedAuthService, UnifiedAuthService],
 })
 export class AuthFlowsModule {}
