@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { chromium, Browser, Page } from 'playwright';
+import { AuthFlowsService } from '../auth-flows/auth-flows.service';
+import { UnifiedAuthService } from '../auth/unified-auth.service';
+import { LoginFlow } from '../ai/interfaces/element.interface';
 
 interface TestStep {
   id: string;
@@ -12,7 +15,11 @@ interface TestStep {
 
 @Injectable()
 export class ExecutionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private authFlowsService: AuthFlowsService,
+    private unifiedAuthService: UnifiedAuthService
+  ) {}
 
   async executeTest(testId: string) {
     let browser: Browser | null = null;
@@ -39,6 +46,7 @@ export class ExecutionService {
       });
 
       const results: any[] = [];
+      const screenshots: string[] = [];
       let success = true;
       let errorMsg: string | null = null;
 
@@ -57,8 +65,72 @@ export class ExecutionService {
         });
         page = await browser.newPage();
 
-        // Navigate to test starting URL
-        await page.goto(test.startingUrl);
+        // Check if test requires authentication and navigate to starting URL
+        if (test.authFlowId) {
+          try {
+            console.log(`🔐 Executing test with authentication for URL: ${test.startingUrl}`);
+            
+            // Get auth flow details
+            const authFlowData = await this.authFlowsService.getById(test.authFlowId);
+            if (!authFlowData) {
+              throw new Error('Authentication flow not found');
+            }
+
+            // Convert database authFlow to LoginFlow interface
+            const authFlow: LoginFlow = {
+              id: authFlowData.id,
+              name: authFlowData.name,
+              loginUrl: authFlowData.loginUrl,
+              steps: Array.isArray(authFlowData.steps) ? authFlowData.steps as unknown as LoginFlow['steps'] : [],
+              credentials: typeof authFlowData.credentials === 'object' ? authFlowData.credentials as unknown as LoginFlow['credentials'] : { username: '', password: '' }
+            };
+
+            // Use unified auth service for proper authentication flow
+            const authResult = await this.unifiedAuthService.authenticateForUrl(
+              test.startingUrl,
+              authFlow,
+              browser
+            );
+
+            if (!authResult.result.success) {
+              throw new Error(`Authentication failed: ${authResult.result.errorMessage}`);
+            }
+
+            // Update browser and page references
+            browser = authResult.browser;
+            page = authResult.page;
+
+            results.push({
+              step: 'authentication',
+              description: 'Perform authentication flow and navigate to starting URL',
+              status: 'passed',
+              timestamp: new Date(),
+            });
+
+            console.log(`✅ Authentication successful, on URL: ${authResult.result.finalUrl}`);
+          } catch (authError) {
+            console.error(`❌ Authentication failed:`, authError);
+            results.push({
+              step: 'authentication',
+              description: 'Perform authentication flow and navigate to starting URL',
+              status: 'failed',
+              error: authError.message,
+              timestamp: new Date(),
+            });
+            throw authError;
+          }
+        } else {
+          // No authentication required, navigate directly
+          console.log(`🔍 Executing test without authentication for URL: ${test.startingUrl}`);
+          await page.goto(test.startingUrl);
+        }
+        
+        // Capture initial screenshot
+        const initialScreenshot = await this.capturePageScreenshot(page);
+        if (initialScreenshot) {
+          screenshots.push(initialScreenshot);
+        }
+        
         results.push({
           step: 'navigation',
           description: `Navigate to ${test.startingUrl}`,
@@ -71,6 +143,13 @@ export class ExecutionService {
         for (const step of steps) {
           try {
             await this.executeStep(page, step);
+            
+            // Capture screenshot after each step
+            const stepScreenshot = await this.capturePageScreenshot(page);
+            if (stepScreenshot) {
+              screenshots.push(stepScreenshot);
+            }
+            
             results.push({
               step: step.type,
               description: step.description,
@@ -82,6 +161,13 @@ export class ExecutionService {
           } catch (error) {
             success = false;
             errorMsg = `Step "${step.description}" failed: ${error.message}`;
+            
+            // Capture screenshot of error state
+            const errorScreenshot = await this.capturePageScreenshot(page);
+            if (errorScreenshot) {
+              screenshots.push(errorScreenshot);
+            }
+            
             results.push({
               step: step.type,
               description: step.description,
@@ -111,6 +197,7 @@ export class ExecutionService {
           duration: Date.now() - execution.startedAt.getTime(),
           errorMsg,
           results,
+          screenshots,
         },
       });
 
@@ -154,6 +241,21 @@ export class ExecutionService {
 
     // Wait a bit between steps for stability
     await page.waitForTimeout(500);
+  }
+
+  // NOTE: performAuthentication method removed - now using UnifiedAuthService
+
+  private async capturePageScreenshot(page: Page): Promise<string | null> {
+    try {
+      const screenshot = await page.screenshot({
+        type: 'png',
+        fullPage: true
+      });
+      return screenshot.toString('base64');
+    } catch (error) {
+      console.error('Failed to capture screenshot:', error);
+      return null;
+    }
   }
 
   async getExecutionResults(testId: string) {

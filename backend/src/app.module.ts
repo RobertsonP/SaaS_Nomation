@@ -5,17 +5,26 @@ import { TestsModule } from './tests/tests.module';
 import { ExecutionModule } from './execution/execution.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AiModule } from './ai/ai.module';
+import { BrowserModule } from './browser/browser.module';
+import { AuthFlowsModule } from './auth-flows/auth-flows.module';
+import { McpModule } from './mcp/mcp.module';
+import { AnalysisModule } from './analysis/analysis.module';
 import { AppController } from './app.controller';
+import { StandaloneTemplatesController } from './auth-flows/standalone-templates.controller';
 
 @Module({
   imports: [
     PrismaModule,
     AuthModule,
-    ProjectsModule,
+    // ProjectsModule, // Temporarily disabled - depends on AuthFlowsModule
     TestsModule,
     ExecutionModule,
     AiModule,
+    BrowserModule,
+    // AuthFlowsModule, // Temporarily disabled - has dependency issues
+    McpModule,
+    AnalysisModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, StandaloneTemplatesController],
 })
 export class AppModule {}

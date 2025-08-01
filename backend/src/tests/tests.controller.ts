@@ -11,7 +11,7 @@ export class CreateTestDto {
   steps: any[];
 }
 
-@Controller('tests')
+@Controller('api/tests')
 @UseGuards(JwtAuthGuard)
 export class TestsController {
   constructor(

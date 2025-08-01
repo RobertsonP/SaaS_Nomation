@@ -33,9 +33,14 @@ model Project {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // NEW: Multiple URLs per project
-  urls        ProjectUrl[]
-  elements    ProjectElement[]
-  tests       Test[]
+  urls            ProjectUrl[]
+  elements        ProjectElement[]
+  tests           Test[]
+  
+  // NEW: Dynamic element discovery features
+  authFlows       AuthFlow[]
+  pageStates      PageState[]
+  browserSessions BrowserSession[]
   
   @@map("projects")
 }
@@ -73,6 +78,10 @@ model Test {
   
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Authentication flow for tests that require login
+  authFlowId  String?
+  authFlow    AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   
   executions  TestExecution[]
   
@@ -112,9 +121,30 @@ model ProjectElement {
   group       String?  // Elements that appear together
   isCommon    Boolean  @default(false) // Appears on multiple URLs
   
+  // NEW: Discovery context for dynamic elements
+  discoveryState   String?  // static, after_login, after_interaction, modal, hover
+  discoveryTrigger String?  // "clicked #menu", "logged in", "hovered .tooltip"
+  sourcePageTitle  String?  // Actual page title when discovered
+  sourceUrlPath    String?  // /contact, /dashboard when discovered
+  requiresAuth     Boolean  @default(false)
+  isModal          Boolean  @default(false)
+  
+  // NEW: Visual data for element recreation
+  cssInfo          Json?    // Comprehensive CSS styles for preview
+  boundingRect     Json?    // Position and size data
+  screenshot       String?  // Base64 encoded screenshot of the element
+  
   // URL where this element was found
   sourceUrlId String?
   sourceUrl   ProjectUrl? @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
+  
+  // NEW: Authentication flow used to discover this element
+  authFlowId  String?
+  authFlow    AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
+  
+  // NEW: Page state when this element was discovered
+  pageStateId String?
+  pageState   PageState? @relation(fields: [pageStateId], references: [id], onDelete: SetNull)
   
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -123,5 +153,76 @@ model ProjectElement {
   updatedAt   DateTime @updatedAt
   
   @@map("project_elements")
-  @@unique([projectId, selector, sourceUrlId])
+  @@unique([projectId, selector, sourceUrlId, discoveryState])
+}
+
+// NEW: Authentication flow configuration
+model AuthFlow {
+  id          String   @id @default(cuid())
+  name        String   // "Admin Login", "User Login"
+  loginUrl    String   // URL to start authentication
+  steps       Json     // Array of LoginStep objects
+  credentials Json     // Username/password (encrypted)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Elements discovered using this auth flow
+  elements    ProjectElement[]
+  
+  // Page states that used this auth flow
+  pageStates  PageState[]
+  
+  // Browser sessions using this auth flow
+  browserSessions BrowserSession[]
+  
+  // Tests that use this auth flow
+  tests       Test[]
+  
+  @@map("auth_flows")
+}
+
+// NEW: Page state tracking for multi-state analysis
+model PageState {
+  id           String   @id @default(cuid())
+  stateName    String   // "initial", "after_login", "after_interaction"
+  trigger      String?  // What action led to this state
+  url          String   // URL of the page in this state
+  pageTitle    String?  // Page title in this state
+  capturedAt   DateTime @default(now())
+  
+  // Authentication flow used (if any)
+  authFlowId   String?
+  authFlow     AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
+  
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Elements discovered in this state
+  elements     ProjectElement[]
+  
+  @@map("page_states")
+}
+
+// NEW: Live browser session management
+model BrowserSession {
+  id              String   @id @default(cuid())
+  sessionToken    String   @unique // UUID for session identification
+  isAuthenticated Boolean  @default(false)
+  currentState    String   @default("initial") // current page state
+  currentUrl      String?  // current page URL
+  startedAt       DateTime @default(now())
+  lastActivity    DateTime @default(now())
+  expiresAt       DateTime // Sessions expire after inactivity
+  
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Authentication flow in use (if any)
+  authFlowId      String?
+  authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
+  
+  @@map("browser_sessions")
 }

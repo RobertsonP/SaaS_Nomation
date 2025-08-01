@@ -48,16 +48,8 @@ export class ElementAnalyzerService {
    * Extract all testable elements from a page
    */
   private async extractAllPageElements(page: any): Promise<any[]> {
-    console.log('🔄 Starting extractAllPageElements - entering page.evaluate()...');
-    
     return await page.evaluate(() => {
-      console.log('🔍 === INSIDE BROWSER CONTEXT - ELEMENT EXTRACTION ===');
       const extractedElements: any[] = [];
-      
-      // Debug: Check basic page state
-      console.log('📄 Document ready state:', document.readyState);
-      console.log('📄 Document location:', window.location.href);
-      console.log('📄 Document title:', document.title);
       
       // Helper function: Get comprehensive element selectors
       const getElementSelectors = (): string[] => {
@@ -264,27 +256,9 @@ export class ElementAnalyzerService {
       
       // Get selectors and collect elements
       const selectors = getElementSelectors();
-      console.log(`🎯 Using ${selectors.length} selectors for element detection`);
-      
       const allElements = collectAllElements(selectors);
-      console.log(`🔍 Found ${allElements.size} unique elements after selector matching`);
-      
-      if (allElements.size === 0) {
-        console.error('❌ CRITICAL: No elements found by any selectors!');
-        console.error('❌ This suggests the page is empty or selectors are not matching.');
-        // Test basic selectors
-        const basicTest = document.querySelectorAll('*');
-        console.error(`❌ Basic * selector finds ${basicTest.length} elements`);
-        const buttonTest = document.querySelectorAll('button');
-        console.error(`❌ Button selector finds ${buttonTest.length} elements`);
-        const inputTest = document.querySelectorAll('input');
-        console.error(`❌ Input selector finds ${inputTest.length} elements`);
-        const linkTest = document.querySelectorAll('a');
-        console.error(`❌ Link selector finds ${linkTest.length} elements`);
-      }
         
       // Extract information for each element
-      let processedCount = 0;
       allElements.forEach((element, index) => {
           try {
             const rect = element.getBoundingClientRect();
@@ -689,17 +663,7 @@ export class ElementAnalyzerService {
           } catch (error) {
             console.error('Error processing element:', error);
           }
-          processedCount++;
         });
-        
-        console.log(`🔄 Processed ${processedCount} elements, ${extractedElements.length} added to results`);
-        
-        if (extractedElements.length === 0) {
-          console.error('❌ CRITICAL: No elements passed filtering! All elements were filtered out.');
-          if (allElements.size > 0) {
-            console.error('❌ This suggests the filtering logic is too restrictive for this page.');
-          }
-        }
         
         // Post-process to ensure all selectors are unique
         const uniqueSelectors = new Set<string>();
@@ -729,9 +693,6 @@ export class ElementAnalyzerService {
             selector: selector
           };
         });
-        
-        console.log(`✅ Final result: ${finalElements.length} elements ready for return`);
-        console.log('🏁 === BROWSER CONTEXT ELEMENT EXTRACTION COMPLETE ===');
         
         return finalElements;
       });
@@ -915,20 +876,67 @@ export class ElementAnalyzerService {
   }
 
   // Method for extracting elements from authenticated pages (used by authentication service)
-  // NOW USES FULL COMPREHENSIVE SELECTOR SYSTEM (same as main analysis)
   extractElementsFromAuthenticatedPage(page: any): Promise<any[]> {
-    console.log('🔍 Extracting elements from authenticated page with comprehensive selectors...');
+    console.log('🔍 Extracting elements from authenticated page...');
     
     try {
-      // Use the SAME comprehensive system as main analysis to avoid 0 elements issue
-      console.log('🔄 Calling extractAllPageElements for authenticated page...');
-      const result = this.extractAllPageElements(page);
-      console.log('✅ extractAllPageElements call completed for authenticated page');
-      return result;
+      // Reuse the main analyzePage logic for consistency
+      return page.evaluate(() => {
+        const extractedElements: any[] = [];
+        
+        // Use basic selectors for authenticated pages
+        const selectors = ['button', 'input', 'textarea', 'select', 'a', '[role="button"]', '[onclick]'];
+        
+        const allElements = new Set<Element>();
+        selectors.forEach(selector => {
+          try {
+            const matches = document.querySelectorAll(selector);
+            matches.forEach(el => allElements.add(el));
+          } catch (e) {
+            console.warn('Invalid selector:', selector);
+          }
+        });
+        
+        allElements.forEach((element) => {
+          try {
+            const rect = element.getBoundingClientRect();
+            const computedStyle = window.getComputedStyle(element);
+            
+            // Skip hidden elements
+            if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden' || 
+                rect.width === 0 && rect.height === 0) {
+              return;
+            }
+            
+            const tagName = element.tagName.toLowerCase();
+            const selector = element.id ? `#${element.id}` : 
+                           element.getAttribute('data-testid') ? `[data-testid="${element.getAttribute('data-testid')}"]` :
+                           tagName;
+            
+            extractedElements.push({
+              selector,
+              elementType: tagName === 'button' ? 'button' : tagName === 'input' ? 'input' : tagName === 'a' ? 'link' : 'element',
+              description: element.textContent?.trim().slice(0, 50) || `${tagName} element`,
+              confidence: 0.9,
+              discoveryState: 'after_login',
+              requiresAuth: true,
+              attributes: {
+                text: element.textContent?.trim() || '',
+                tagName,
+                id: element.id || '',
+                className: element.className || ''
+              }
+            });
+          } catch (error) {
+            console.error('Error processing element:', error);
+          }
+        });
+        
+        return extractedElements;
+      });
       
     } catch (error) {
       console.error('❌ Error extracting elements from authenticated page:', error);
-      console.error('❌ Error stack:', error.stack);
       return Promise.resolve([]);
     }
   }
