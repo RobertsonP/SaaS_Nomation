@@ -149,3 +149,24 @@ frontend/dist/
 
 # Turborepo
 .turbo
+
+# Development and testing artifacts
+# Test files (temporary)
+test-*.js
+*-test-*.js
+test-integrated-auth-flow.js
+test-tts-auth.js
+
+# Screenshots and debugging artifacts
+screenshots/
+*-screenshots/
+tts-auth-test-screenshots/
+# Individual screenshot files in backend
+backend/tts-*.png
+backend/*.png
+
+# Development logs (if keeping local only)
+# claude.log.md (uncomment to exclude from commits)
+
+# MCP configuration (if contains sensitive data)
+# mcp.config.json (uncomment if needed)
