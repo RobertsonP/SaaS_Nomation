@@ -43,42 +43,71 @@ export const authAPI = {
 
 // Projects API
 export const projectsAPI = {
-  getAll: () => api.get('/projects'),
-  getById: (id: string) => api.get(`/projects/${id}`),
+  getAll: () => api.get('/api/projects'),
+  getById: (id: string) => api.get(`/api/projects/${id}`),
   create: (data: { name: string; description?: string; urls: Array<{url: string; title?: string; description?: string}> }) =>
-    api.post('/projects', data),
-  delete: (id: string) => api.delete(`/projects/${id}`),
+    api.post('/api/projects', data),
+  update: (id: string, data: { name?: string; description?: string; urls?: Array<{url: string; title?: string; description?: string}> }) =>
+    api.put(`/api/projects/${id}`, data),
+  delete: (id: string) => api.delete(`/api/projects/${id}`),
   // AI Enhancement methods
   analyze: async (projectId: string): Promise<PageAnalysisResult> => {
-    const response = await api.post(`/projects/${projectId}/analyze`);
+    const response = await api.post(`/api/projects/${projectId}/analyze`);
     return response.data;
   },
   getElements: async (projectId: string): Promise<ProjectElement[]> => {
-    const response = await api.get(`/projects/${projectId}/elements`);
+    const response = await api.get(`/api/projects/${projectId}/elements`);
     return response.data;
   },
   validateSelector: async (projectId: string, selector: string): Promise<SelectorValidationResult> => {
-    const response = await api.post(`/projects/${projectId}/validate-selector`, { selector });
+    const response = await api.post(`/api/projects/${projectId}/validate-selector`, { selector });
+    return response.data;
+  },
+  captureElementScreenshot: async (projectId: string, elementId: string, selector: string, url: string) => {
+    const response = await api.post(`/api/projects/${projectId}/element/${elementId}/screenshot`, { selector, url });
+    return response.data;
+  },
+  getAnalysisMetrics: async (projectId: string) => {
+    const response = await api.get(`/api/projects/${projectId}/analysis-metrics`);
+    return response.data;
+  },
+  getAnalysisHistory: async (projectId: string) => {
+    const response = await api.get(`/api/projects/${projectId}/analysis-history`);
+    return response.data;
+  },
+  clearElements: async (projectId: string) => {
+    const response = await api.delete(`/api/projects/${projectId}/elements`);
     return response.data;
   },
 };
 
 // Tests API
 export const testsAPI = {
-  getByProject: (projectId: string) => api.get(`/tests/project/${projectId}`),
-  getById: (testId: string) => api.get(`/tests/${testId}`),
+  getByProject: (projectId: string) => api.get(`/api/tests/project/${projectId}`),
+  getById: (testId: string) => api.get(`/api/tests/${testId}`),
   create: (data: { name: string; description?: string; projectId: string; startingUrl: string; steps: any[] }) =>
-    api.post('/tests', data),
+    api.post('/api/tests', data),
   updateSteps: (testId: string, steps: any[]) =>
-    api.put(`/tests/${testId}/steps`, { steps }),
-  execute: (testId: string) => api.post(`/tests/${testId}/execute`),
+    api.put(`/api/tests/${testId}/steps`, { steps }),
+  execute: (testId: string) => api.post(`/api/tests/${testId}/execute`),
 };
 
 // Execution API
 export const executionAPI = {
-  run: (testId: string) => api.post(`/execution/test/${testId}/run`),
-  getResults: (testId: string) => api.get(`/execution/test/${testId}/results`),
-  getById: (executionId: string) => api.get(`/execution/${executionId}`),
+  run: (testId: string) => api.post(`/api/execution/test/${testId}/run`),
+  getResults: (testId: string) => api.get(`/api/execution/test/${testId}/results`),
+  getById: (executionId: string) => api.get(`/api/execution/${executionId}`),
+};
+
+// Auth Flows API
+export const authFlowsAPI = {
+  create: (projectId: string, authFlow: any) => api.post('/api/auth-flows', { projectId, ...authFlow }),
+  getByProject: (projectId: string) => api.get(`/api/auth-flows/project/${projectId}`),
+  delete: (id: string) => api.delete(`/api/auth-flows/${id}`),
+  // NEW: Fixed API methods for templates and testing
+  getTemplates: () => api.get('/api/templates/auth'), // Updated to use standalone endpoint
+  testAuth: (data: { loginUrl: string; username: string; password: string; steps?: any[] }) => 
+    api.post('/api/auth-flows/test', data),
 };
 
 // Convenience functions for AI features

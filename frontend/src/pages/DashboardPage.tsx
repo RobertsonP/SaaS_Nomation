@@ -36,7 +36,7 @@ export function DashboardPage() {
       
       // Calculate stats
       const totalProjects = response.data.length
-      const totalTests = response.data.reduce((sum, project) => sum + project._count.tests, 0)
+      const totalTests = response.data.reduce((sum: number, project: any) => sum + project._count.tests, 0)
       
       // For now, show N/A or 0% when no tests exist
       // TODO: Later fetch actual test execution results to calculate real success rate

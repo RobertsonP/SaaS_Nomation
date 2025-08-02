@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { projectsAPI, analyzeProjectPages } from '../../lib/api';
+import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { LoadingModal } from '../../components/shared/LoadingModal';
 
 interface Project {
   id: string;
   name: string;
   description?: string;
-  url: string;
+  urls: Array<{ id: string; url: string; title?: string; description?: string }>;
   createdAt: string;
   _count: { tests: number; elements?: number };
 }
@@ -17,14 +18,33 @@ export function ProjectsPage() {
   const { showSuccess, showError } = useNotification();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     urls: ['']
   });
-  // AI Enhancement: Track analysis state
-  const [analyzingProjects, setAnalyzingProjects] = useState<Set<string>>(new Set());
-  const [analysisResults, setAnalysisResults] = useState<Map<string, { success: boolean; elementCount: number; error?: string }>>(new Map());
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    urls: ['']
+  });
+  
+  // NEW: Authentication setup state
+  const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null); // projectId
+  const [authFormData, setAuthFormData] = useState({
+    name: '',
+    loginUrl: '',
+    username: '',
+    password: '',
+    steps: [
+      { type: 'type', selector: '#username', value: '${username}', description: 'Enter username' },
+      { type: 'type', selector: '#password', value: '${password}', description: 'Enter password' },
+      { type: 'click', selector: '#login-button', description: 'Click login button' }
+    ]
+  });
 
   useEffect(() => {
     loadProjects();
@@ -41,6 +61,9 @@ export function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isCreating) return; // Prevent multiple submissions
+    
     try {
       // Filter out empty URLs and use first URL as main URL for backward compatibility
       const validUrls = formData.urls.filter(url => url.trim() !== '');
@@ -48,6 +71,8 @@ export function ProjectsPage() {
         showError('Validation Error', 'Please add at least one URL');
         return;
       }
+      
+      setIsCreating(true);
       
       const projectData = {
         name: formData.name,
@@ -59,14 +84,24 @@ export function ProjectsPage() {
         })) // Properly formatted URLs array
       };
       
-      await projectsAPI.create(projectData);
+      const response = await projectsAPI.create(projectData);
+      const createdProject = response.data;
+      
+      // Reset form and close
       setFormData({ name: '', description: '', urls: [''] });
       setShowForm(false);
-      loadProjects();
+      
+      // Show success notification
       showSuccess('Project Created', `Successfully created project "${formData.name}" with ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}`);
+      
+      // Navigate to the created project
+      navigate(`/projects/${createdProject.id}`);
+      
     } catch (error) {
       console.error('Failed to create project:', error);
       showError('Creation Failed', 'Failed to create project. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -94,45 +129,6 @@ export function ProjectsPage() {
     });
   };
 
-  // AI Enhancement: Handle project page analysis
-  const handleAnalyzeProject = async (projectId: string) => {
-    setAnalyzingProjects(prev => new Set([...prev, projectId]));
-    
-    try {
-      const result = await analyzeProjectPages(projectId);
-      
-      const newResults = new Map(analysisResults);
-      newResults.set(projectId, {
-        success: result.success,
-        elementCount: result.elements.length,
-        error: result.errorMessage
-      });
-      setAnalysisResults(newResults);
-
-      if (result.success) {
-        // Refresh projects to show updated element count
-        loadProjects();
-        showSuccess('Analysis Complete', `Found ${result.elements.length} elements across ${result.totalUrls || 1} page${(result.totalUrls || 1) > 1 ? 's' : ''}`);
-      } else {
-        showError('Analysis Failed', result.errorMessage || 'Failed to analyze project pages');
-      }
-    } catch (error) {
-      const newResults = new Map(analysisResults);
-      newResults.set(projectId, {
-        success: false,
-        elementCount: 0,
-        error: 'Network error'
-      });
-      setAnalysisResults(newResults);
-      showError('Analysis Error', 'Network error occurred during analysis');
-    } finally {
-      setAnalyzingProjects(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(projectId);
-        return newSet;
-      });
-    }
-  };
 
   // Delete project function
   const handleDeleteProject = async (projectId: string, projectName: string) => {
@@ -148,6 +144,193 @@ export function ProjectsPage() {
       console.error('Failed to delete project:', error);
       showError('Delete Failed', 'Failed to delete project. Please try again.');
     }
+  };
+
+  // Edit project functions
+  const handleStartEdit = (project: Project) => {
+    setShowEditForm(project.id);
+    setEditFormData({
+      name: project.name,
+      description: project.description || '',
+      urls: project.urls.length > 0 ? project.urls.map(url => url.url) : ['']
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showEditForm || isUpdating) return;
+
+    try {
+      const validUrls = editFormData.urls.filter(url => url.trim() !== '');
+      if (validUrls.length === 0) {
+        showError('Validation Error', 'Please add at least one URL');
+        return;
+      }
+
+      setIsUpdating(true);
+
+      const updateData = {
+        name: editFormData.name,
+        description: editFormData.description,
+        urls: validUrls.map(url => ({
+          url: url,
+          title: 'Page',
+          description: 'Project URL'
+        }))
+      };
+
+      await projectsAPI.update(showEditForm, updateData);
+      setEditFormData({ name: '', description: '', urls: [''] });
+      setShowEditForm(null);
+      loadProjects();
+      showSuccess('Project Updated', `Successfully updated project "${editFormData.name}"`);
+    } catch (error) {
+      console.error('Failed to update project:', error);
+      showError('Update Failed', 'Failed to update project. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const addEditUrlField = () => {
+    setEditFormData({
+      ...editFormData,
+      urls: [...editFormData.urls, '']
+    });
+  };
+
+  const removeEditUrlField = (index: number) => {
+    const newUrls = editFormData.urls.filter((_, i) => i !== index);
+    setEditFormData({
+      ...editFormData,
+      urls: newUrls.length > 0 ? newUrls : ['']
+    });
+  };
+
+  const updateEditUrl = (index: number, value: string) => {
+    const newUrls = [...editFormData.urls];
+    newUrls[index] = value;
+    setEditFormData({
+      ...editFormData,
+      urls: newUrls
+    });
+  };
+
+  // NEW: Authentication setup functions
+  const handleShowAuthSetup = async (projectId: string) => {
+    setShowAuthSetup(projectId);
+    
+    try {
+      // CRITICAL FIX: Load existing auth flow data instead of empty form
+      const response = await authFlowsAPI.getByProject(projectId);
+      const existingAuthFlows = response.data;
+      
+      if (existingAuthFlows && existingAuthFlows.length > 0) {
+        // Load existing auth flow data
+        const authFlow = existingAuthFlows[0]; // Use first auth flow
+        console.log('Loading existing auth flow:', authFlow);
+        
+        setAuthFormData({
+          name: authFlow.name || '',
+          loginUrl: authFlow.loginUrl || '',
+          username: authFlow.credentials?.username || '',
+          password: authFlow.credentials?.password || '',
+          steps: authFlow.steps || [
+            { type: 'type', selector: '#username', value: '${username}', description: 'Enter username' },
+            { type: 'type', selector: '#password', value: '${password}', description: 'Enter password' },
+            { type: 'click', selector: '#login-button', description: 'Click login button' }
+          ]
+        });
+      } else {
+        // No existing auth flow - use default values
+        setAuthFormData({
+          name: '',
+          loginUrl: '',
+          username: '',
+          password: '',
+          steps: [
+            { type: 'type', selector: '#username', value: '${username}', description: 'Enter username' },
+            { type: 'type', selector: '#password', value: '${password}', description: 'Enter password' },
+            { type: 'click', selector: '#login-button', description: 'Click login button' }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load existing auth flow:', error);
+      // Fallback to empty form if API call fails
+      setAuthFormData({
+        name: '',
+        loginUrl: '',
+        username: '',
+        password: '',
+        steps: [
+          { type: 'type', selector: '#username', value: '${username}', description: 'Enter username' },
+          { type: 'type', selector: '#password', value: '${password}', description: 'Enter password' },
+          { type: 'click', selector: '#login-button', description: 'Click login button' }
+        ]
+      });
+    }
+  };
+
+  const handleSaveAuthFlow = async () => {
+    if (!showAuthSetup) return;
+
+    // Validation
+    if (!authFormData.name || !authFormData.loginUrl || !authFormData.username || !authFormData.password) {
+      showError('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (authFormData.steps.length === 0) {
+      showError('Validation Error', 'Please add at least one authentication step');
+      return;
+    }
+
+    // Validate steps
+    for (const step of authFormData.steps) {
+      if (!step.selector || !step.description) {
+        showError('Validation Error', 'Please fill in all step fields (selector and description)');
+        return;
+      }
+      if (step.type === 'type' && !step.value) {
+        showError('Validation Error', 'Type steps must have a value (use $' + '{username} or $' + '{password})');
+        return;
+      }
+    }
+
+    try {
+      await authFlowsAPI.create(showAuthSetup, {
+        name: authFormData.name,
+        loginUrl: authFormData.loginUrl,
+        username: authFormData.username,
+        password: authFormData.password,
+        steps: authFormData.steps,
+      });
+      
+      setShowAuthSetup(null);
+      showSuccess('Authentication Setup', 'Authentication flow saved successfully');
+    } catch (error) {
+      console.error('Failed to save auth flow:', error);
+      showError('Save Failed', 'Failed to save authentication flow. Please try again.');
+    }
+  };
+
+  const addAuthStep = () => {
+    setAuthFormData({
+      ...authFormData,
+      steps: [...authFormData.steps, { type: 'click', selector: '', description: '', value: '' }]
+    });
+  };
+
+  const updateAuthStep = (index: number, field: string, value: string) => {
+    const newSteps = [...authFormData.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setAuthFormData({ ...authFormData, steps: newSteps });
+  };
+
+  const removeAuthStep = (index: number) => {
+    const newSteps = authFormData.steps.filter((_, i) => i !== index);
+    setAuthFormData({ ...authFormData, steps: newSteps });
   };
 
   return (
@@ -236,9 +419,6 @@ export function ProjectsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {projects.map((project) => {
-          const isAnalyzing = analyzingProjects.has(project.id);
-          const analysisResult = analysisResults.get(project.id);
-          
           return (
             <div 
               key={project.id} 
@@ -250,26 +430,21 @@ export function ProjectsPage() {
                 <h3 className="text-lg font-semibold flex-1">{project.name}</h3>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => handleAnalyzeProject(project.id)}
-                    disabled={isAnalyzing}
-                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                      isAnalyzing
-                        ? 'bg-yellow-100 text-yellow-800 cursor-not-allowed'
-                        : 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-                    }`}
-                    title="Analyze pages with AI to discover elements"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartEdit(project);
+                    }}
+                    className="px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
+                    title="Edit project details and URLs"
                   >
-                    {isAnalyzing ? (
-                      <>
-                        <svg className="animate-spin inline w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Analyzing...
-                      </>
-                    ) : (
-                      '🔍 Analyze'
-                    )}
+                    ✏️ Edit
+                  </button>
+                  <button
+                    onClick={() => handleShowAuthSetup(project.id)}
+                    className="px-3 py-1 text-xs rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                    title="Setup authentication for protected pages"
+                  >
+                    🔐 Auth
                   </button>
                   <button
                     onClick={(e) => {
@@ -285,22 +460,20 @@ export function ProjectsPage() {
               </div>
 
               <p className="text-gray-600 mb-2">{project.description}</p>
-              <p className="text-sm text-blue-600 mb-4 truncate">{project.url}</p>
-
-              {/* Analysis Results */}
-              {analysisResult && (
-                <div className={`mb-3 p-2 rounded text-xs ${
-                  analysisResult.success 
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
-                }`}>
-                  {analysisResult.success ? (
-                    <span>✓ Found {analysisResult.elementCount} elements</span>
-                  ) : (
-                    <span>⚠ Analysis failed: {analysisResult.error}</span>
-                  )}
-                </div>
-              )}
+              <div className="mb-4">
+                {project.urls && project.urls.length > 0 ? (
+                  <div className="space-y-1">
+                    {project.urls.slice(0, 2).map((url, index) => (
+                      <p key={url.id || index} className="text-sm text-blue-600 truncate">{url.url}</p>
+                    ))}
+                    {project.urls.length > 2 && (
+                      <p className="text-xs text-gray-500">+ {project.urls.length - 2} more URLs</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No URLs configured</p>
+                )}
+              </div>
 
               {/* Project Stats */}
               <div className="flex justify-between items-center mb-4">
@@ -349,6 +522,289 @@ export function ProjectsPage() {
           </button>
         </div>
       )}
+
+      {/* NEW: Authentication Setup Modal */}
+      {showAuthSetup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">🔐 Setup Authentication Flow</h2>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800 font-medium mb-2">How Authentication Works:</p>
+              <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
+                <li>System will navigate to your login page</li>
+                <li>Execute the steps you define below (fill username, password, click login)</li>
+                <li>Once logged in, scrape all project URLs for elements</li>
+                <li>Discover elements only available after authentication</li>
+              </ol>
+            </div>
+            
+            <form className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Flow Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Admin Login, User Portal Access"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={authFormData.name}
+                    onChange={(e) => setAuthFormData({...authFormData, name: e.target.value})}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Give this authentication flow a descriptive name</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Login Page URL <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://yoursite.com/login"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={authFormData.loginUrl}
+                    onChange={(e) => setAuthFormData({...authFormData, loginUrl: e.target.value})}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">URL where the login form is located</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Username/Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="your.username@example.com"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={authFormData.username}
+                    onChange={(e) => setAuthFormData({...authFormData, username: e.target.value})}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Actual credentials to use for login</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Your secure password"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={authFormData.password}
+                    onChange={(e) => setAuthFormData({...authFormData, password: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Login Steps <span className="text-red-500">*</span>
+                </label>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-yellow-800 font-medium mb-2">Step Instructions:</p>
+                  <ul className="text-xs text-yellow-700 space-y-1">
+                    <li><strong>Type:</strong> Fill form fields with {'${username}'} or {'${password}'} placeholders</li>
+                    <li><strong>Click:</strong> Click buttons, links, or submit forms</li>
+                    <li><strong>Wait:</strong> Wait specified milliseconds (useful between actions)</li>
+                    <li><strong>Selectors:</strong> Use CSS selectors like #username, .login-btn, [name="email"]</li>
+                  </ul>
+                </div>
+                
+                {authFormData.steps.map((step, index) => (
+                  <div key={index} className="border border-gray-200 rounded-md p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Step {index + 1}</span>
+                      {authFormData.steps.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeAuthStep(index)}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
+                          <select
+                            value={step.type}
+                            onChange={(e) => updateAuthStep(index, 'type', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                          >
+                            <option value="type">⌨️ Type Text</option>
+                            <option value="click">🖱️ Click Element</option>
+                            <option value="wait">⏱️ Wait</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            {step.type === 'wait' ? 'Milliseconds' : 'CSS Selector'}
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={
+                              step.type === 'wait' ? '2000' : 
+                              step.type === 'type' ? '#username, [name="email"]' :
+                              '#login-btn, .submit'
+                            }
+                            value={step.selector}
+                            onChange={(e) => updateAuthStep(index, 'selector', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                          />
+                        </div>
+                        
+                        {step.type === 'type' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Value</label>
+                            <input
+                              type="text"
+                              placeholder="$username or $password"
+                              value={step.value}
+                              onChange={(e) => updateAuthStep(index, 'value', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                            />
+                          </div>
+                        )}
+                      
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <input
+                          type="text"
+                          placeholder={
+                            step.type === 'type' ? 'e.g., Enter username in email field' :
+                            step.type === 'click' ? 'e.g., Click the login button' :
+                            'e.g., Wait for page to load'
+                          }
+                          value={step.description}
+                          onChange={(e) => updateAuthStep(index, 'description', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <button
+                  type="button"
+                  onClick={addAuthStep}
+                  className="bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600"
+                >
+                  + Add Step
+                </button>
+              </div>
+            </form>
+
+            <div className="flex space-x-4 mt-6">
+              <button
+                onClick={handleSaveAuthFlow}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Save Authentication
+              </button>
+              <button
+                onClick={() => setShowAuthSetup(null)}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {showEditForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">Edit Project</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <input
+                  type="text"
+                  required
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Website URLs</label>
+                {editFormData.urls.map((url, index) => (
+                  <div key={index} className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="url"
+                      required={index === 0}
+                      placeholder="https://example.com"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                      value={url}
+                      onChange={(e) => updateEditUrl(index, e.target.value)}
+                    />
+                    {editFormData.urls.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeEditUrlField(index)}
+                        className="bg-red-500 text-white px-2 py-2 rounded-md hover:bg-red-600 text-sm"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addEditUrlField}
+                  className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm mt-2"
+                >
+                  + Add URL
+                </button>
+              </div>
+              <div className="flex space-x-4">
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Update Project
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditForm(null)}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modals */}
+      <LoadingModal
+        isOpen={isCreating}
+        message="Creating Project"
+        subMessage="Please wait while we set up your project..."
+      />
+      
+      <LoadingModal
+        isOpen={isUpdating}
+        message="Updating Project"
+        subMessage="Please wait while we save your changes..."
+      />
     </div>
   );
 }

@@ -22,7 +22,6 @@ import { SelectorSuggestions } from './SelectorSuggestions'
 import { SelectorValidator } from './SelectorValidator'
 import { SortableTestStep } from './SortableTestStep'
 import { DragOverlay } from './DragOverlay'
-import { VisualElementPicker } from './VisualElementPicker'
 
 interface TestStep {
   id: string
@@ -37,10 +36,9 @@ interface TestBuilderProps {
   onCancel: () => void
   initialSteps?: TestStep[]
   projectId?: string // AI Enhancement: Pass project ID for element library
-  projectUrl?: string // Visual element picker: Pass project URL
 }
 
-export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, projectUrl }: TestBuilderProps) {
+export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId }: TestBuilderProps) {
   // Existing state
   const [steps, setSteps] = useState<TestStep[]>(initialSteps)
   const [showAddStep, setShowAddStep] = useState(false)
@@ -58,10 +56,15 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showElementLibrary, setShowElementLibrary] = useState(false)
   const [enableValidation, setEnableValidation] = useState(true)
-  const [showVisualPicker, setShowVisualPicker] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [showAiSuggestions, setShowAiSuggestions] = useState(false)
   const [loadingAiSuggestions, setLoadingAiSuggestions] = useState(false)
+  
+  // NEW: Live Mode state for dynamic element discovery
+  const [isLiveMode, setIsLiveMode] = useState(false)
+  const [liveBrowserSession, setLiveBrowserSession] = useState<string | null>(null)
+  const [liveElements, setLiveElements] = useState<ProjectElement[]>([])
+  const [loadingLiveElements, setLoadingLiveElements] = useState(false)
 
   // Drag and Drop state
   const [activeStep, setActiveStep] = useState<TestStep | null>(null)
@@ -99,6 +102,107 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
       // Silently fail - element library is optional
     } finally {
       setLoadingElements(false)
+    }
+  }
+
+  // NEW: Live Mode functions
+  const startLiveMode = async () => {
+    if (!projectId) return
+
+    setLoadingLiveElements(true)
+    try {
+      // TODO: Implement API call to create live browser session
+      // const response = await fetch('/api/browser/sessions', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ projectId })
+      // })
+      // const session = await response.json()
+      
+      // Mock session for now
+      const mockSessionToken = `session_${Date.now()}`
+      setLiveBrowserSession(mockSessionToken)
+      setIsLiveMode(true)
+      
+      // Load initial elements
+      await loadLiveElements()
+    } catch (error) {
+      console.error('Failed to start live mode:', error)
+    } finally {
+      setLoadingLiveElements(false)
+    }
+  }
+
+  const stopLiveMode = async () => {
+    if (!liveBrowserSession) return
+
+    try {
+      // TODO: Implement API call to close live browser session
+      // await fetch(`/api/browser/sessions/${liveBrowserSession}`, {
+      //   method: 'DELETE'
+      // })
+      
+      setLiveBrowserSession(null)
+      setIsLiveMode(false)
+      setLiveElements([])
+    } catch (error) {
+      console.error('Failed to stop live mode:', error)
+    }
+  }
+
+  const loadLiveElements = async () => {
+    try {
+      // TODO: Implement API call to capture live elements
+      // const response = await fetch(`/api/browser/sessions/${sessionToken}/elements`)
+      // const data = await response.json()
+      // setLiveElements(data.elements)
+      
+      // Mock live elements for now
+      const mockLiveElements = [
+        {
+          id: 'live_1',
+          selector: '#dynamic-button',
+          elementType: 'button',
+          description: 'Dynamic Button (Live)',
+          confidence: 0.95,
+          attributes: { text: 'Click Me', discoveryState: 'after_login' }
+        },
+        {
+          id: 'live_2', 
+          selector: '.modal-close',
+          elementType: 'button',
+          description: 'Modal Close Button (Live)',
+          confidence: 0.9,
+          attributes: { text: '×', discoveryState: 'modal' }
+        }
+      ]
+      setLiveElements(mockLiveElements as any)
+    } catch (error) {
+      console.error('Failed to load live elements:', error)
+    }
+  }
+
+  const performLiveAction = async (action: { type: string; selector: string; value?: string }) => {
+    if (!liveBrowserSession) return
+
+    setLoadingLiveElements(true)
+    try {
+      // TODO: Implement API call to perform action and capture new elements
+      // const response = await fetch(`/api/browser/sessions/${liveBrowserSession}/actions`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(action)
+      // })
+      // const data = await response.json()
+      // setLiveElements(data.elements)
+      
+      console.log('Performed live action:', action)
+      // Mock new elements discovered after action
+      await loadLiveElements()
+    } catch (error) {
+      console.error('Failed to perform live action:', error)
+    } finally {
+      setLoadingLiveElements(false)
     }
   }
 
@@ -171,15 +275,6 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
   }
 
   // Visual Element Picker: Handle element selection
-  const handleVisualElementSelect = (selector: string, description: string) => {
-    setNewStep({
-      ...newStep,
-      selector,
-      description: newStep.description || description
-    })
-    setShowVisualPicker(false)
-    setShowAddStep(true) // Open add step form if not already open
-  }
 
   // AI Suggestion: Generate improved selector alternatives
   const handleAISuggestion = async () => {
@@ -343,6 +438,34 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
           
           {/* AI Enhancement: Controls */}
           <div className="flex items-center space-x-3">
+            {/* NEW: Live Mode Toggle */}
+            {projectId && (
+              <button
+                onClick={isLiveMode ? stopLiveMode : startLiveMode}
+                disabled={loadingLiveElements}
+                className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isLiveMode 
+                    ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } ${loadingLiveElements ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={isLiveMode ? 'Stop live browser session' : 'Start live browser session for real-time element discovery'}
+              >
+                {loadingLiveElements ? (
+                  <>
+                    <svg className="animate-spin inline w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                  </>
+                ) : isLiveMode ? (
+                  '🔴 Stop Live'
+                ) : (
+                  '🟢 Live Mode'
+                )}
+              </button>
+            )}
+
             {/* Validation Toggle */}
             <button
               onClick={() => setEnableValidation(!enableValidation)}
@@ -357,7 +480,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
             </button>
 
             {/* Element Library Toggle */}
-            {elementLibrary.length > 0 && (
+            {(elementLibrary.length > 0 || liveElements.length > 0) && (
               <button
                 onClick={() => setShowElementLibrary(!showElementLibrary)}
                 className={`px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -365,34 +488,20 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
                     ? 'bg-blue-600 text-white hover:bg-blue-700' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
-                title={`${showElementLibrary ? 'Hide' : 'Show'} AI element library`}
+                title={`${showElementLibrary ? 'Hide' : 'Show'} element library`}
               >
-                {showElementLibrary ? '🤖 Hide Elements' : '🤖 Show Elements'}
+                {showElementLibrary ? '🤖 Hide Elements' : `🤖 Show Elements ${isLiveMode ? '(Live)' : ''}`}
               </button>
             )}
 
-            {/* Visual Element Picker Toggle */}
-            {projectUrl && (
-              <button
-                onClick={() => setShowVisualPicker(!showVisualPicker)}
-                className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                  showVisualPicker 
-                    ? 'bg-purple-600 text-white hover:bg-purple-700' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                title="Visual element picker - click elements on your website"
-              >
-                {showVisualPicker ? '🎯 Hide Picker' : '🎯 Element Picker'}
-              </button>
-            )}
 
-            {loadingElements && (
+            {(loadingElements || loadingLiveElements) && (
               <div className="flex items-center text-sm text-gray-500">
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Loading elements...
+                {loadingLiveElements ? 'Loading live elements...' : 'Loading elements...'}
               </div>
             )}
           </div>
@@ -401,16 +510,6 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
 
       <div className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Visual Element Picker */}
-          {showVisualPicker && projectUrl && (
-            <div className="lg:col-span-3 mb-6">
-              <VisualElementPicker
-                projectUrl={projectUrl}
-                onElementSelect={handleVisualElementSelect}
-                onClose={() => setShowVisualPicker(false)}
-              />
-            </div>
-          )}
 
           {/* Main Test Builder Column */}
           <div className={`${showElementLibrary ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
@@ -501,10 +600,10 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
                 
                 {/* AI Suggestions Dropdown */}
                 <SelectorSuggestions
-                  elements={elementLibrary}
+                  elements={isLiveMode ? liveElements : elementLibrary}
                   currentSelector={newStep.selector || ''}
                   onSelectSuggestion={handleSuggestionSelect}
-                  isVisible={showSuggestions && elementLibrary.length > 0}
+                  isVisible={showSuggestions && (elementLibrary.length > 0 || liveElements.length > 0)}
                 />
 
                 {/* AI Suggestions Display */}
@@ -649,9 +748,11 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, pr
           {showElementLibrary && (
             <div className="lg:col-span-1">
               <ElementLibraryPanel
-                elements={elementLibrary}
+                elements={isLiveMode ? liveElements : elementLibrary}
                 onSelectElement={handleElementSelect}
-                isLoading={loadingElements}
+                isLoading={loadingElements || loadingLiveElements}
+                isLiveMode={isLiveMode}
+                onPerformAction={isLiveMode ? performLiveAction : undefined}
               />
             </div>
           )}

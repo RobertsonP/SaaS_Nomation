@@ -3,7 +3,7 @@ import { SortableTestStep } from './SortableTestStep';
 
 interface TestStep {
   id: string;
-  type: 'click' | 'type' | 'wait' | 'assert';
+  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck';
   selector: string;
   value?: string;
   description: string;
@@ -23,6 +23,7 @@ export function DragOverlay({ activeStep, activeIndex }: DragOverlayProps) {
             step={activeStep}
             index={activeIndex}
             onRemove={() => {}}
+            onEdit={() => {}}
           />
         </div>
       ) : null}
