@@ -14,7 +14,7 @@ export class UpdateProjectDto {
   urls?: Array<{url: string; title?: string; description?: string}>;
 }
 
-@Controller('api/projects')
+@Controller('projects')
 @UseGuards(JwtAuthGuard)
 export class ProjectsController {
   constructor(private projectsService: ProjectsService) {}
