@@ -56,4 +56,17 @@ export class TestsService {
     });
   }
 
+  async update(testId: string, data: { name: string; description?: string; startingUrl: string; steps: any[] }) {
+    return this.prisma.test.update({
+      where: { id: testId },
+      data: {
+        name: data.name,
+        description: data.description,
+        startingUrl: data.startingUrl,
+        steps: data.steps,
+        status: 'active',
+      },
+    });
+  }
+
 }

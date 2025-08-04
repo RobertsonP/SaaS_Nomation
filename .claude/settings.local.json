@@ -74,7 +74,8 @@
       "Bash(PLAYWRIGHT_BROWSERS_PATH=/home/robus/.cache/ms-playwright timeout 3 node node_modules/@playwright/mcp/index.js 2 >& 1)",
       "Bash(pkill:*)",
       "Bash(npm start)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

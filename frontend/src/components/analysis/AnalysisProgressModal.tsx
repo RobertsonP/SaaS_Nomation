@@ -60,7 +60,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         setOverallProgress(event.progress.percentage);
       } else {
         // Enhanced progress estimation with more granular steps
-        const stepProgress = {
+        const stepProgress: Record<string, number> = {
           'initialization': 10,
           'auth_check': 20,
           'authenticated_analysis': 45,
@@ -98,6 +98,11 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
 
     newSocket.on('disconnect', () => {
       console.log('Disconnected from analysis progress socket');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.warn('Analysis WebSocket connection failed - analysis progress will not be available:', error.message);
+      // Don't spam the console with repeated connection attempts
     });
 
     setSocket(newSocket);

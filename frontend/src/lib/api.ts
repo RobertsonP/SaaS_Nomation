@@ -43,40 +43,45 @@ export const authAPI = {
 
 // Projects API
 export const projectsAPI = {
-  getAll: () => api.get('/api/projects'),
-  getById: (id: string) => api.get(`/api/projects/${id}`),
+  getAll: () => api.get('/projects'),
+  getById: (id: string) => api.get(`/projects/${id}`),
   create: (data: { name: string; description?: string; urls: Array<{url: string; title?: string; description?: string}> }) =>
-    api.post('/api/projects', data),
+    api.post('/projects', data),
   update: (id: string, data: { name?: string; description?: string; urls?: Array<{url: string; title?: string; description?: string}> }) =>
-    api.put(`/api/projects/${id}`, data),
-  delete: (id: string) => api.delete(`/api/projects/${id}`),
+    api.put(`/projects/${id}`, data),
+  delete: (id: string) => api.delete(`/projects/${id}`),
   // AI Enhancement methods
   analyze: async (projectId: string): Promise<PageAnalysisResult> => {
-    const response = await api.post(`/api/projects/${projectId}/analyze`);
+    const response = await api.post(`/projects/${projectId}/analyze`);
     return response.data;
   },
   getElements: async (projectId: string): Promise<ProjectElement[]> => {
-    const response = await api.get(`/api/projects/${projectId}/elements`);
+    const response = await api.get(`/projects/${projectId}/elements`);
     return response.data;
   },
   validateSelector: async (projectId: string, selector: string): Promise<SelectorValidationResult> => {
-    const response = await api.post(`/api/projects/${projectId}/validate-selector`, { selector });
+    const response = await api.post(`/projects/${projectId}/validate-selector`, { selector });
+    return response.data;
+  },
+  // Phase 2: Cross-page selector validation
+  validateSelectorAcrossProject: async (projectId: string, selector: string): Promise<SelectorValidationResult> => {
+    const response = await api.post(`/projects/${projectId}/validate-selector-cross-page`, { selector });
     return response.data;
   },
   captureElementScreenshot: async (projectId: string, elementId: string, selector: string, url: string) => {
-    const response = await api.post(`/api/projects/${projectId}/element/${elementId}/screenshot`, { selector, url });
+    const response = await api.post(`/projects/${projectId}/element/${elementId}/screenshot`, { selector, url });
     return response.data;
   },
   getAnalysisMetrics: async (projectId: string) => {
-    const response = await api.get(`/api/projects/${projectId}/analysis-metrics`);
+    const response = await api.get(`/projects/${projectId}/analysis-metrics`);
     return response.data;
   },
   getAnalysisHistory: async (projectId: string) => {
-    const response = await api.get(`/api/projects/${projectId}/analysis-history`);
+    const response = await api.get(`/projects/${projectId}/analysis-history`);
     return response.data;
   },
   clearElements: async (projectId: string) => {
-    const response = await api.delete(`/api/projects/${projectId}/elements`);
+    const response = await api.delete(`/projects/${projectId}/elements`);
     return response.data;
   },
 };
@@ -87,6 +92,8 @@ export const testsAPI = {
   getById: (testId: string) => api.get(`/api/tests/${testId}`),
   create: (data: { name: string; description?: string; projectId: string; startingUrl: string; steps: any[] }) =>
     api.post('/api/tests', data),
+  update: (testId: string, data: { name: string; description?: string; startingUrl: string; steps: any[] }) =>
+    api.put(`/api/tests/${testId}`, data),
   updateSteps: (testId: string, steps: any[]) =>
     api.put(`/api/tests/${testId}/steps`, { steps }),
   execute: (testId: string) => api.post(`/api/tests/${testId}/execute`),

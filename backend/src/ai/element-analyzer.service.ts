@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { chromium } from 'playwright';
 import { AiService } from './ai.service';
-import { PageAnalysisResult, SelectorValidationResult } from './interfaces/element.interface';
+import { PageAnalysisResult, SelectorValidationResult, QualityMetrics } from './interfaces/element.interface';
 
 @Injectable()
 export class ElementAnalyzerService {
@@ -282,6 +282,117 @@ export class ElementAnalyzerService {
         const linkTest = document.querySelectorAll('a');
         console.error(`❌ Link selector finds ${linkTest.length} elements`);
       }
+      
+      // Phase 2: Enhanced CSS Property Validation and Extraction Helper
+      const extractValidatedCSSProperties = (element: Element, computedStyle: CSSStyleDeclaration) => {
+        try {
+          // Helper to safely get CSS property with fallbacks
+          const getCSSProperty = (property: string, fallback: string = '') => {
+            try {
+              const value = computedStyle.getPropertyValue(property) || computedStyle[property as any] || fallback;
+              return value === 'none' || value === 'auto' || value === 'normal' ? fallback : value;
+            } catch (e) {
+              return fallback;
+            }
+          };
+          
+          // Helper to determine element visibility and interaction state
+          const isElementVisible = () => {
+            return computedStyle.visibility !== 'hidden' && 
+                   computedStyle.display !== 'none' && 
+                   parseFloat(computedStyle.opacity || '1') > 0;
+          };
+          
+          const hasVisualStyling = () => {
+            const bgColor = computedStyle.backgroundColor;
+            const hasBackground = bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent';
+            const hasBorder = computedStyle.border && computedStyle.border !== 'none' && computedStyle.border !== '0px none';
+            const hasShadow = computedStyle.boxShadow && computedStyle.boxShadow !== 'none';
+            return hasBackground || hasBorder || hasShadow;
+          };
+          
+          // Extract and validate comprehensive CSS properties
+          return {
+            // Visual properties with validation
+            backgroundColor: getCSSProperty('background-color', 'transparent'),
+            color: getCSSProperty('color', '#000000'),
+            fontSize: getCSSProperty('font-size', '16px'),
+            fontFamily: getCSSProperty('font-family', 'inherit'),
+            fontWeight: getCSSProperty('font-weight', 'normal'),
+            textDecoration: getCSSProperty('text-decoration', 'none'),
+            textAlign: getCSSProperty('text-align', 'start'),
+            lineHeight: getCSSProperty('line-height', 'normal'),
+            letterSpacing: getCSSProperty('letter-spacing', 'normal'),
+            
+            // Border and spacing with validation
+            padding: getCSSProperty('padding', '0px'),
+            margin: getCSSProperty('margin', '0px'),
+            border: getCSSProperty('border', 'none'),
+            borderRadius: getCSSProperty('border-radius', '0px'),
+            boxShadow: getCSSProperty('box-shadow', 'none'),
+            outline: getCSSProperty('outline', 'none'),
+            
+            // Layout properties with validation
+            width: getCSSProperty('width', 'auto'),
+            height: getCSSProperty('height', 'auto'),
+            display: getCSSProperty('display', 'block'),
+            position: getCSSProperty('position', 'static'),
+            top: getCSSProperty('top', 'auto'),
+            left: getCSSProperty('left', 'auto'),
+            right: getCSSProperty('right', 'auto'),
+            bottom: getCSSProperty('bottom', 'auto'),
+            zIndex: getCSSProperty('z-index', 'auto'),
+            overflow: getCSSProperty('overflow', 'visible'),
+            
+            // Visual effects and transforms with validation
+            opacity: getCSSProperty('opacity', '1'),
+            visibility: getCSSProperty('visibility', 'visible'),
+            transform: getCSSProperty('transform', 'none'),
+            filter: getCSSProperty('filter', 'none'),
+            cursor: getCSSProperty('cursor', 'auto'),
+            pointerEvents: getCSSProperty('pointer-events', 'auto'),
+            
+            // Background and images with validation
+            backgroundImage: getCSSProperty('background-image', 'none'),
+            backgroundSize: getCSSProperty('background-size', 'auto'),
+            backgroundPosition: getCSSProperty('background-position', '0% 0%'),
+            backgroundRepeat: getCSSProperty('background-repeat', 'repeat'),
+            
+            // Flexbox and Grid properties with validation
+            flexDirection: getCSSProperty('flex-direction', 'row'),
+            justifyContent: getCSSProperty('justify-content', 'flex-start'),
+            alignItems: getCSSProperty('align-items', 'stretch'),
+            gridTemplateColumns: getCSSProperty('grid-template-columns', 'none'),
+            gridTemplateRows: getCSSProperty('grid-template-rows', 'none'),
+            
+            // Interactive state indicators with validation
+            transition: getCSSProperty('transition', 'none'),
+            animation: getCSSProperty('animation', 'none'),
+            
+            // Quality indicators for CSS preview
+            isVisible: isElementVisible(),
+            hasBackground: computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedStyle.backgroundColor !== 'transparent',
+            hasText: (element.textContent?.trim() || '').length > 0,
+            isStyled: hasVisualStyling()
+          };
+        } catch (error) {
+          console.warn('CSS property extraction failed for element:', error);
+          // Return minimal fallback CSS properties
+          return {
+            backgroundColor: 'transparent',
+            color: '#000000',
+            fontSize: '16px',
+            fontFamily: 'inherit',
+            fontWeight: 'normal',
+            display: 'block',
+            position: 'static',
+            isVisible: true,
+            hasBackground: false,
+            hasText: (element.textContent?.trim() || '').length > 0,
+            isStyled: false
+          };
+        }
+      };
         
       // Extract information for each element
       let processedCount = 0;
@@ -661,22 +772,8 @@ export class ElementAnalyzerService {
                 type: element.getAttribute('type') || '',
                 href: element.getAttribute('href') || '',
                 'data-testid': element.getAttribute('data-testid') || '',
-                // CSS information
-                cssInfo: {
-                  backgroundColor: computedStyle.backgroundColor,
-                  color: computedStyle.color,
-                  fontSize: computedStyle.fontSize,
-                  fontFamily: computedStyle.fontFamily,
-                  fontWeight: computedStyle.fontWeight,
-                  padding: computedStyle.padding,
-                  margin: computedStyle.margin,
-                  border: computedStyle.border,
-                  borderRadius: computedStyle.borderRadius,
-                  width: computedStyle.width,
-                  height: computedStyle.height,
-                  display: computedStyle.display,
-                  position: computedStyle.position
-                },
+                // CSS information - Enhanced Phase 2 with comprehensive validation
+                cssInfo: extractValidatedCSSProperties(element, computedStyle),
                 // Position and size
                 boundingRect: {
                   x: rect.x,
@@ -774,6 +871,7 @@ export class ElementAnalyzerService {
     await browser.close();
   }
 
+  // Phase 2: Enhanced selector validation with comprehensive metrics
   async validateSelector(url: string, selector: string): Promise<SelectorValidationResult> {
     const browser = await this.setupBrowser();
     const page = await browser.newPage();
@@ -785,11 +883,25 @@ export class ElementAnalyzerService {
       const elements = await page.locator(selector).all();
       const elementCount = elements.length;
       
-      // Calculate quality score
-      const qualityScore = this.calculateSelectorQuality(selector, elementCount);
+      // Get element handle for additional analysis
+      let elementHandle = null;
+      if (elementCount > 0) {
+        try {
+          elementHandle = await page.locator(selector).first().elementHandle();
+        } catch (e) {
+          // Element handle not available
+        }
+      }
       
-      // Generate suggestions
-      const suggestions = this.generateSelectorSuggestions(selector, elementCount);
+      // Calculate comprehensive quality metrics
+      const qualityBreakdown = this.calculateEnhancedSelectorQuality(selector, elementCount, elementHandle);
+      
+      // Generate enhanced suggestions
+      const suggestions = this.generateEnhancedSelectorSuggestions(selector, elementCount, qualityBreakdown);
+      
+      // Generate alternative selectors if not unique
+      const alternativeSelectors = elementCount !== 1 ? 
+        await this.generateAlternativeSelectors(page, selector, elementHandle) : [];
       
       await this.closeBrowser(browser);
       
@@ -797,8 +909,15 @@ export class ElementAnalyzerService {
         selector,
         isValid: elementCount > 0,
         elementCount,
-        qualityScore,
-        suggestions
+        qualityScore: qualityBreakdown.overall,
+        suggestions,
+        // Enhanced Phase 2 properties
+        isUnique: elementCount === 1,
+        stabilityScore: qualityBreakdown.stability,
+        accessibilityScore: qualityBreakdown.accessibility,
+        specificityScore: qualityBreakdown.specificity,
+        alternativeSelectors,
+        qualityBreakdown
       };
     } catch (error) {
       await this.closeBrowser(browser);
@@ -809,58 +928,280 @@ export class ElementAnalyzerService {
         elementCount: 0,
         qualityScore: 0,
         suggestions: ['Selector syntax error or element not found'],
-        error: error.message
+        error: error.message,
+        isUnique: false,
+        stabilityScore: 0,
+        accessibilityScore: 0,
+        specificityScore: 0,
+        alternativeSelectors: [],
+        qualityBreakdown: {
+          uniqueness: 0,
+          stability: 0,
+          specificity: 0,
+          accessibility: 0,
+          overall: 0
+        }
       };
     }
   }
 
-  private calculateSelectorQuality(selector: string, elementCount: number): number {
-    let score = 0;
+  // Phase 2: Cross-page selector validation for project-wide consistency
+  async validateSelectorAcrossPages(urls: string[], selector: string): Promise<SelectorValidationResult> {
+    try {
+      // Validate input URLs
+      if (!urls || urls.length === 0) {
+        throw new Error('No URLs provided for validation');
+      }
+      const validationResults = [];
+      const browser = await this.setupBrowser();
+
+      for (const url of urls) {
+        try {
+          const page = await browser.newPage();
+          await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
+          
+          const elements = await page.locator(selector).all();
+          const elementCount = elements.length;
+          
+          validationResults.push({
+            url,
+            elementCount,
+            isValid: elementCount > 0,
+            isUnique: elementCount === 1,
+            error: null
+          });
+          
+          await page.close();
+        } catch (error) {
+          validationResults.push({
+            url,
+            elementCount: 0,
+            isValid: false,
+            isUnique: false,
+            error: error.message
+          });
+        }
+      }
+
+      await this.closeBrowser(browser);
+
+      // Analyze cross-page results
+      const validUrls = validationResults.filter(r => r.isValid).length;
+      const uniqueOnAllPages = validationResults.every(r => r.isUnique || !r.isValid);
+      const averageMatchCount = validationResults
+        .filter(r => r.isValid)
+        .reduce((sum, r) => sum + r.elementCount, 0) / Math.max(validUrls, 1);
+      
+      const inconsistentPages = validationResults
+        .filter(r => r.isValid && !r.isUnique)
+        .map(r => r.url);
+      
+      const validationErrors = validationResults
+        .filter(r => r.error)
+        .map(r => `${r.url}: ${r.error}`);
+
+      // Calculate overall quality based on cross-page consistency
+      const qualityBreakdown = this.calculateEnhancedSelectorQuality(
+        selector, 
+        averageMatchCount,
+        null
+      );
+
+      // Adjust quality based on cross-page consistency
+      if (!uniqueOnAllPages) {
+        qualityBreakdown.uniqueness *= 0.5; // Penalize for inconsistency
+        qualityBreakdown.overall = (
+          qualityBreakdown.uniqueness * 0.4 +
+          qualityBreakdown.stability * 0.3 +
+          qualityBreakdown.specificity * 0.2 +
+          qualityBreakdown.accessibility * 0.1
+        );
+      }
+
+      const crossPageValidation = {
+        totalUrls: urls.length,
+        validUrls,
+        uniqueOnAllPages,
+        averageMatchCount,
+        inconsistentPages,
+        validationErrors
+      };
+
+      const suggestions = this.generateCrossPageSuggestions(crossPageValidation, selector);
+
+      return {
+        selector,
+        isValid: validUrls > 0,
+        elementCount: Math.round(averageMatchCount),
+        qualityScore: qualityBreakdown.overall,
+        suggestions,
+        isUnique: uniqueOnAllPages && averageMatchCount === 1,
+        stabilityScore: qualityBreakdown.stability,
+        accessibilityScore: qualityBreakdown.accessibility,
+        specificityScore: qualityBreakdown.specificity,
+        crossPageValidation,
+        qualityBreakdown
+      };
+
+    } catch (error) {
+      return {
+        selector,
+        isValid: false,
+        elementCount: 0,
+        qualityScore: 0,
+        suggestions: [`Cross-page validation failed: ${error.message}`],
+        error: error.message,
+        isUnique: false,
+        stabilityScore: 0,
+        accessibilityScore: 0,
+        specificityScore: 0,
+        qualityBreakdown: {
+          uniqueness: 0,
+          stability: 0,
+          specificity: 0,
+          accessibility: 0,
+          overall: 0
+        }
+      };
+    }
+  }
+
+
+  // Phase 2: Enhanced quality scoring with comprehensive metrics
+  private calculateEnhancedSelectorQuality(selector: string, elementCount: number, elementHandle?: any): QualityMetrics {
+    // Calculate uniqueness score (40% weight)
+    const uniquenessScore = this.calculateUniquenessScore(selector, elementCount);
     
-    // Penalty for no matches
+    // Calculate stability score (30% weight)
+    const stabilityScore = this.calculateStabilityScore(selector);
+    
+    // Calculate specificity score (20% weight)
+    const specificityScore = this.calculateSpecificityScore(selector);
+    
+    // Calculate accessibility score (10% weight)
+    const accessibilityScore = this.calculateAccessibilityScore(selector, elementHandle);
+    
+    // Calculate weighted overall score
+    const overall = (
+      uniquenessScore * 0.4 +
+      stabilityScore * 0.3 +
+      specificityScore * 0.2 +
+      accessibilityScore * 0.1
+    );
+    
+    return {
+      uniqueness: uniquenessScore,
+      stability: stabilityScore,
+      specificity: specificityScore,
+      accessibility: accessibilityScore,
+      overall: Math.max(0, Math.min(1, overall))
+    };
+  }
+  
+  private calculateUniquenessScore(selector: string, elementCount: number): number {
     if (elementCount === 0) return 0;
+    if (elementCount === 1) return 1.0; // Perfect uniqueness
+    if (elementCount <= 3) return 0.7;  // Good uniqueness
+    if (elementCount <= 10) return 0.4; // Fair uniqueness
+    return 0.1; // Poor uniqueness
+  }
+  
+  private calculateStabilityScore(selector: string): number {
+    let score = 0.5; // Base score
     
-    // Preference for unique matches
-    if (elementCount === 1) {
-      score += 0.4;
-    } else if (elementCount <= 3) {
-      score += 0.2;
-    } else {
-      score -= 0.1; // Too many matches can be problematic
-    }
-    
-    // Preference for stable selectors (in order of preference)
+    // High stability attributes
     if (selector.includes('[data-testid=') || selector.includes('data-testid=')) {
-      score += 0.3; // Most stable
+      score += 0.5; // Most stable
+    } else if (selector.includes('[data-test') || selector.includes('[data-cy') || selector.includes('[data-e2e')) {
+      score += 0.45; // Very stable test attributes
     } else if (selector.includes('[aria-label=') || selector.includes('aria-label=')) {
-      score += 0.25; // Very stable
-    } else if (selector.includes('[id=') || selector.includes('#')) {
-      score += 0.2; // Stable if unique
+      score += 0.4; // Stable accessibility attributes
+    } else if (selector.includes('[id=') || selector.includes('#') && !selector.includes('nth-')) {
+      score += 0.35; // Stable if unique ID
     } else if (selector.includes('[role=') || selector.includes('role=')) {
-      score += 0.15; // Semantic
-    } else if (selector.includes('[class=') || selector.includes('.')) {
-      score += 0.1; // Less stable but common
+      score += 0.3; // Semantic stability
+    } else if (selector.includes('[name=') || selector.includes('name=')) {
+      score += 0.25; // Moderately stable
     }
     
-    // Penalty for fragile selectors
+    // Stability penalties
     if (selector.includes('nth-child') || selector.includes('nth-of-type')) {
-      score -= 0.2; // Position-based selectors are fragile
+      score -= 0.3; // Position-based selectors are fragile
     }
-    
+    if (selector.includes(':first-child') || selector.includes(':last-child')) {
+      score -= 0.2; // Position-based but less fragile
+    }
     if (selector.split(' ').length > 4) {
-      score -= 0.1; // Overly complex selectors
+      score -= 0.15; // Overly complex selectors
     }
-    
     if (selector.includes('>>') || selector.includes('xpath=')) {
-      score -= 0.1; // Complex or non-CSS selectors
-    }
-    
-    // Bonus for Playwright-specific selectors
-    if (selector.includes(':has-text(') || selector.includes(':visible')) {
-      score += 0.1; // Playwright semantic selectors
+      score -= 0.2; // Complex or non-CSS selectors
     }
     
     return Math.max(0, Math.min(1, score));
+  }
+  
+  private calculateSpecificityScore(selector: string): number {
+    let score = 0.5; // Base score for balanced specificity
+    
+    const parts = selector.split(' ').filter(p => p.trim() !== '');
+    const complexity = parts.length;
+    
+    // Optimal specificity range (2-3 parts)
+    if (complexity >= 2 && complexity <= 3) {
+      score += 0.3;
+    } else if (complexity === 1) {
+      score += 0.1; // Too general
+    } else if (complexity > 3) {
+      score -= 0.2; // Too specific
+    }
+    
+    // Bonus for semantic specificity
+    if (selector.includes('[type=') || selector.includes('input[')) {
+      score += 0.2; // Good semantic specificity
+    }
+    
+    // Penalty for overly broad selectors
+    if (selector === 'div' || selector === 'span' || selector === 'a') {
+      score -= 0.4; // Too broad
+    }
+    
+    return Math.max(0, Math.min(1, score));
+  }
+  
+  private calculateAccessibilityScore(selector: string, elementHandle?: any): number {
+    let score = 0.3; // Base score
+    
+    // Accessibility attribute bonuses
+    if (selector.includes('[aria-label=') || selector.includes('aria-label=')) {
+      score += 0.4;
+    }
+    if (selector.includes('[aria-') || selector.includes('aria-')) {
+      score += 0.3;
+    }
+    if (selector.includes('[role=') || selector.includes('role=')) {
+      score += 0.3;
+    }
+    if (selector.includes('[alt=') || selector.includes('alt=')) {
+      score += 0.2;
+    }
+    if (selector.includes('[title=') || selector.includes('title=')) {
+      score += 0.1;
+    }
+    
+    // Semantic element bonuses
+    const semanticElements = ['button', 'input', 'textarea', 'select', 'a', 'form', 'label'];
+    if (semanticElements.some(elem => selector.includes(elem))) {
+      score += 0.2;
+    }
+    
+    return Math.max(0, Math.min(1, score));
+  }
+  
+  // Backward compatibility method
+  private calculateSelectorQuality(selector: string, elementCount: number): number {
+    const metrics = this.calculateEnhancedSelectorQuality(selector, elementCount);
+    return metrics.overall;
   }
 
   private generateSelectorSuggestions(selector: string, elementCount: number): string[] {
@@ -890,6 +1231,158 @@ export class ElementAnalyzerService {
     
     if (selector.split(' ').length > 3) {
       suggestions.push('Complex selectors may be fragile - try to simplify if possible');
+    }
+    
+    return suggestions;
+  }
+
+  // Phase 2: Enhanced suggestion generation with quality metrics context
+  private generateEnhancedSelectorSuggestions(selector: string, elementCount: number, qualityMetrics: QualityMetrics): string[] {
+    const suggestions: string[] = [];
+    
+    // Uniqueness suggestions
+    if (elementCount === 0) {
+      suggestions.push('🔍 Element not found - verify selector syntax and element existence');
+      suggestions.push('💡 Use browser dev tools to inspect and get the correct selector');
+      if (qualityMetrics.accessibility < 0.5) {
+        suggestions.push('♿ Consider using accessible attributes like aria-label or role');
+      }
+    } else if (elementCount > 1) {
+      suggestions.push(`⚠️ ${elementCount} elements match - selector needs to be more specific`);
+      if (qualityMetrics.uniqueness < 0.5) {
+        suggestions.push('🎯 Add unique identifiers: data-testid, id, or specific attributes');
+        suggestions.push('🔧 Use :first, :last, or :nth-child() as temporary solution');
+      }
+    } else {
+      suggestions.push('✅ Perfect! Selector finds exactly one element');
+    }
+    
+    // Stability suggestions
+    if (qualityMetrics.stability < 0.6) {
+      suggestions.push('⚡ Improve stability: use data-testid or semantic attributes');
+      if (selector.includes('nth-child') || selector.includes('nth-of-type')) {
+        suggestions.push('🏗️ Position-based selectors are fragile - use semantic attributes instead');
+      }
+      if (!selector.includes('[data-') && !selector.includes('[aria-')) {
+        suggestions.push('🛡️ Add test-specific attributes for better reliability');
+      }
+    }
+    
+    // Specificity suggestions
+    if (qualityMetrics.specificity < 0.5) {
+      if (selector.split(' ').length > 4) {
+        suggestions.push('🎛️ Selector is too complex - simplify for better maintainability');
+      } else if (selector.split(' ').length === 1 && !selector.includes('[') && !selector.includes('#')) {
+        suggestions.push('🔍 Selector is too broad - add more specific attributes');
+      }
+    }
+    
+    // Accessibility suggestions
+    if (qualityMetrics.accessibility < 0.5) {
+      suggestions.push('♿ Enhance accessibility: use aria-label, role, or semantic elements');
+      suggestions.push('🏷️ Consider using form labels and semantic HTML elements');
+    }
+    
+    // Overall quality suggestions
+    if (qualityMetrics.overall < 0.6) {
+      suggestions.push('📈 Overall quality is low - consider improving stability and uniqueness');
+    } else if (qualityMetrics.overall >= 0.8) {
+      suggestions.push('🌟 Excellent selector quality - this is test-automation ready!');
+    }
+    
+    return suggestions;
+  }
+
+  // Phase 2: Generate alternative selectors for non-unique ones
+  private async generateAlternativeSelectors(page: any, originalSelector: string, elementHandle: any): Promise<string[]> {
+    if (!elementHandle) return [];
+    
+    try {
+      // Extract element attributes to generate alternatives
+      const alternatives = await page.evaluate((element) => {
+        const suggestions: string[] = [];
+        
+        // Try ID-based selector
+        if (element.id && element.id.trim() !== '') {
+          suggestions.push(`#${element.id}`);
+        }
+        
+        // Try data-testid selector
+        const testId = element.getAttribute('data-testid');
+        if (testId) {
+          suggestions.push(`[data-testid="${testId}"]`);
+        }
+        
+        // Try aria-label selector
+        const ariaLabel = element.getAttribute('aria-label');
+        if (ariaLabel) {
+          suggestions.push(`[aria-label="${ariaLabel}"]`);
+        }
+        
+        // Try name attribute
+        const name = element.getAttribute('name');
+        if (name) {
+          suggestions.push(`${element.tagName.toLowerCase()}[name="${name}"]`);
+        }
+        
+        // Try type + class combination
+        const type = element.getAttribute('type');
+        const className = element.className;
+        if (type && className) {
+          const firstClass = className.split(' ')[0];
+          if (firstClass) {
+            suggestions.push(`${element.tagName.toLowerCase()}[type="${type}"].${firstClass}`);
+          }
+        }
+        
+        // Try parent-child combinations
+        const parent = element.parentElement;
+        if (parent && parent.id) {
+          suggestions.push(`#${parent.id} > ${element.tagName.toLowerCase()}`);
+        }
+        
+        return suggestions;
+      }, elementHandle);
+      
+      // Filter out alternatives that are the same as original
+      return alternatives.filter(alt => alt !== originalSelector);
+      
+    } catch (error) {
+      console.warn('Failed to generate alternative selectors:', error);
+      return [];
+    }
+  }
+
+  // Phase 2: Generate cross-page validation suggestions
+  private generateCrossPageSuggestions(validation: any, selector: string): string[] {
+    const suggestions: string[] = [];
+    
+    if (validation.validUrls === 0) {
+      suggestions.push('❌ Selector not found on any project pages');
+      suggestions.push('🔍 Verify selector exists across your application');
+    } else if (validation.validUrls < validation.totalUrls) {
+      suggestions.push(`⚠️ Selector only works on ${validation.validUrls}/${validation.totalUrls} pages`);
+      suggestions.push('🌐 Consider using more universal selectors for cross-page consistency');
+    }
+    
+    if (!validation.uniqueOnAllPages) {
+      suggestions.push('🎯 Selector matches multiple elements on some pages');
+      suggestions.push('🔧 Add more specific attributes to ensure uniqueness');
+      if (validation.inconsistentPages.length > 0) {
+        suggestions.push(`📋 Inconsistent pages: ${validation.inconsistentPages.slice(0, 3).join(', ')}`);
+      }
+    }
+    
+    if (validation.averageMatchCount > 3) {
+      suggestions.push('📊 High average match count indicates selector is too broad');
+    }
+    
+    if (validation.validationErrors.length > 0) {
+      suggestions.push('🚨 Some pages had validation errors - check browser console');
+    }
+    
+    if (validation.uniqueOnAllPages && validation.validUrls === validation.totalUrls) {
+      suggestions.push('🎉 Perfect cross-page consistency! This selector is production-ready');
     }
     
     return suggestions;

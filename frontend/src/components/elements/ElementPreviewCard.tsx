@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { ProjectElement } from '../../types/element.types';
+import { CSSPreviewRenderer } from './CSSPreviewRenderer';
+import { QualityIndicator } from './QualityIndicator';
 
 interface ElementPreviewCardProps {
   element: ProjectElement;
@@ -7,6 +9,10 @@ interface ElementPreviewCardProps {
   onRequestScreenshot?: (elementId: string, selector: string, url: string) => Promise<string>;
   isLiveMode?: boolean;
   onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
+  // Phase 2: Enhanced preview options
+  previewMode?: 'css' | 'screenshot' | 'auto';
+  showQuality?: boolean;
+  compact?: boolean;
 }
 
 export function ElementPreviewCard({ 
@@ -14,7 +20,11 @@ export function ElementPreviewCard({
   onSelectElement, 
   onRequestScreenshot,
   isLiveMode,
-  onPerformAction 
+  onPerformAction,
+  // Phase 2: New props with defaults
+  previewMode = 'auto',
+  showQuality = true,
+  compact = false
 }: ElementPreviewCardProps) {
   const [screenshot, setScreenshot] = useState<string | null>(
     element.screenshot || null
@@ -105,12 +115,39 @@ export function ElementPreviewCard({
   const reliabilityScore = attributes?.selectorReliabilityScore || 0;
   const validatedSelectors = attributes?.validatedSelectors || [];
   const isShared = attributes?.isSharedElement;
+  
+  // Phase 2: Determine which preview method to use
+  const shouldUseCSSPreview = () => {
+    if (previewMode === 'css') return true;
+    if (previewMode === 'screenshot') return false;
+    // Auto mode: use CSS if available, fallback to screenshot
+    return !!(element.attributes?.cssInfo?.isVisible !== false);
+  };
+  
+  const useCSSPreview = shouldUseCSSPreview();
+  
+  // Debug logs removed to reduce console spam
 
   return (
     <div className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200">
       {/* Visual Preview Section */}
       <div className="relative">
-        {screenshot ? (
+        {useCSSPreview && element.attributes?.cssInfo ? (
+          // Phase 2: CSS-first preview with quality integration
+          <div className="bg-gray-50 p-2">
+            <CSSPreviewRenderer
+              element={element}
+              mode={compact ? 'compact' : 'detailed'}
+              showQuality={showQuality}
+              interactive={false}
+              className="max-h-32 mx-auto"
+            />
+            <div className="text-xs text-gray-500 text-center mt-1">
+              CSS Preview {element.attributes?.cssInfo?.isVisible === false ? '(Hidden Element)' : ''}
+            </div>
+          </div>
+        ) : screenshot ? (
+          // Fallback: Screenshot preview
           <div className="bg-gray-50 p-2">
             <img 
               src={`data:image/png;base64,${screenshot}`}
@@ -119,10 +156,11 @@ export function ElementPreviewCard({
               style={{ imageRendering: 'crisp-edges' }}
             />
             <div className="text-xs text-gray-500 text-center mt-1">
-              Element Preview
+              Screenshot Preview
             </div>
           </div>
         ) : (
+          // No preview available - show icon and capture option
           <div className="bg-gray-100 p-4 flex flex-col items-center justify-center min-h-24">
             <div className="text-2xl mb-1">{getElementIcon(element.elementType)}</div>
             <div className="text-xs text-gray-500 text-center mb-2">No preview available</div>
@@ -151,21 +189,31 @@ export function ElementPreviewCard({
           </div>
         )}
         
-        {/* Reliability Score Indicator */}
-        <div className="absolute top-1 right-1">
-          <div className={`px-1 py-0.5 text-xs rounded ${
-            reliabilityScore > 0.8 ? 'bg-green-100 text-green-800' :
-            reliabilityScore > 0.5 ? 'bg-yellow-100 text-yellow-800' :
-            'bg-red-100 text-red-800'
-          }`}>
-            {Math.round(reliabilityScore * 100)}%
-          </div>
+        {/* Quality Score Indicator */}
+        <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-1rem)]">
+          {showQuality && element.overallQuality !== undefined ? (
+            // Phase 2: Use quality indicator
+            <QualityIndicator 
+              element={element}
+              mode="badge"
+              className="text-xs"
+            />
+          ) : (
+            // Fallback: Legacy reliability score
+            <div className={`px-1 py-0.5 text-xs rounded whitespace-nowrap ${
+              reliabilityScore > 0.8 ? 'bg-green-100 text-green-800' :
+              reliabilityScore > 0.5 ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {Math.round(reliabilityScore * 100)}%
+            </div>
+          )}
         </div>
 
         {/* Shared Element Indicator */}
         {isShared && (
-          <div className="absolute top-1 left-1">
-            <span className="px-1 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
+          <div className="absolute top-2 left-2 z-10">
+            <span className="px-1 py-0.5 text-xs bg-purple-100 text-purple-800 rounded whitespace-nowrap">
               🔗 Shared
             </span>
           </div>

@@ -58,6 +58,15 @@ export class ProjectsController {
     return this.projectsService.validateProjectSelector(req.user.id, id, body.selector);
   }
 
+  @Post(':id/validate-selector-cross-page')
+  async validateSelectorCrossPage(
+    @Request() req, 
+    @Param('id') id: string,
+    @Body() body: { selector: string }
+  ) {
+    return this.projectsService.validateSelectorAcrossProject(req.user.id, id, body.selector);
+  }
+
   @Post(':id/element/:elementId/screenshot')
   async captureElementScreenshot(
     @Request() req, 

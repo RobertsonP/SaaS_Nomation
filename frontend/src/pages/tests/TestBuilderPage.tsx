@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { TestBuilder } from '../../components/test-builder/TestBuilder'
+import { TestConfigurationModal } from '../../components/test-builder/TestConfigurationModal'
 import { testsAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 
@@ -42,6 +43,9 @@ export function TestBuilderPage() {
   const [testName, setTestName] = useState('')
   const [testDescription, setTestDescription] = useState('')
   const [selectedStartingUrl, setSelectedStartingUrl] = useState('')
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [configurationComplete, setConfigurationComplete] = useState(false)
+  const [configModified, setConfigModified] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -64,10 +68,12 @@ export function TestBuilderPage() {
         setTest(testResponse.data)
         setTestName(testResponse.data.name)
         setTestDescription(testResponse.data.description || '')
+        setConfigurationComplete(true) // Skip modal for editing
       } else {
-        // Set default name for new test
+        // For new tests, show configuration modal first
         setTestName('New Test')
         setTestDescription('Created with Test Builder')
+        setShowConfigModal(true)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -89,9 +95,15 @@ export function TestBuilderPage() {
       }
 
       if (testId) {
-        // Update existing test
-        await testsAPI.updateSteps(testId, steps)
+        // Update existing test with full configuration
+        await testsAPI.update(testId, {
+          name: testName,
+          description: testDescription,
+          startingUrl: selectedStartingUrl,
+          steps
+        })
         showSuccess('Test Updated', `Successfully updated test "${testName}" with ${steps.length} step${steps.length !== 1 ? 's' : ''}`)
+        setConfigModified(false) // Clear modified flag after successful save
       } else {
         // Create new test with steps
         await testsAPI.create({
@@ -114,6 +126,38 @@ export function TestBuilderPage() {
     navigate(`/projects/${projectId}/tests`)
   }
 
+  const handleConfigurationSave = (config: {
+    name: string
+    description: string
+    startingUrl: string
+  }) => {
+    // Check if configuration was actually modified
+    const wasModified = testId && (
+      config.name !== test?.name ||
+      config.description !== test?.description ||
+      config.startingUrl !== selectedStartingUrl
+    )
+    
+    setTestName(config.name)
+    setTestDescription(config.description)
+    setSelectedStartingUrl(config.startingUrl)
+    setConfigurationComplete(true)
+    setShowConfigModal(false)
+    setConfigModified(wasModified || false)
+  }
+
+  const handleConfigurationCancel = () => {
+    setShowConfigModal(false)
+    // Only navigate away if this is a new test (not editing existing)
+    if (!testId) {
+      navigate(`/projects/${projectId}/tests`)
+    }
+  }
+
+  const handleEditConfiguration = () => {
+    setShowConfigModal(true)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -123,82 +167,50 @@ export function TestBuilderPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to={`/projects/${projectId}/tests`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Tests
-          </Link>
-        </div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {testId ? `Edit Test: ${test?.name}` : 'Create New Test'}
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Project: {project?.name}
-        </p>
-      </div>
-
-      {/* Test Configuration Form */}
-      <div className="bg-white rounded-lg shadow border p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Test Configuration</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Test Name
-            </label>
-            <input
-              type="text"
-              value={testName}
-              onChange={(e) => setTestName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter test name"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Starting URL
-            </label>
-            <select
-              value={selectedStartingUrl}
-              onChange={(e) => setSelectedStartingUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select starting page...</option>
-              {project?.urls?.map((projectUrl) => (
-                <option key={projectUrl.id} value={projectUrl.url}>
-                  {projectUrl.title || new URL(projectUrl.url).pathname} - {projectUrl.url}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Choose which page the test should start from
-            </p>
-          </div>
-
-          <div className="lg:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Test Description
-            </label>
-            <textarea
-              value={testDescription}
-              onChange={(e) => setTestDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Describe what this test does"
-            />
-          </div>
-        </div>
-      </div>
-
-      <TestBuilder
-        onSave={handleSave}
-        onCancel={handleCancel}
-        initialSteps={test?.steps || []}
-        projectId={projectId}
+    <>
+      {/* Configuration Modal */}
+      <TestConfigurationModal
+        isOpen={showConfigModal}
+        onClose={handleConfigurationCancel}
+        onSave={handleConfigurationSave}
+        project={project}
+        initialConfig={{
+          name: testName,
+          description: testDescription,
+          startingUrl: selectedStartingUrl
+        }}
+        isEdit={testId ? true : false}
       />
-    </div>
+
+      {/* Main Test Builder Interface */}
+      {configurationComplete && (
+        <div className="h-screen flex flex-col">
+          {/* Minimal Header - ONLY name + edit button */}
+          <div className="bg-white border-b border-gray-200 px-4 py-2 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg font-medium text-gray-900">
+                {testName}
+              </h1>
+              <button
+                onClick={handleEditConfiguration}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Edit Config
+              </button>
+            </div>
+          </div>
+
+          {/* Full-Height Test Builder */}
+          <div className="flex-1 overflow-hidden">
+            <TestBuilder
+              onSave={handleSave}
+              onCancel={handleCancel}
+              initialSteps={test?.steps || []}
+              projectId={projectId}
+            />
+          </div>
+        </div>
+      )}
+    </>
   )
 }

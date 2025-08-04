@@ -42,6 +42,10 @@ model Project {
   pageStates      PageState[]
   browserSessions BrowserSession[]
   
+  // Phase 2: Quality and performance tracking
+  cssPreviewPerformance CSSPreviewPerformance[]
+  crossPageValidations  CrossPageValidation[]
+  
   @@map("projects")
 }
 
@@ -134,6 +138,20 @@ model ProjectElement {
   boundingRect     Json?    // Position and size data
   screenshot       String?  // Base64 encoded screenshot of the element
   
+  // Phase 2: Enhanced quality and validation metrics
+  uniquenessScore  Float?   // 0-1 score for selector uniqueness
+  stabilityScore   Float?   // 0-1 score for selector stability
+  accessibilityScore Float? // 0-1 score for accessibility attributes
+  specificityScore Float?   // 0-1 score for selector specificity
+  overallQuality   Float?   // Weighted overall quality score 0-1
+  qualityMetrics   Json?    // Detailed quality breakdown
+  
+  // Phase 2: Alternative and fallback selectors
+  fallbackSelectors String[] // Alternative selectors for this element
+  isValidated      Boolean  @default(false) // Has been through Phase 2 validation
+  lastValidated    DateTime? // When quality validation was last performed
+  validationErrors String[] // Any validation errors or warnings
+  
   // URL where this element was found
   sourceUrlId String?
   sourceUrl   ProjectUrl? @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
@@ -151,6 +169,9 @@ model ProjectElement {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
+  // Phase 2: Quality tracking history
+  qualityHistory SelectorQualityHistory[]
   
   @@map("project_elements")
   @@unique([projectId, selector, sourceUrlId, discoveryState])
@@ -225,4 +246,62 @@ model BrowserSession {
   authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   
   @@map("browser_sessions")
+}
+
+// Phase 2: Selector quality tracking over time
+model SelectorQualityHistory {
+  id              String   @id @default(cuid())
+  selector        String
+  uniquenessScore Float
+  stabilityScore  Float
+  accessibilityScore Float
+  specificityScore Float
+  overallQuality  Float
+  matchCount      Int      // Number of elements matched
+  testResults     Json?    // Cross-page validation results
+  validationDate  DateTime @default(now())
+  
+  elementId       String
+  element         ProjectElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  
+  @@map("selector_quality_history")
+  @@index([elementId, validationDate])
+}
+
+// Phase 2: CSS preview performance tracking
+model CSSPreviewPerformance {
+  id                String   @id @default(cuid())
+  elementCount      Int      // Number of elements processed
+  extractionTimeMs  Int      // CSS extraction time in milliseconds
+  renderingTimeMs   Int?     // Frontend rendering time (if available)
+  totalTimeMs       Int      // Total processing time
+  success           Boolean  @default(true)
+  errorMessage      String?  // Error details if failed
+  createdAt         DateTime @default(now())
+  
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("css_preview_performance")
+  @@index([projectId, createdAt])
+}
+
+// Phase 2: Cross-page validation results
+model CrossPageValidation {
+  id                String   @id @default(cuid())
+  selector          String
+  totalUrls         Int      // Total URLs tested
+  validUrls         Int      // URLs where selector was found
+  uniqueOnAllPages  Boolean  // True if selector is unique on all pages
+  averageMatchCount Float    // Average number of matches per page
+  inconsistentPages String[] // URLs where selector is not unique
+  validationErrors  String[] // Any errors during validation
+  overallScore      Float    // Overall cross-page quality score
+  validatedAt       DateTime @default(now())
+  
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("cross_page_validations")
+  @@index([projectId, selector, validatedAt])
 }

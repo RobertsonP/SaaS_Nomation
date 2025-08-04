@@ -347,6 +347,9 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                           onRequestScreenshot={requestElementScreenshot}
                           isLiveMode={isLiveMode}
                           onPerformAction={onPerformAction}
+                          previewMode="auto"
+                          showQuality={true}
+                          compact={false}
                         />
                       ))}
                     </div>
@@ -363,6 +366,9 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                   onRequestScreenshot={requestElementScreenshot}
                   isLiveMode={isLiveMode}
                   onPerformAction={onPerformAction}
+                  previewMode="auto"
+                  showQuality={true}
+                  compact={false}
                 />
               ))
             )}

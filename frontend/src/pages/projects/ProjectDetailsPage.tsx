@@ -194,6 +194,11 @@ export function ProjectDetailsPage() {
           stopAutoRefresh();
         });
 
+        socket.on('connect_error', (error) => {
+          console.warn('Real-time analysis WebSocket connection failed - live updates will not be available:', error.message);
+          // Continue without real-time updates
+        });
+
       } catch (error) {
         console.error('Failed to initialize WebSocket:', error);
       }
@@ -331,6 +336,16 @@ export function ProjectDetailsPage() {
     }
   };
 
+  // Filter elements based on type and URL
+  const filteredElements = project ? project.elements.filter(element => {
+    const matchesType = selectedElementType === 'all' || element.elementType === selectedElementType;
+    const matchesUrl = selectedUrl === 'all' || element.sourceUrl?.id === selectedUrl;
+    return matchesType && matchesUrl;
+  }) : [];
+
+  // Get unique element types for filter dropdown
+  const elementTypes = project ? ['all', ...new Set(project.elements.map(e => e.elementType))] : ['all'];
+
   const getElementTypeColor = (type: string) => {
     switch (type) {
       case 'button': return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -354,24 +369,6 @@ export function ProjectDetailsPage() {
       default: return '📦';
     }
   };
-
-  const filteredElements = project?.elements.filter(element => {
-    const typeMatch = selectedElementType === 'all' || element.elementType === selectedElementType;
-    const urlMatch = selectedUrl === 'all' || element.sourceUrl?.id === selectedUrl;
-    return typeMatch && urlMatch;
-  }) || [];
-
-  // Group elements by source URL for better organization
-  const elementsByUrl = filteredElements.reduce((acc, element) => {
-    const urlId = element.sourceUrl?.id || 'unknown';
-    if (!acc[urlId]) {
-      acc[urlId] = [];
-    }
-    acc[urlId].push(element);
-    return acc;
-  }, {} as Record<string, ProjectElement[]>);
-
-  const elementTypes = [...new Set(project?.elements.map(e => e.elementType) || [])];
 
   if (loading) {
     return (
@@ -424,171 +421,157 @@ export function ProjectDetailsPage() {
           </div>
         </div>
 
-        {/* Project Stats - Compact */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-xs font-medium text-blue-900">URLs</div>
-            <div className="text-lg font-bold text-blue-600">{project._count.urls}</div>
+        {/* Project Stats - Contentful-style subtle improvements */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-blue-900 uppercase tracking-wide">URLs</div>
+            <div className="text-2xl font-bold text-blue-600 mt-1">{project._count.urls}</div>
           </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="text-xs font-medium text-green-900">Elements</div>
-            <div className="text-lg font-bold text-green-600">{project._count.elements}</div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-green-900 uppercase tracking-wide">Elements</div>
+            <div className="text-2xl font-bold text-green-600 mt-1">{project._count.elements}</div>
           </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-            <div className="text-xs font-medium text-purple-900">Tests</div>
-            <div className="text-lg font-bold text-purple-600">{project._count.tests}</div>
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide">Tests</div>
+            <div className="text-2xl font-bold text-purple-600 mt-1">{project._count.tests}</div>
           </div>
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-            <div className="text-xs font-medium text-orange-900">Analyzed</div>
-            <div className="text-lg font-bold text-orange-600">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-orange-900 uppercase tracking-wide">Analyzed</div>
+            <div className="text-2xl font-bold text-orange-600 mt-1">
               {project.urls.filter(url => url.analyzed).length}
             </div>
           </div>
         </div>
       </div>
 
-      {/* NEW LAYOUT: Sidebar + Main Content */}
-      <div className="flex gap-6">
-        {/* LEFT SIDEBAR: URL Navigation */}
-        <div className="w-64 flex-shrink-0">
-          <div className="bg-white rounded-lg shadow border sticky top-6">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold text-gray-900">Project URLs</h3>
-            </div>
-            <div className="p-2 space-y-1">
-              {/* All URLs option */}
+      {/* ANALYSIS CONTROLS - Contentful-style subtle improvements */}
+      <div className="mb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">Project Analysis</h3>
+            <div className="flex items-center space-x-3">
               <button
-                onClick={() => setSelectedUrl('all')}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  selectedUrl === 'all'
-                    ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                onClick={handleClearElements}
+                disabled={analyzing || project.elements.length === 0}
+                className="bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 text-sm font-medium disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+                title={project.elements.length === 0 ? "No elements to clear" : "Clear all elements for fresh analysis"}
               >
-                <div className="font-medium">All URLs</div>
-                <div className="text-xs text-gray-500">{project.elements.length} elements</div>
+                🧹 Clear Elements
               </button>
-              
-              {/* Individual URLs */}
-              {project.urls.map((url) => {
-                const elementCount = project.elements.filter(el => el.sourceUrl?.id === url.id).length;
-                return (
-                  <button
-                    key={url.id}
-                    onClick={() => setSelectedUrl(url.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      selectedUrl === url.id
-                        ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium truncate">{url.title || 'Page'}</span>
-                      <span className={`w-2 h-2 rounded-full ${url.analyzed ? 'bg-green-500' : 'bg-gray-300'}`}></span>
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">{url.url}</div>
-                    <div className="text-xs text-gray-400">{elementCount} elements</div>
-                  </button>
-                );
-              })}
+              <button
+                onClick={handleAnalyzeProject}
+                disabled={analyzing}
+                className="bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:bg-gray-400 transition-colors shadow-sm"
+              >
+                🔍 {analyzing ? 'Analyzing...' : 'Analyze Project'}
+              </button>
+            </div>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-700">Analysis Progress</span>
+              <span className="text-sm text-gray-600 font-medium">{currentAnalysisStep}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
+              <div 
+                className={`h-3 rounded-full transition-all duration-500 shadow-sm ${
+                  analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' : 
+                  analysisProgressPercent === 100 ? 'bg-green-500' : 'bg-gray-400'
+                }`}
+                style={{ width: `${analysisProgressPercent}%` }}
+              ></div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* RIGHT MAIN CONTENT */}
-        <div className="flex-1 space-y-6">
-          
-          {/* ANALYSIS PROGRESS SECTION */}
-          <div className="bg-white rounded-lg shadow border">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Analysis</h2>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={handleClearElements}
-                    disabled={analyzing || project.elements.length === 0}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    title={project.elements.length === 0 ? "No elements to clear" : "Clear all elements for fresh analysis"}
-                  >
-                    🧹 Clear Elements
-                  </button>
-                  <button
-                    onClick={handleAnalyzeProject}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    🔍 Analyze Project
-                  </button>
-                </div>
-              </div>
-              
+      {/* COLLAPSIBLE SECTIONS - Contentful-style subtle improvements */}
+      <div className="space-y-6">
+        {/* Authentication Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="p-4">
+            <button
+              onClick={() => setShowAuthSetup(showAuthSetup ? null : 'toggle')}
+              className="w-full flex items-center justify-between text-left hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+            >
               <div className="flex items-center space-x-3">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Progress</span>
-                    <span className="text-sm text-gray-500">{currentAnalysisStep}</span>
-                  </div>
-                  <div 
-                    className="w-full bg-gray-200 rounded-full h-3 cursor-pointer hover:bg-gray-300 transition-colors"
-                    onDoubleClick={() => setShowTechnicalDetails(true)}
-                    title="Double-click to view detailed technical logs"
-                  >
-                    <div 
-                      className={`h-3 rounded-full transition-all duration-300 ${
-                        analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' : 
-                        analysisProgressPercent === 100 ? 'bg-green-500' : 
-                        analysisProgressPercent > 0 ? 'bg-yellow-500' : 'bg-gray-400'
-                      }`}
-                      style={{ width: `${analysisProgressPercent}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {analyzing ? (
-                      <span className="flex items-center space-x-2">
-                        <span>Analysis in progress...</span>
-                        {isAnalysisRunning && (
-                          <span className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            <span>Auto-refreshing</span>
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      'Double-click to view detailed logs'
-                    )}
-                  </p>
-                </div>
-                <button 
-                  onClick={() => setShowTechnicalDetails(true)}
-                  className="text-gray-400 hover:text-gray-600"
-                  title="View technical details"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
+                <span className="text-base font-semibold text-gray-700">🔐 Authentication</span>
+                {authFlows.length > 0 && (
+                  <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                    {authFlows.length} flow{authFlows.length !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
-            </div>
-          </div>
-
-          {/* AUTHENTICATION SECTION */}
-          <div className="bg-white rounded-lg shadow border">
-            <div className="p-3">
-              <button
-                onClick={() => setShowAuthSetup(showAuthSetup ? null : 'toggle')}
-                className="w-full flex items-center justify-between text-left"
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform ${
+                  showAuthSetup ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-gray-700">🔐 Authentication</span>
-                  {authFlows.length > 0 && (
-                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                      {authFlows.length} flow{authFlows.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showAuthSetup && (
+              <div className="mt-3 pt-3 border-t">
+                {authFlows.length > 0 ? (
+                  <div className="space-y-2">
+                    {authFlows.map((authFlow) => (
+                      <div key={authFlow.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">{authFlow.name}</div>
+                            <div className="text-xs text-gray-500">
+                              Login URL: {authFlow.loginUrl}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => navigate(`/projects/${projectId}/auth/setup?edit=${authFlow.id}`)}
+                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded"
+                              title="Edit authentication"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                              Active
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-500 mb-2">No authentication configured</p>
+                    <button 
+                      onClick={() => navigate(`/projects/${projectId}/auth/setup`)}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      + Add Authentication
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Element Library Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="p-4 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setShowElementLibrary(!showElementLibrary)}
+                className="flex items-center space-x-3 text-lg font-semibold hover:text-gray-600 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+              >
+                <span>📚 Element Library</span>
                 <svg
-                  className={`w-4 h-4 text-gray-500 transition-transform ${
-                    showAuthSetup ? 'rotate-180' : ''
-                  }`}
+                  className={`w-5 h-5 transition-transform ${showElementLibrary ? 'rotate-180' : ''} text-gray-400`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -596,127 +579,28 @@ export function ProjectDetailsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              
-              {showAuthSetup && (
-                <div className="mt-3 pt-3 border-t">
-                  {authFlows.length > 0 ? (
-                    <div className="space-y-2">
-                      {authFlows.map((authFlow) => (
-                        <div key={authFlow.id} className="bg-green-50 border border-green-200 rounded-lg p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="text-sm font-medium">{authFlow.name}</h4>
-                              <p className="text-xs text-gray-600">{authFlow.loginUrl}</p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => navigate(`/projects/${projectId}/auth/setup?edit=${authFlow.id}`)}
-                                className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded"
-                                title="Edit authentication"
-                              >
-                                ✏️ Edit
-                              </button>
-                              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                                Active
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-gray-500 mb-2">No authentication configured</p>
-                      <button 
-                        onClick={() => navigate(`/projects/${projectId}/auth/setup`)}
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                      >
-                        + Add Authentication
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SCRAPED ELEMENTS SECTION */}
-          <div className="bg-white rounded-lg shadow border">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">
-                  Scraped Elements
-                  {selectedUrl !== 'all' && (
-                    <span className="ml-2 text-sm text-gray-500">
-                      from {project.urls.find(u => u.id === selectedUrl)?.title}
-                    </span>
-                  )}
-                </h2>
-              </div>
-              
-              {/* Element Filters */}
-              <div className="flex items-center space-x-4 mt-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Element Type</label>
-                  <select
-                    value={selectedElementType}
-                    onChange={(e) => setSelectedElementType(e.target.value)}
-                    className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="all">All Types</option>
-                    {elementTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {filteredElements.length} element{filteredElements.length !== 1 ? 's' : ''} found
-                </div>
+              <div className="text-sm text-gray-600 font-medium">
+                {filteredElements.length} element{filteredElements.length !== 1 ? 's' : ''}
               </div>
             </div>
-
-            {/* Elements Grid */}
-            <div className="p-4">
-              {filteredElements.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-4xl mb-4">📦</div>
-                  <p className="text-gray-500 mb-2">No elements found</p>
-                  <p className="text-sm text-gray-400">
-                    Run analysis to discover elements from your project URLs
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredElements.map((element) => (
-                    <div key={element.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm">{getElementIcon(element.elementType)}</span>
-                          <span className={`px-2 py-1 text-xs rounded border ${getElementTypeColor(element.elementType)}`}>
-                            {element.elementType}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {Math.round(element.confidence * 100)}%
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-900 mb-1">{element.description}</p>
-                      <p className="text-xs text-gray-600 font-mono bg-gray-100 p-1 rounded truncate">
-                        {element.selector}
-                      </p>
-                      {selectedUrl === 'all' && element.sourceUrl && (
-                        <p className="text-xs text-blue-600 mt-1 truncate">
-                          {element.sourceUrl.url}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
+          
+          {showElementLibrary && (
+            <ElementLibraryPanel
+              elements={project.elements}
+              onSelectElement={(element) => console.log('Selected:', element)}
+              selectedElementType={selectedElementType}
+              selectedUrl={selectedUrl}
+              onElementTypeChange={setSelectedElementType}
+              onUrlChange={setSelectedUrl}
+              previewMode="auto"
+              showQuality={true}
+              compact={false}
+            />
+          )}
         </div>
       </div>
+
       {/* Technical Details Modal */}
       {showTechnicalDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

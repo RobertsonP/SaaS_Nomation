@@ -11,6 +11,13 @@ export class CreateTestDto {
   steps: any[];
 }
 
+export class UpdateTestDto {
+  name: string;
+  description?: string;
+  startingUrl: string;
+  steps: any[];
+}
+
 @Controller('api/tests')
 @UseGuards(JwtAuthGuard)
 export class TestsController {
@@ -32,6 +39,11 @@ export class TestsController {
   @Post()
   async createTest(@Body() createTestDto: CreateTestDto) {
     return this.testsService.create(createTestDto);
+  }
+
+  @Put(':testId')
+  async updateTest(@Param('testId') testId: string, @Body() updateTestDto: UpdateTestDto) {
+    return this.testsService.update(testId, updateTestDto);
   }
 
   @Put(':testId/steps')

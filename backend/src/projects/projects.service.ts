@@ -607,6 +607,49 @@ export class ProjectsService {
     return this.elementAnalyzer.validateSelector(project.urls[0].url, selector);
   }
 
+  // Phase 2: Enhanced cross-page selector validation
+  async validateSelectorAcrossProject(userId: string, projectId: string, selector: string) {
+    // Verify project ownership and get URLs
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+      include: { urls: true },
+    });
+
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    if (!project.urls || project.urls.length === 0) {
+      throw new Error('No URLs found for this project');
+    }
+
+    // Extract URLs and perform cross-page validation
+    const urls = project.urls.map(u => u.url);
+    const validationResult = await this.elementAnalyzer.validateSelectorAcrossPages(urls, selector);
+
+    // Store cross-page validation results in database for analytics
+    try {
+      await this.prisma.crossPageValidation.create({
+        data: {
+          projectId,
+          selector,
+          totalUrls: validationResult.crossPageValidation?.totalUrls || urls.length,
+          validUrls: validationResult.crossPageValidation?.validUrls || 0,
+          uniqueOnAllPages: validationResult.crossPageValidation?.uniqueOnAllPages || false,
+          averageMatchCount: validationResult.crossPageValidation?.averageMatchCount || 0,
+          inconsistentPages: validationResult.crossPageValidation?.inconsistentPages || [],
+          validationErrors: validationResult.crossPageValidation?.validationErrors || [],
+          overallScore: validationResult.qualityScore || 0,
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to store cross-page validation results:', error);
+      // Don't fail the entire operation if we can't store analytics
+    }
+
+    return validationResult;
+  }
+
   async clearProjectElements(userId: string, projectId: string) {
     // Verify project ownership
     const project = await this.prisma.project.findFirst({
