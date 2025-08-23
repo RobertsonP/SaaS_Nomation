@@ -20,13 +20,26 @@ export function CSSPreviewRenderer({
 }: CSSPreviewRendererProps) {
   const cssInfo = element.attributes?.cssInfo;
   
-  // Fallback to screenshot if no CSS data available
-  if (!cssInfo || !cssInfo.isVisible) {
+  // Enhanced CSS data validation - be more permissive to show visual previews
+  const hasUsableCSSData = cssInfo && (
+    cssInfo.backgroundColor ||
+    cssInfo.color || 
+    cssInfo.border ||
+    cssInfo.fontSize ||
+    cssInfo.fontFamily ||
+    cssInfo.padding ||
+    cssInfo.margin ||
+    Object.keys(cssInfo).length > 0
+  );
+  
+  // Only fallback if truly no CSS data is available
+  if (!hasUsableCSSData) {
     return (
       <CSSPreviewFallback 
         element={element}
         onClick={onClick}
         className={className}
+        mode={mode}
       />
     );
   }
@@ -70,36 +83,95 @@ export function CSSPreviewRenderer({
 
 // Generate CSS styles for preview element
 function generatePreviewStyle(cssInfo: CSSProperties, mode: string): React.CSSProperties {
+  // Enhanced color handling with robust fallbacks
+  const getValidColor = (color: string | undefined, fallback: string) => {
+    if (!color || 
+        color === 'transparent' || 
+        color === 'rgba(0, 0, 0, 0)' ||
+        color === 'inherit' ||
+        color === 'initial' ||
+        color.trim() === '') {
+      return fallback;
+    }
+    // Handle CSS color keywords that might not be visible
+    const invisibleColors = ['transparent', 'rgba(0,0,0,0)', 'rgba(255,255,255,0)'];
+    if (invisibleColors.includes(color.toLowerCase().replace(/\s/g, ''))) {
+      return fallback;
+    }
+    return color;
+  };
+
+  // Enhanced background handling with smart defaults
+  const getValidBackground = (bg: string | undefined) => {
+    if (!bg || 
+        bg === 'transparent' || 
+        bg === 'rgba(0, 0, 0, 0)' ||
+        bg === 'inherit' ||
+        bg === 'initial' ||
+        bg === 'none' ||
+        bg.trim() === '') {
+      // Return a subtle background that works well for previews
+      return '#ffffff';
+    }
+    // Handle problematic backgrounds
+    const problematicBgs = ['transparent', 'rgba(0,0,0,0)', 'rgba(255,255,255,0)', 'none'];
+    if (problematicBgs.includes(bg.toLowerCase().replace(/\s/g, ''))) {
+      return '#ffffff';
+    }
+    return bg;
+  };
+
+  // Enhanced border handling with better defaults
+  const getValidBorder = (border: string | undefined) => {
+    if (!border || 
+        border === 'none' || 
+        border === '0px' ||
+        border === '0' ||
+        border === 'inherit' ||
+        border === 'initial' ||
+        border.trim() === '') {
+      // Provide a subtle border that helps define the element
+      return '1px solid #e5e7eb';
+    }
+    return border;
+  };
+
   const baseStyle: React.CSSProperties = {
-    // Core visual properties
-    backgroundColor: cssInfo.backgroundColor || 'transparent',
-    color: cssInfo.color || '#000000',
+    // Core visual properties with robust fallbacks
+    backgroundColor: getValidBackground(cssInfo.backgroundColor),
+    color: getValidColor(cssInfo.color, '#212529'),
     fontSize: cssInfo.fontSize || '14px',
-    fontFamily: cssInfo.fontFamily || 'inherit',
+    fontFamily: cssInfo.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontWeight: cssInfo.fontWeight || 'normal',
     
     // Text styling
     textDecoration: cssInfo.textDecoration || 'none',
     textAlign: cssInfo.textAlign as any || 'left',
-    lineHeight: cssInfo.lineHeight || 'normal',
+    lineHeight: cssInfo.lineHeight || '1.5',
     
-    // Border and spacing
-    padding: cssInfo.padding || '4px 8px',
+    // Border and spacing with better defaults
+    padding: cssInfo.padding || '8px 12px',
     margin: cssInfo.margin || '0',
-    border: cssInfo.border || 'none',
-    borderRadius: cssInfo.borderRadius || '0',
-    boxShadow: cssInfo.boxShadow || 'none',
+    border: getValidBorder(cssInfo.border),
+    borderRadius: cssInfo.borderRadius || '4px',
+    boxShadow: cssInfo.boxShadow === 'none' ? '0 1px 3px rgba(0, 0, 0, 0.1)' : cssInfo.boxShadow,
     
     // Layout properties
-    display: mode === 'compact' ? 'inline-block' : (cssInfo.display || 'block'),
+    display: mode === 'compact' ? 'inline-flex' : 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
     position: 'relative',
     overflow: 'hidden',
     cursor: 'pointer',
     
-    // Visual effects
+    // Visual effects with better defaults
     opacity: cssInfo.opacity || '1',
     transform: cssInfo.transform !== 'none' ? cssInfo.transform : undefined,
     transition: 'all 0.2s ease',
+    
+    // Ensure minimum visibility
+    minHeight: mode === 'compact' ? '24px' : '32px',
+    minWidth: mode === 'compact' ? '60px' : '80px',
   };
 
   // Mode-specific adjustments
@@ -181,39 +253,124 @@ function generateContainerStyle(mode: string): React.CSSProperties {
 }
 
 // Render element content based on type and CSS data
-function renderElementContent(element: ProjectElement, cssInfo: CSSProperties, _mode: string): React.ReactNode {
-  const text = cssInfo.hasText ? element.attributes?.text : '';
+function renderElementContent(element: ProjectElement, _cssInfo: CSSProperties, mode: string): React.ReactNode {
+  const text = element.attributes?.text || '';
   const placeholder = element.attributes?.type === 'input' ? (element.attributes as any)?.placeholder : '';
+  const elementType = element.elementType?.toLowerCase();
   
-  switch (element.elementType) {
+  // Enhanced content rendering with icons and better representation
+  switch (elementType) {
     case 'button':
-      return text || 'Button';
+      return (
+        <span className="flex items-center gap-1">
+          <span>🔘</span>
+          <span>{text || element.description || 'Button'}</span>
+        </span>
+      );
     
     case 'input':
+      const inputType = (element.attributes as any)?.type || 'text';
+      const inputIcon = inputType === 'password' ? '🔒' : 
+                       inputType === 'email' ? '📧' : 
+                       inputType === 'search' ? '🔍' : '📝';
       return (
-        <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>
-          {placeholder || text || 'Input field'}
+        <span className="flex items-center gap-1" style={{ color: placeholder ? '#6B7280' : 'inherit', fontStyle: placeholder ? 'italic' : 'normal' }}>
+          <span>{inputIcon}</span>
+          <span>{placeholder || text || `${inputType} input`}</span>
         </span>
       );
     
     case 'link':
+    case 'a':
       return (
-        <span style={{ textDecoration: 'underline', color: '#3B82F6' }}>
-          {text || 'Link'}
+        <span className="flex items-center gap-1" style={{ color: '#3B82F6', textDecoration: 'underline' }}>
+          <span>🔗</span>
+          <span>{text || element.description || 'Link'}</span>
         </span>
       );
     
     case 'form':
-      return `Form: ${text || 'Form element'}`;
+      return (
+        <span className="flex items-center gap-1">
+          <span>📋</span>
+          <span>{text || element.description || 'Form'}</span>
+        </span>
+      );
     
     case 'navigation':
-      return `Nav: ${text || 'Navigation'}`;
+    case 'nav':
+      return (
+        <span className="flex items-center gap-1">
+          <span>🧭</span>
+          <span>{text || element.description || 'Navigation'}</span>
+        </span>
+      );
     
     case 'text':
-      return text || 'Text content';
+    case 'span':
+    case 'p':
+    case 'div':
+      if (text && text.length > 0) {
+        const truncatedText = mode === 'compact' && text.length > 20 ? text.substring(0, 20) + '...' : text;
+        return (
+          <span className="flex items-center gap-1">
+            <span>📄</span>
+            <span>{truncatedText}</span>
+          </span>
+        );
+      }
+      return (
+        <span className="flex items-center gap-1">
+          <span>📄</span>
+          <span>{element.description || 'Text element'}</span>
+        </span>
+      );
+    
+    case 'img':
+    case 'image':
+      return (
+        <span className="flex items-center gap-1">
+          <span>🖼️</span>
+          <span>{element.description || 'Image'}</span>
+        </span>
+      );
+    
+    case 'select':
+    case 'dropdown':
+      return (
+        <span className="flex items-center gap-1">
+          <span>📋</span>
+          <span>{text || element.description || 'Dropdown'}</span>
+          <span style={{ fontSize: '0.8em' }}>▼</span>
+        </span>
+      );
+    
+    case 'checkbox':
+      return (
+        <span className="flex items-center gap-1">
+          <span>☐</span>
+          <span>{text || element.description || 'Checkbox'}</span>
+        </span>
+      );
+    
+    case 'radio':
+      return (
+        <span className="flex items-center gap-1">
+          <span>◯</span>
+          <span>{text || element.description || 'Radio button'}</span>
+        </span>
+      );
     
     default:
-      return text || element.description || element.elementType;
+      // Fallback with better formatting
+      const displayText = text || element.description || elementType || 'Element';
+      const truncatedText = mode === 'compact' && displayText.length > 25 ? displayText.substring(0, 25) + '...' : displayText;
+      return (
+        <span className="flex items-center gap-1">
+          <span>⚪</span>
+          <span>{truncatedText}</span>
+        </span>
+      );
   }
 }
 
@@ -292,31 +449,161 @@ function ElementInfoOverlay({ element }: { element: ProjectElement }) {
 }
 
 // Fallback component when CSS data is not available
-function CSSPreviewFallback({ element, onClick, className }: {
+function CSSPreviewFallback({ element, onClick, className, mode = 'detailed' }: {
   element: ProjectElement;
   onClick?: (element: ProjectElement) => void;
   className?: string;
+  mode?: string;
 }) {
+  const getElementIcon = (elementType: string) => {
+    switch (elementType?.toLowerCase()) {
+      case 'button': return '🔘';
+      case 'input': return '📝';
+      case 'link': case 'a': return '🔗';
+      case 'form': return '📋';
+      case 'navigation': case 'nav': return '🧭';
+      case 'img': case 'image': return '🖼️';
+      case 'select': case 'dropdown': return '📋';
+      case 'checkbox': return '☐';
+      case 'radio': return '◯';
+      default: return '⚪';
+    }
+  };
+
+  // Mode-specific dimensions and styling
+  const getDimensions = () => {
+    switch (mode) {
+      case 'compact':
+        return {
+          minWidth: '100px',
+          minHeight: '32px',
+          maxWidth: '120px',
+          maxHeight: '40px',
+          padding: '4px 8px',
+          fontSize: '11px'
+        };
+      case 'live':
+        return {
+          minWidth: '200px',
+          minHeight: '80px',
+          maxWidth: '300px',
+          maxHeight: '120px',
+          padding: '16px',
+          fontSize: '13px'
+        };
+      default: // detailed
+        return {
+          minWidth: '140px',
+          minHeight: '60px',
+          maxWidth: '200px',
+          maxHeight: '100px',
+          padding: '12px',
+          fontSize: '12px'
+        };
+    }
+  };
+
+  const dimensions = getDimensions();
+
   return (
     <div 
-      className={`css-preview-fallback ${className}`}
+      className={`css-preview-fallback ${className} cursor-pointer transition-all hover:shadow-md hover:border-blue-300`}
       onClick={() => onClick?.(element)}
+      style={{
+        display: 'flex',
+        flexDirection: mode === 'compact' ? 'row' : 'column',
+        alignItems: mode === 'compact' ? 'center' : 'flex-start',
+        gap: mode === 'compact' ? '6px' : '4px',
+        borderRadius: '6px',
+        border: '2px solid #E5E7EB',
+        backgroundColor: '#FFFFFF',
+        ...dimensions,
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+      }}
     >
+      {/* Visual Element Representation */}
       {element.screenshot ? (
         <img 
           src={element.screenshot} 
           alt={element.description}
-          className="w-full h-auto max-w-48 max-h-16 object-contain rounded border"
+          className="rounded border"
+          style={{ 
+            maxHeight: mode === 'compact' ? '20px' : '40px', 
+            maxWidth: mode === 'compact' ? '30px' : '100%',
+            objectFit: 'contain',
+            flexShrink: 0
+          }}
         />
       ) : (
-        <div className="flex items-center justify-center w-32 h-12 bg-gray-100 border rounded text-gray-500 text-xs">
-          <span>📦 {element.elementType}</span>
+        <div 
+          className="flex items-center justify-center rounded"
+          style={{
+            width: mode === 'compact' ? '24px' : '100%',
+            height: mode === 'compact' ? '20px' : '32px',
+            backgroundColor: '#F8F9FA',
+            border: '1px solid #DEE2E6',
+            color: '#495057',
+            fontSize: mode === 'compact' ? '10px' : '12px',
+            gap: '2px',
+            flexShrink: 0
+          }}
+        >
+          <span style={{ fontSize: mode === 'compact' ? '12px' : '14px' }}>
+            {getElementIcon(element.elementType)}
+          </span>
+          {mode !== 'compact' && (
+            <span>{element.elementType || 'Element'}</span>
+          )}
         </div>
       )}
       
-      <div className="text-xs text-gray-600 mt-1">
-        <div className="font-medium truncate">{element.description}</div>
-        <div className="font-mono text-gray-400 truncate">{element.selector}</div>
+      {/* Element Info */}
+      <div 
+        className="text-gray-600 w-full"
+        style={{ 
+          fontSize: dimensions.fontSize,
+          overflow: 'hidden'
+        }}
+      >
+        <div 
+          className="font-medium truncate"
+          style={{ 
+            maxWidth: '100%',
+            color: '#212529',
+            lineHeight: '1.3'
+          }}
+        >
+          {element.description || element.elementType}
+        </div>
+        
+        {mode !== 'compact' && element.attributes?.text && (
+          <div 
+            className="text-gray-500 truncate mt-1"
+            style={{ 
+              maxWidth: '100%',
+              fontStyle: 'italic',
+              fontSize: `${parseInt(dimensions.fontSize) - 1}px`
+            }}
+          >
+            "{element.attributes.text.length > 30 ? 
+              element.attributes.text.substring(0, 30) + '...' : 
+              element.attributes.text}"
+          </div>
+        )}
+        
+        {mode === 'detailed' && (
+          <div 
+            className="font-mono text-gray-400 truncate mt-1"
+            style={{ 
+              maxWidth: '100%',
+              fontSize: `${parseInt(dimensions.fontSize) - 2}px`
+            }}
+          >
+            {element.selector.length > 40 ? 
+              element.selector.substring(0, 40) + '...' : 
+              element.selector}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -44,7 +44,16 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     openssl \
     libssl-dev \
+    xvfb \
+    xauth \
     && rm -rf /var/lib/apt/lists/*
+
+# Set up virtual display for headless browser with frame capture
+ENV DISPLAY=:99
+ENV XVFB_DISPLAY=:99
+ENV SCREEN_WIDTH=1280
+ENV SCREEN_HEIGHT=720
+ENV SCREEN_DEPTH=24
 
 # Configure Playwright browsers
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
@@ -77,7 +86,11 @@ RUN find /opt -name "*chrome*" -type f 2>/dev/null || echo "Chrome executables n
 # Copy source code
 COPY . .
 
-# Expose port
+# Copy and set executable permissions for startup script
+COPY start-with-display.sh /usr/local/bin/start-with-display.sh
+RUN chmod +x /usr/local/bin/start-with-display.sh
+
+# Expose ports
 EXPOSE 3002
 
 # Health check
@@ -85,7 +98,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3002/health || exit 1
 
 # Default command (can be overridden in docker-compose)
-CMD ["npm", "run", "dev"]
+CMD ["/usr/local/bin/start-with-display.sh", "npm", "run", "dev"]
 
 # Production stage
 FROM base AS production

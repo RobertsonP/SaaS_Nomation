@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { TestBuilder } from '../../components/test-builder/TestBuilder'
 import { TestConfigurationModal } from '../../components/test-builder/TestConfigurationModal'
 import { testsAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { ProjectElement } from '../../types/element.types'
 
 interface TestStep {
   id: string
@@ -45,11 +46,60 @@ export function TestBuilderPage() {
   const [selectedStartingUrl, setSelectedStartingUrl] = useState('')
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [configurationComplete, setConfigurationComplete] = useState(false)
-  const [configModified, setConfigModified] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState('')
+
+  // const [configModified, setConfigModified] = useState(false) // Currently unused
 
   useEffect(() => {
     loadData()
   }, [projectId, testId])
+
+  // Check for unsaved changes in localStorage
+  useEffect(() => {
+    if (testId) {
+      const checkUnsavedChanges = () => {
+        const savedSteps = localStorage.getItem(`test-steps-${testId}`);
+        if (savedSteps) {
+          try {
+            const parsedSteps = JSON.parse(savedSteps);
+            const hasChanges = parsedSteps.length !== (test?.steps?.length || 0) || 
+                              JSON.stringify(parsedSteps) !== JSON.stringify(test?.steps || []);
+            setHasUnsavedChanges(hasChanges);
+          } catch (e) {
+            console.warn('Failed to parse saved steps:', e);
+          }
+        }
+      };
+
+      checkUnsavedChanges();
+      
+      // Check periodically for changes
+      const interval = setInterval(checkUnsavedChanges, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [testId, test?.steps]);
+
+  // Block navigation when there are unsaved changes
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  // Browser beforeunload warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const loadData = async () => {
     try {
@@ -103,7 +153,10 @@ export function TestBuilderPage() {
           steps
         })
         showSuccess('Test Updated', `Successfully updated test "${testName}" with ${steps.length} step${steps.length !== 1 ? 's' : ''}`)
-        setConfigModified(false) // Clear modified flag after successful save
+        
+        // Clear localStorage and unsaved changes flag after successful save
+        localStorage.removeItem(`test-steps-${testId}`);
+        setHasUnsavedChanges(false);
       } else {
         // Create new test with steps
         await testsAPI.create({
@@ -114,6 +167,7 @@ export function TestBuilderPage() {
           steps
         })
         showSuccess('Test Created', `Successfully created test "${testName}" with ${steps.length} step${steps.length !== 1 ? 's' : ''}`)
+        setHasUnsavedChanges(false);
       }
       navigate(`/projects/${projectId}/tests`)
     } catch (error) {
@@ -143,7 +197,7 @@ export function TestBuilderPage() {
     setSelectedStartingUrl(config.startingUrl)
     setConfigurationComplete(true)
     setShowConfigModal(false)
-    setConfigModified(wasModified || false)
+    // setConfigModified(wasModified || false) // Currently unused
   }
 
   const handleConfigurationCancel = () => {
@@ -156,6 +210,32 @@ export function TestBuilderPage() {
 
   const handleEditConfiguration = () => {
     setShowConfigModal(true)
+  }
+
+  const handleStartNameEdit = () => {
+    setEditedName(testName)
+    setIsEditingName(true)
+  }
+
+  const handleSaveNameEdit = () => {
+    if (editedName.trim() && editedName.trim() !== testName) {
+      setTestName(editedName.trim())
+      setHasUnsavedChanges(true)
+    }
+    setIsEditingName(false)
+  }
+
+  const handleCancelNameEdit = () => {
+    setEditedName('')
+    setIsEditingName(false)
+  }
+
+  const handleNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveNameEdit()
+    } else if (e.key === 'Escape') {
+      handleCancelNameEdit()
+    }
   }
 
   if (loading) {
@@ -185,12 +265,54 @@ export function TestBuilderPage() {
       {/* Main Test Builder Interface */}
       {configurationComplete && (
         <div className="h-screen flex flex-col">
-          {/* Minimal Header - ONLY name + edit button */}
+          {/* Minimal Header - Editable name + edit button */}
           <div className="bg-white border-b border-gray-200 px-4 py-2 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-medium text-gray-900">
-                {testName}
-              </h1>
+              <div className="flex items-center space-x-2 flex-1">
+                {isEditingName ? (
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      onKeyDown={handleNameKeyPress}
+                      onBlur={handleSaveNameEdit}
+                      autoFocus
+                      className="text-lg font-medium text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none min-w-0 flex-1"
+                      placeholder="Enter test name"
+                    />
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={handleSaveNameEdit}
+                        className="p-1 text-green-600 hover:text-green-800 text-xs"
+                        title="Save (Enter)"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={handleCancelNameEdit}
+                        className="p-1 text-red-600 hover:text-red-800 text-xs"
+                        title="Cancel (Escape)"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 group">
+                    <h1 className="text-lg font-medium text-gray-900">
+                      {testName}
+                    </h1>
+                    <button
+                      onClick={handleStartNameEdit}
+                      className="p-1 text-gray-400 hover:text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Click to edit test name"
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleEditConfiguration}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -207,7 +329,66 @@ export function TestBuilderPage() {
               onCancel={handleCancel}
               initialSteps={test?.steps || []}
               projectId={projectId}
+              testId={testId}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Blocking Modal */}
+      {blocker.state === "blocked" && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                ⚠️ Unsaved Changes
+              </h3>
+              <p className="text-gray-600 mb-6">
+                You have unsaved changes that will be lost if you leave this page. 
+                Would you like to save your test before leaving?
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={async () => {
+                    // Save current test steps from localStorage
+                    if (testId) {
+                      const savedSteps = localStorage.getItem(`test-steps-${testId}`);
+                      if (savedSteps) {
+                        try {
+                          const parsedSteps = JSON.parse(savedSteps);
+                          await handleSave(parsedSteps);
+                        } catch (e) {
+                          console.error('Failed to save before navigation:', e);
+                        }
+                      }
+                    }
+                    blocker.proceed();
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Save & Leave
+                </button>
+                <button
+                  onClick={() => {
+                    // Clear localStorage and proceed
+                    if (testId) {
+                      localStorage.removeItem(`test-steps-${testId}`);
+                    }
+                    setHasUnsavedChanges(false);
+                    blocker.proceed();
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Discard & Leave
+                </button>
+                <button
+                  onClick={() => blocker.reset()}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

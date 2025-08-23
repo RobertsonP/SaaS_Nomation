@@ -29,7 +29,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
   onCancel
 }) => {
   const [step, setStep] = useState<'credentials' | 'test' | 'review'>('credentials');
-  const [templates, setTemplates] = useState<AuthTemplate[]>([]);
+  const [, setTemplates] = useState<AuthTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<AuthTemplate | null>(null);
   
   const [credentials, setCredentials] = useState({

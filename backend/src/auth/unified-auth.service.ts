@@ -43,7 +43,16 @@ export class UnifiedAuthService {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        // Enhanced args for slow/problematic sites
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images', // Skip images for faster loading in authentication
+        '--disable-javascript-harmony-shipping',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI'
       ]
     });
 
@@ -52,11 +61,8 @@ export class UnifiedAuthService {
     try {
       console.log(`🔐 Starting authentication flow for URL: ${targetUrl}`);
       
-      // Step 1: Check and open provided URL
-      await page.goto(targetUrl, { 
-        waitUntil: 'networkidle', 
-        timeout: this.DEFAULT_TIMEOUT 
-      });
+      // Step 1: Check and open provided URL with progressive loading
+      await this.navigateWithProgressiveLoading(page, targetUrl);
 
       // Step 2: Add extended wait for page stabilization
       await this.waitForPageStabilization(page);
@@ -484,7 +490,7 @@ export class UnifiedAuthService {
     const page = await browser.newPage();
     
     try {
-      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: this.DEFAULT_TIMEOUT });
+      await this.navigateWithProgressiveLoading(page, targetUrl);
       const currentUrl = page.url();
       
       const urlMatches = this.urlsMatch(targetUrl, currentUrl);
@@ -504,5 +510,80 @@ export class UnifiedAuthService {
     } finally {
       await browser.close();
     }
+  }
+
+  /**
+   * Navigate to page with progressive loading strategies for slow/problematic sites
+   */
+  private async navigateWithProgressiveLoading(page: any, url: string) {
+    console.log(`🌐 [AUTH] Navigating to ${url} with enhanced loading strategy...`);
+    
+    try {
+      // Strategy 1: Try networkidle first (fast sites)
+      console.log(`📡 [AUTH] Attempting fast load strategy (networkidle, 15s timeout)...`);
+      await page.goto(url, { 
+        waitUntil: 'networkidle', 
+        timeout: 15000 
+      });
+      console.log(`✅ [AUTH] Fast load successful for ${url}`);
+      
+    } catch (error) {
+      console.log(`⚠️ [AUTH] Fast load failed: ${error.message}`);
+      console.log(`🔄 [AUTH] Trying progressive load strategy (domcontentloaded + load + manual waits)...`);
+      
+      try {
+        // Strategy 2: Progressive loading for slow sites
+        await page.goto(url, { 
+          waitUntil: 'domcontentloaded',  // Wait for DOM only
+          timeout: 45000  // Longer timeout for slow sites
+        });
+        console.log(`📄 [AUTH] DOM loaded for ${url}`);
+        
+        // Wait for basic page load event
+        try {
+          await page.waitForLoadState('load', { timeout: 15000 });
+          console.log(`🔗 [AUTH] Load event completed for ${url}`);
+        } catch (loadError) {
+          console.log(`⚠️ [AUTH] Load event timeout - proceeding anyway: ${loadError.message}`);
+        }
+        
+        // Wait for document ready state
+        await page.evaluate(() => {
+          return new Promise((resolve) => {
+            if (document.readyState === 'complete') {
+              resolve(true);
+            } else {
+              document.addEventListener('readystatechange', () => {
+                if (document.readyState === 'complete') {
+                  resolve(true);
+                }
+              });
+            }
+          });
+        });
+        
+        console.log(`✅ [AUTH] Progressive load successful for ${url}`);
+        
+      } catch (progressiveError) {
+        console.log(`⚠️ [AUTH] Progressive load also failed: ${progressiveError.message}`);
+        console.log(`🚀 [AUTH] Trying minimal load strategy (domcontentloaded only)...`);
+        
+        // Strategy 3: Minimal loading for problematic sites
+        await page.goto(url, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 60000  // Maximum timeout
+        });
+        console.log(`⚡ [AUTH] Minimal load completed for ${url}`);
+      }
+    }
+    
+    // Progressive waits for dynamic content with multiple stages
+    console.log(`⏳ [AUTH] Waiting for dynamic content to load...`);
+    
+    // Stage 1: Basic content stabilization
+    await page.waitForTimeout(2000);
+    
+    // Stage 2: Allow additional dynamic loading
+    await page.waitForTimeout(1000);
   }
 }

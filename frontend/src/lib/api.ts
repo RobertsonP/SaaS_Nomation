@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 900000, // 15 minutes for enterprise project analysis (up to 1GB)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -20,14 +20,42 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors
+// Track failed auth attempts to prevent infinite loops
+let authFailureCount = 0;
+const MAX_AUTH_FAILURES = 3;
+
+// Handle auth errors with retry limits
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Reset auth failure count on successful response
+    authFailureCount = 0;
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
+      authFailureCount++;
+      
+      // Log the auth failure for debugging
+      console.warn(`🔐 Auth failure ${authFailureCount}/${MAX_AUTH_FAILURES}:`, error.config?.url);
+      
+      // Clear auth data and redirect after max failures to prevent infinite loops
+      if (authFailureCount >= MAX_AUTH_FAILURES) {
+        console.error('🚨 Max auth failures reached. Clearing auth data and redirecting to login.');
+        localStorage.removeItem('auth_token');
+        sessionStorage.clear();
+        
+        // Prevent further requests by clearing headers
+        delete api.defaults.headers.common['Authorization'];
+        
+        // Redirect to login
+        window.location.href = '/login';
+        return Promise.reject(new Error('Authentication failed after multiple attempts'));
+      }
+      
+      // For first few failures, just remove token but don't redirect immediately
       localStorage.removeItem('auth_token');
-      window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );
@@ -84,6 +112,103 @@ export const projectsAPI = {
     const response = await api.delete(`/projects/${projectId}/elements`);
     return response.data;
   },
+  // Dynamic Element Discovery - Hunt New Elements
+  huntNewElements: async (projectId: string, data: { steps: any[], testId: string }) => {
+    const response = await api.post(`/projects/${projectId}/hunt-elements`, data);
+    return response.data;
+  },
+  // Live Step Execution
+  liveExecuteStep: async (projectId: string, data: { step: any, startingUrl: string, tempExecutionId: string }) => {
+    const response = await api.post(`/projects/${projectId}/live-execute-step`, data);
+    return response.data;
+  },
+  // Project Upload Analysis - Create Elements from Source Code
+  createElements: async (projectId: string, elements: Array<{
+    selector: string;
+    elementType: string;
+    description: string;
+    attributes?: any;
+    confidence?: number;
+    category?: string;
+    source?: string;
+  }>) => {
+    const response = await api.post(`/projects/${projectId}/elements`, { elements });
+    return response.data;
+  },
+  
+  // Server-side Project Folder Analysis
+  analyzeProjectFolder: async (files: Array<{
+    name: string;
+    path: string;
+    size: number;
+    type: string;
+    content: string;
+  }>) => {
+    const response = await api.post('/projects/analyze-folder', { files });
+    return response.data;
+  },
+};
+
+// Browser API for live element interaction
+export const browserAPI = {
+  // Cross-origin element detection using backend headless browser
+  crossOriginElementDetection: async (data: {
+    url: string;
+    clickX: number;
+    clickY: number;
+    viewport: { width: number; height: number };
+  }) => {
+    const response = await api.post('/api/browser/cross-origin-element-detection', data);
+    return response.data;
+  },
+  
+  // Create browser session for live interaction
+  createSession: async (projectId: string, authFlow?: any) => {
+    const response = await api.post('/api/browser/sessions', { projectId, authFlow });
+    return response.data;
+  },
+  
+  // Navigate session to page
+  navigateSession: async (sessionToken: string, url: string) => {
+    const response = await api.post(`/api/browser/sessions/${sessionToken}/navigate`, { url });
+    return response.data;
+  },
+  
+  // Capture elements from current page in session
+  captureElements: async (sessionToken: string) => {
+    const response = await api.get(`/api/browser/sessions/${sessionToken}/elements`);
+    return response.data;
+  },
+  
+  // Execute action in browser session
+  executeAction: async (sessionToken: string, action: { type: string; selector: string; value?: string }) => {
+    const response = await api.post(`/api/browser/sessions/${sessionToken}/actions`, action);
+    return response.data;
+  },
+  
+  // Get session information
+  getSessionInfo: async (sessionToken: string) => {
+    const response = await api.get(`/api/browser/sessions/${sessionToken}`);
+    return response.data;
+  },
+  
+  // Get session view for live browser display
+  getSessionView: async (sessionToken: string) => {
+    const response = await api.get(`/api/browser/sessions/${sessionToken}/view`);
+    return response.data;
+  },
+  
+  // Get session screenshot for live visual display
+  getSessionScreenshot: async (sessionToken: string) => {
+    const response = await api.get(`/api/browser/sessions/${sessionToken}/screenshot`);
+    return response.data;
+  },
+  
+  // Close browser session
+  closeSession: async (sessionToken: string) => {
+    const response = await api.delete(`/api/browser/sessions/${sessionToken}`);
+    return response.data;
+  },
 };
 
 // Tests API
@@ -102,6 +227,8 @@ export const testsAPI = {
 // Execution API
 export const executionAPI = {
   run: (testId: string) => api.post(`/api/execution/test/${testId}/run`),
+  runLive: (testId: string) => api.post(`/api/execution/test/${testId}/run-live`),
+  stop: (executionId: string) => api.post(`/api/execution/${executionId}/stop`),
   getResults: (testId: string) => api.get(`/api/execution/test/${testId}/results`),
   getById: (executionId: string) => api.get(`/api/execution/${executionId}`),
 };
@@ -115,6 +242,26 @@ export const authFlowsAPI = {
   getTemplates: () => api.get('/api/templates/auth'), // Updated to use standalone endpoint
   testAuth: (data: { loginUrl: string; username: string; password: string; steps?: any[] }) => 
     api.post('/api/auth-flows/test', data),
+};
+
+// Test Suites API - NEW: Complete test suite management
+export const testSuitesAPI = {
+  getByProject: (projectId: string) => api.get(`/api/test-suites/project/${projectId}`),
+  create: (data: { name: string; description?: string; projectId: string }) =>
+    api.post('/api/test-suites', data),
+  getById: (suiteId: string) => api.get(`/api/test-suites/${suiteId}`),
+  update: (suiteId: string, data: { name: string; description?: string; status?: string }) =>
+    api.put(`/api/test-suites/${suiteId}`, data),
+  delete: (suiteId: string) => api.delete(`/api/test-suites/${suiteId}`),
+  addTests: (suiteId: string, testIds: string[]) =>
+    api.post(`/api/test-suites/${suiteId}/tests`, { testIds }),
+  removeTest: (suiteId: string, testId: string) =>
+    api.delete(`/api/test-suites/${suiteId}/tests/${testId}`),
+  reorderTests: (suiteId: string, testOrder: Array<{testId: string, order: number}>) =>
+    api.put(`/api/test-suites/${suiteId}/tests/reorder`, { testOrder }),
+  execute: (suiteId: string) => api.post(`/api/test-suites/${suiteId}/execute`),
+  getExecutions: (suiteId: string) => api.get(`/api/test-suites/${suiteId}/executions`),
+  getExecution: (executionId: string) => api.get(`/api/test-suites/executions/${executionId}`)
 };
 
 // Convenience functions for AI features

@@ -38,6 +38,11 @@ export function ProjectDetailsPage() {
   const [selectedElementType, setSelectedElementType] = useState<string>('all');
   const [selectedUrl, setSelectedUrl] = useState<string>('all');
   
+  // NEW: URL Management State
+  const [showUrlManager, setShowUrlManager] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+  const [addingUrl, setAddingUrl] = useState(false);
+  
   // ENHANCED: Add authentication and analysis state
   const [authFlows, setAuthFlows] = useState<any[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -117,7 +122,26 @@ export function ProjectDetailsPage() {
 
         socket.on('analysis-progress', (data) => {
           console.log('📊 Analysis progress update:', data);
-          setCurrentAnalysisStep(data.message || 'Processing...');
+          
+          // Enhanced step display with URL extraction for cleaner progress info
+          let stepMessage = data.message || 'Processing...';
+          if (stepMessage.includes('Analyzing URL') || stepMessage.includes('elements from')) {
+            // Extract domain for cleaner display
+            const urlMatch = stepMessage.match(/https?:\/\/([^\/]+)/);
+            if (urlMatch) {
+              const domain = urlMatch[1].replace('www.', '');
+              if (stepMessage.includes('Analyzing URL')) {
+                const urlCountMatch = stepMessage.match(/URL (\d+\/\d+)/);
+                stepMessage = `Analyzing ${domain}${urlCountMatch ? ` (${urlCountMatch[1]})` : ''}...`;
+              } else if (stepMessage.includes('elements from')) {
+                const elementsMatch = stepMessage.match(/(\d+) elements/);
+                if (elementsMatch) {
+                  stepMessage = `✅ Found ${elementsMatch[1]} elements on ${domain}`;
+                }
+              }
+            }
+          }
+          setCurrentAnalysisStep(stepMessage);
           
           // Check if progress data is available - backend sends it as data.progress.current/total/percentage
           if (data.progress && data.progress.current !== undefined && data.progress.total !== undefined) {
@@ -295,7 +319,16 @@ export function ProjectDetailsPage() {
       
     } catch (error) {
       console.error('Analysis error:', error);
-      showError('Analysis Error', 'Failed to start analysis');
+      
+      // Check if this is a timeout error while WebSocket continues
+      if ((error as any)?.code === 'ECONNABORTED' && (error as any)?.message?.includes('timeout')) {
+        showError(
+          'API Timeout Notice', 
+          'The analysis API timed out, but the process may still be running. Check the progress updates below for real-time status.'
+        );
+      } else {
+        showError('Analysis Error', 'Failed to start analysis');
+      }
     }
   };
 
@@ -333,6 +366,66 @@ export function ProjectDetailsPage() {
       showError('Clear Error', 'Failed to clear project elements');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  // NEW: URL Management Functions
+  const handleAddUrl = async () => {
+    if (!projectId || !newUrl.trim()) return;
+    
+    setAddingUrl(true);
+    try {
+      // Validate URL format
+      const urlToAdd = newUrl.trim();
+      if (!urlToAdd.startsWith('http://') && !urlToAdd.startsWith('https://')) {
+        showError('Invalid URL', 'Please enter a valid URL starting with http:// or https://');
+        return;
+      }
+
+      // Check if URL already exists
+      if (project?.urls.some(url => url.url === urlToAdd)) {
+        showError('Duplicate URL', 'This URL is already added to the project');
+        return;
+      }
+
+      // Add URL to project
+      const currentUrls = project?.urls || [];
+      const updatedUrls = [...currentUrls, { url: urlToAdd, title: 'Page', description: 'Project URL' }];
+      
+      await projectsAPI.update(projectId, {
+        urls: updatedUrls
+      });
+
+      setNewUrl('');
+      showSuccess('URL Added', 'URL has been added to the project. Run analysis to discover elements.');
+      loadProject(); // Reload to show updated URLs
+    } catch (error) {
+      console.error('Failed to add URL:', error);
+      showError('Failed to Add URL', 'Please try again.');
+    } finally {
+      setAddingUrl(false);
+    }
+  };
+
+  const handleRemoveUrl = async (urlToRemove: string) => {
+    if (!projectId || !project) return;
+    
+    if (!confirm(`Remove URL: ${urlToRemove}?\n\nThis will also remove any elements discovered from this URL.`)) {
+      return;
+    }
+
+    try {
+      const updatedUrls = project.urls.filter(url => url.url !== urlToRemove);
+      
+      await projectsAPI.update(projectId, {
+        urls: updatedUrls.map(url => ({ url: url.url, title: url.title, description: url.description }))
+      });
+
+      showSuccess('URL Removed', 'URL has been removed from the project.');
+      loadProject(); // Reload to show updated URLs
+    } catch (error) {
+      console.error('Failed to remove URL:', error);
+      showError('Failed to Remove URL', 'Please try again.');
     }
   };
 
@@ -407,25 +500,51 @@ export function ProjectDetailsPage() {
           </div>
           <div className="flex space-x-2">
             <Link
-              to={`/projects/${project.id}/tests`}
+              to={`/projects/${project.id}/suites`}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              View Tests ({project._count.tests})
+              📦 Test Suites
             </Link>
             <Link
-              to={`/projects/${project.id}/tests/new`}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              to={`/projects/${project.id}/tests`}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
             >
-              Create Test
+              📋 Individual Tests ({project._count.tests})
             </Link>
+            <Link
+              to={`/projects/${project.id}/analyze`}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 relative"
+            >
+              🚀 Project Analysis
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 py-0.5 rounded-full text-[10px]">
+                NEW
+              </span>
+            </Link>
+            {project.urls.length > 0 ? (
+              <Link
+                to={`/projects/${project.id}/tests/new`}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              >
+                ➕ Create Test
+              </Link>
+            ) : (
+              <button
+                onClick={() => setShowUrlManager(true)}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 font-medium"
+              >
+                🚀 Setup Project
+              </button>
+            )}
           </div>
         </div>
 
         {/* Project Stats - Contentful-style subtle improvements */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
+               onClick={() => setShowUrlManager(!showUrlManager)}>
             <div className="text-xs font-semibold text-blue-900 uppercase tracking-wide">URLs</div>
             <div className="text-2xl font-bold text-blue-600 mt-1">{project._count.urls}</div>
+            <div className="text-xs text-blue-700 mt-1">Click to manage</div>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="text-xs font-semibold text-green-900 uppercase tracking-wide">Elements</div>
@@ -442,6 +561,151 @@ export function ProjectDetailsPage() {
             </div>
           </div>
         </div>
+
+        {/* NEW: Empty Project Setup Guide */}
+        {project.urls.length === 0 && !showUrlManager && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 mb-8 text-center">
+            <div className="text-6xl mb-4">🚀</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Your New Project!</h2>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+              Your project has been created successfully. Now let's add some URLs and start discovering testable elements 
+              to build your automated test suite.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
+                <div className="text-blue-600 text-3xl mb-3">1️⃣</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Add URLs</h3>
+                <p className="text-sm text-gray-600">Start by adding the web pages you want to test</p>
+              </div>
+              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
+                <div className="text-blue-600 text-3xl mb-3">2️⃣</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Analyze Pages</h3>
+                <p className="text-sm text-gray-600">Our AI discovers testable elements automatically</p>
+              </div>
+              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
+                <div className="text-blue-600 text-3xl mb-3">3️⃣</div>
+                <h3 className="font-semibold text-gray-900 mb-2">Build Tests</h3>
+                <p className="text-sm text-gray-600">Use discovered elements to create automated tests</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setShowUrlManager(true)}
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+            >
+              🌐 Add Your First URL
+            </button>
+          </div>
+        )}
+
+        {/* NEW: URL Management Section */}
+        {showUrlManager && (
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 mb-8">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">URL Management</h3>
+                  <p className="text-sm opacity-90">Add and manage URLs for analysis</p>
+                </div>
+                <button
+                  onClick={() => setShowUrlManager(false)}
+                  className="text-white hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Add URL Form */}
+              <div className="mb-6">
+                <div className="flex space-x-3">
+                  <div className="flex-1">
+                    <input
+                      type="url"
+                      placeholder="https://example.com/page-to-test"
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddUrl}
+                    disabled={addingUrl || !newUrl.trim()}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {addingUrl ? (
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                    ) : (
+                      <span>+ Add URL</span>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Add URLs to pages you want to test. Each URL will be analyzed to discover testable elements.
+                </p>
+              </div>
+
+              {/* URLs List */}
+              <div className="space-y-3">
+                {project.urls.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <div className="text-4xl mb-2">🌐</div>
+                    <h4 className="text-lg font-medium text-gray-900 mb-1">No URLs Added Yet</h4>
+                    <p className="text-sm text-gray-600 mb-4">Add your first URL to start building your test library</p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                      💡 <strong>Tip:</strong> Start with your login page, dashboard, or main application pages
+                    </div>
+                  </div>
+                ) : (
+                  project.urls.map((url, index) => (
+                    <div key={url.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${url.analyzed ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 break-all">{url.url}</p>
+                            <p className="text-xs text-gray-500">
+                              {url.analyzed ? `Analyzed ${url.analysisDate ? new Date(url.analysisDate).toLocaleDateString() : 'recently'}` : 'Not analyzed yet'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveUrl(url.url)}
+                        className="px-3 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {project.urls.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      {project.urls.length} URL{project.urls.length !== 1 ? 's' : ''} • {project.urls.filter(url => url.analyzed).length} analyzed
+                    </div>
+                    <button
+                      onClick={handleAnalyzeProject}
+                      disabled={analyzing || project.urls.length === 0}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      {analyzing ? 'Analyzing...' : 'Analyze All URLs'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ANALYSIS CONTROLS - Contentful-style subtle improvements */}
@@ -472,9 +736,20 @@ export function ProjectDetailsPage() {
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-gray-700">Analysis Progress</span>
-              <span className="text-sm text-gray-600 font-medium">{currentAnalysisStep}</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 font-medium">{currentAnalysisStep}</span>
+                {(analyzing || analysisProgressPercent > 0) && (
+                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    Double-click for details
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
+            <div 
+              className="w-full bg-gray-200 rounded-full h-3 shadow-inner cursor-pointer hover:shadow-md transition-shadow"
+              onDoubleClick={() => setShowAnalysisModal(true)}
+              title="Double-click to view detailed analysis progress"
+            >
               <div 
                 className={`h-3 rounded-full transition-all duration-500 shadow-sm ${
                   analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' : 
@@ -596,6 +871,7 @@ export function ProjectDetailsPage() {
               previewMode="auto"
               showQuality={true}
               compact={false}
+              isLoading={false}
             />
           )}
         </div>

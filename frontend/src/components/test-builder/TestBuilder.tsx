@@ -17,9 +17,11 @@ interface TestBuilderProps {
   onCancel: () => void
   initialSteps?: TestStep[]
   projectId?: string // AI Enhancement: Pass project ID for element library
+  testId?: string // For localStorage persistence
+  onElementsUpdated?: () => void // Callback when new elements are discovered
 }
 
-export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId }: TestBuilderProps) {
+export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated }: TestBuilderProps) {
   // Simplified state for layout component
   const [elementLibrary, setElementLibrary] = useState<ProjectElement[]>([])
   const [loadingElements, setLoadingElements] = useState(false)
@@ -50,6 +52,22 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId }: 
   // AI Enhancement: Handle element selection from library
   const handleElementSelect = (element: ProjectElement) => {
     setSelectedElement(element)
+  }
+
+  // Handle new elements discovered from hunting
+  const handleHuntNewElements = (newElements: ProjectElement[]) => {
+    // Add new elements to the current library
+    setElementLibrary(prev => [...prev, ...newElements])
+    // Notify parent component to refresh if needed
+    onElementsUpdated?.()
+  }
+
+  // Handle elements added from live element picker
+  const handleElementsAdded = (newElements: ProjectElement[]) => {
+    // Add new elements to the current library
+    setElementLibrary(prev => [...prev, ...newElements])
+    // Notify parent component to refresh if needed
+    onElementsUpdated?.()
   }
 
   return (
@@ -89,6 +107,8 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId }: 
           <ElementLibrarySidebar
             elements={elementLibrary}
             onSelectElement={handleElementSelect}
+            onElementsAdded={handleElementsAdded}
+            projectId={projectId}
             isLoading={loadingElements}
             className="h-full"
           />
@@ -102,6 +122,9 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId }: 
             onSave={onSave}
             onCancel={onCancel}
             initialSteps={initialSteps}
+            testId={testId}
+            projectId={projectId}
+            onHuntNewElements={handleHuntNewElements}
             className="h-full"
           />
         </div>

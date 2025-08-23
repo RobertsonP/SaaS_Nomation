@@ -285,7 +285,7 @@ export function ElementPreviewCard({
             {attributes.id && <div>ID: {attributes.id}</div>}
             {attributes.dataTestId && <div>Test ID: {attributes.dataTestId}</div>}
             {attributes.className && (
-              <div>Classes: {attributes.className.split(' ').slice(0, 3).join(' ')}</div>
+              <div>Classes: {(attributes.className || '').toString().split(' ').slice(0, 3).join(' ')}</div>
             )}
           </div>
         )}

@@ -9,26 +9,47 @@ interface ElementLibraryPanelProps {
   isLoading: boolean;
   isLiveMode?: boolean;
   onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
+  // Phase 2: Missing props that ProjectDetailsPage is trying to pass
+  selectedElementType?: string;
+  selectedUrl?: string;
+  onElementTypeChange?: (type: string) => void;
+  onUrlChange?: (url: string) => void;
+  previewMode?: 'css' | 'screenshot' | 'auto';
+  showQuality?: boolean;
+  compact?: boolean;
 }
 
-export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLiveMode, onPerformAction }: ElementLibraryPanelProps) {
+export function ElementLibraryPanel({ 
+  elements, 
+  onSelectElement, 
+  isLoading, 
+  isLiveMode, 
+  onPerformAction,
+  // Phase 2: Accept and use the new props
+  selectedElementType,
+  selectedUrl,
+  onElementTypeChange,
+  onUrlChange,
+  previewMode = 'auto',
+  showQuality = true,
+  compact = false
+}: ElementLibraryPanelProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('all');
-  const [selectedUrl, setSelectedUrl] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>(selectedElementType || 'all');
+  const [internalSelectedUrl, setInternalSelectedUrl] = useState<string>(selectedUrl || 'all');
   const [selectedDiscoveryState, setSelectedDiscoveryState] = useState<string>('all');
-  const [previewMode, setPreviewMode] = useState<boolean>(true); // Visual preview mode by default
 
   const filteredElements = useMemo(() => {
     return elements.filter(element => {
       const matchesSearch = element.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            element.selector.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = selectedType === 'all' || element.elementType === selectedType;
-      const matchesUrl = selectedUrl === 'all' || element.sourceUrl?.id === selectedUrl;
+      const matchesUrl = internalSelectedUrl === 'all' || element.sourceUrl?.id === internalSelectedUrl;
       const matchesDiscoveryState = selectedDiscoveryState === 'all' || 
                                    (element.attributes as any)?.discoveryState === selectedDiscoveryState;
       return matchesSearch && matchesType && matchesUrl && matchesDiscoveryState;
     });
-  }, [elements, searchTerm, selectedType, selectedUrl, selectedDiscoveryState]);
+  }, [elements, searchTerm, selectedType, internalSelectedUrl, selectedDiscoveryState]);
 
   // Group elements by source URL for better organization
   const elementsByUrl = useMemo(() => {
@@ -181,7 +202,7 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
           <div className="flex items-center space-x-2">
             <span className="text-xs text-gray-600">Preview:</span>
             <button
-              onClick={() => setPreviewMode(!previewMode)}
+              onClick={() => {/* Preview mode toggle disabled - controlled by parent */}}
               className={`px-2 py-1 text-xs rounded-md transition-colors ${
                 previewMode 
                   ? 'bg-blue-100 text-blue-800 border border-blue-200' 
@@ -228,9 +249,9 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
               <label className="text-xs font-medium text-gray-700">Pages ({uniqueUrls.length}):</label>
               <div className="grid grid-cols-1 gap-2">
                 <button
-                  onClick={() => setSelectedUrl('all')}
+                  onClick={() => setInternalSelectedUrl('all')}
                   className={`p-3 rounded-lg border transition-colors text-left ${
-                    selectedUrl === 'all'
+                    internalSelectedUrl === 'all'
                       ? 'bg-blue-50 text-blue-900 border-blue-200 ring-2 ring-blue-300'
                       : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                   }`}
@@ -251,9 +272,9 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                   return (
                     <button
                       key={url.id}
-                      onClick={() => setSelectedUrl(url.id)}
+                      onClick={() => setInternalSelectedUrl(url.id)}
                       className={`p-3 rounded-lg border transition-colors text-left ${
-                        selectedUrl === url.id
+                        internalSelectedUrl === url.id
                           ? 'bg-blue-50 text-blue-900 border-blue-200 ring-2 ring-blue-300'
                           : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                       }`}
@@ -275,7 +296,7 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                         </div>
                         <div className="ml-2 flex-shrink-0">
                           <div className={`text-xs px-2 py-1 rounded ${
-                            selectedUrl === url.id 
+                            internalSelectedUrl === url.id 
                               ? 'bg-blue-100 text-blue-800' 
                               : 'bg-gray-100 text-gray-600'
                           }`}>
@@ -322,11 +343,11 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
         ) : previewMode ? (
           // VISUAL PREVIEW MODE: Show element cards with screenshots
           <div className={`grid gap-3 ${
-            selectedUrl === 'all' && uniqueUrls.length > 1 
+            internalSelectedUrl === 'all' && uniqueUrls.length > 1 
               ? 'grid-cols-1' 
               : 'grid-cols-1 md:grid-cols-2'
           }`}>
-            {selectedUrl === 'all' && uniqueUrls.length > 1 ? (
+            {internalSelectedUrl === 'all' && uniqueUrls.length > 1 ? (
               // Group by URL in preview mode
               Object.entries(elementsByUrl).map(([urlId, urlElements]) => {
                 const sourceUrl = uniqueUrls.find(url => url.id === urlId);
@@ -347,9 +368,9 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                           onRequestScreenshot={requestElementScreenshot}
                           isLiveMode={isLiveMode}
                           onPerformAction={onPerformAction}
-                          previewMode="auto"
-                          showQuality={true}
-                          compact={false}
+                          previewMode={previewMode}
+                          showQuality={showQuality}
+                          compact={compact}
                         />
                       ))}
                     </div>
@@ -366,14 +387,14 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                   onRequestScreenshot={requestElementScreenshot}
                   isLiveMode={isLiveMode}
                   onPerformAction={onPerformAction}
-                  previewMode="auto"
-                  showQuality={true}
-                  compact={false}
+                  previewMode={previewMode}
+                  showQuality={showQuality}
+                  compact={compact}
                 />
               ))
             )}
           </div>
-        ) : selectedUrl === 'all' && uniqueUrls.length > 1 ? (
+        ) : internalSelectedUrl === 'all' && uniqueUrls.length > 1 ? (
           // Show elements grouped by URL when no specific URL is selected
           <div className="space-y-3">
             {Object.entries(elementsByUrl).map(([urlId, urlElements]) => {
@@ -542,7 +563,7 @@ export function ElementLibraryPanel({ elements, onSelectElement, isLoading, isLi
                   Text: "{element.attributes.text}"
                 </div>
               )}
-              {element.sourceUrl && selectedUrl !== 'all' && (
+              {element.sourceUrl && internalSelectedUrl !== 'all' && (
                 <div className="text-xs text-blue-600 mt-1 truncate">
                   From: {element.sourceUrl.title || 'Page'}
                 </div>

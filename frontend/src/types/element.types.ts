@@ -98,6 +98,11 @@ export interface ProjectElement {
     id?: string;
     class?: string;
     type?: string;
+    placeholder?: string;
+    tagName?: string;
+    sourceFile?: string;
+    pickedLive?: boolean;
+    pickedAt?: string;
     // Phase 2: Enhanced CSS data for visual preview
     cssInfo?: CSSProperties;
     // Phase 2: Element position and size

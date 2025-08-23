@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { executionAPI, testsAPI } from '../../lib/api'
+import { RobotFrameworkResults } from '../../components/test-results/RobotFrameworkResults'
+import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 
 interface TestExecution {
   id: string
@@ -10,11 +12,19 @@ interface TestExecution {
   duration?: number
   errorMsg?: string
   results?: any[]
+  screenshots?: string[] // Base64 encoded PNG screenshots captured during test execution
 }
 
 interface Test {
   id: string
   name: string
+  steps?: Array<{
+    id: string
+    type: string
+    selector: string
+    value?: string
+    description: string
+  }>
   project: {
     id: string
     name: string
@@ -27,6 +37,7 @@ export function TestResultsPage() {
   const [executions, setExecutions] = useState<TestExecution[]>([])
   const [selectedExecution, setSelectedExecution] = useState<TestExecution | null>(null)
   const [loading, setLoading] = useState(true)
+  const [liveExecutionTest, setLiveExecutionTest] = useState<{id: string; name: string} | null>(null)
 
   useEffect(() => {
     if (testId) {
@@ -71,6 +82,22 @@ export function TestResultsPage() {
     }
   }
 
+  const handleRunTestLive = async () => {
+    if (!test) return
+    // Open live execution viewer
+    setLiveExecutionTest({ id: test.id, name: test.name })
+  }
+
+  const handleLiveExecutionComplete = (result: any) => {
+    console.log('Live execution completed:', result)
+    // Reload the test results to show the new execution
+    loadTestAndResults()
+  }
+
+  const closeLiveExecution = () => {
+    setLiveExecutionTest(null)
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'passed': return 'text-green-600 bg-green-100'
@@ -106,12 +133,22 @@ export function TestResultsPage() {
             <h1 className="text-3xl font-bold text-gray-900">{test?.name}</h1>
             <p className="text-gray-600 mt-2">Project: {test?.project.name}</p>
           </div>
-          <button
-            onClick={runTest}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Run Test
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={runTest}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              Run Test
+            </button>
+            <button
+              onClick={handleRunTestLive}
+              className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-1"
+              title="Run with live viewport viewer"
+            >
+              <span>🎬</span>
+              <span>Live View</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -156,103 +193,39 @@ export function TestResultsPage() {
           </div>
         </div>
 
-        {/* Execution Details */}
+        {/* Robot Framework Style Results */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow border">
-            <div className="p-4 border-b">
-              <h2 className="text-lg font-semibold">
-                {selectedExecution ? 'Execution Details' : 'Select an execution to view details'}
-              </h2>
+          {selectedExecution ? (
+            <RobotFrameworkResults
+              execution={selectedExecution}
+              testName={test?.name || 'Unknown Test'}
+              testSteps={test?.steps || []}
+            />
+          ) : (
+            <div className="bg-white rounded-lg shadow border">
+              <div className="p-4 border-b">
+                <h2 className="text-lg font-semibold">Select an execution to view details</h2>
+              </div>
+              <div className="p-8 text-center text-gray-500">
+                <div className="text-4xl mb-4">📊</div>
+                <p className="text-lg mb-2">Professional Test Results</p>
+                <p className="text-sm">Select an execution from the history to view Robot Framework-style results</p>
+              </div>
             </div>
-            <div className="p-4">
-              {selectedExecution ? (
-                <div>
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Status</label>
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedExecution.status)}`}>
-                        {selectedExecution.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Duration</label>
-                      <p className="text-sm">{formatDuration(selectedExecution.duration)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Started At</label>
-                      <p className="text-sm">{new Date(selectedExecution.startedAt).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Completed At</label>
-                      <p className="text-sm">
-                        {selectedExecution.completedAt 
-                          ? new Date(selectedExecution.completedAt).toLocaleString() 
-                          : 'Still running...'
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedExecution.errorMsg && (
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Error Message</label>
-                      <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                        <p className="text-sm text-red-700">{selectedExecution.errorMsg}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedExecution.results && selectedExecution.results.length > 0 && (
-                    <div>
-                      <h3 className="text-md font-medium mb-3">Step Results</h3>
-                      <div className="space-y-2">
-                        {selectedExecution.results.map((result, index) => (
-                          <div
-                            key={index}
-                            className={`border rounded-lg p-3 ${
-                              result.status === 'passed' 
-                                ? 'border-green-200 bg-green-50'
-                                : result.status === 'failed'
-                                ? 'border-red-200 bg-red-50'
-                                : 'border-gray-200 bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="font-medium text-sm">{result.description}</p>
-                                {result.selector && (
-                                  <p className="text-xs text-gray-600">Selector: {result.selector}</p>
-                                )}
-                                {result.value && (
-                                  <p className="text-xs text-gray-600">Value: {result.value}</p>
-                                )}
-                                {result.error && (
-                                  <p className="text-xs text-red-600 mt-1">{result.error}</p>
-                                )}
-                              </div>
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                result.status === 'passed' ? 'bg-green-100 text-green-800' :
-                                result.status === 'failed' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {result.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <p>Select an execution from the history to view detailed results</p>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       </div>
+      
+      {/* Live Execution Viewer */}
+      {liveExecutionTest && (
+        <LiveExecutionViewer
+          testId={liveExecutionTest.id}
+          testName={liveExecutionTest.name}
+          isOpen={!!liveExecutionTest}
+          onClose={closeLiveExecution}
+          onExecutionComplete={handleLiveExecutionComplete}
+        />
+      )}
     </div>
   )
 }

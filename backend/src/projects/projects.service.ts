@@ -7,6 +7,7 @@ import { AuthFlowsService } from '../auth-flows/auth-flows.service';
 import { SimplifiedAuthService } from '../auth-flows/simplified-auth.service';
 import { AnalysisProgressGateway } from '../analysis/analysis-progress.gateway';
 import { AnalysisRetryService } from '../analysis/analysis-retry.service';
+import { ProjectAnalyzerService } from '../analysis/project-analyzer.service';
 
 @Injectable()
 export class ProjectsService {
@@ -18,6 +19,7 @@ export class ProjectsService {
     private simplifiedAuthService: SimplifiedAuthService,
     private progressGateway: AnalysisProgressGateway,
     private retryService: AnalysisRetryService,
+    private projectAnalyzer: ProjectAnalyzerService,
   ) {}
 
   async findByUser(userId: string) {
@@ -650,6 +652,125 @@ export class ProjectsService {
     return validationResult;
   }
 
+  async createProjectElements(userId: string, projectId: string, elements: any[]) {
+    console.log(`🔧 Creating ${elements.length} project elements from source code analysis`);
+    
+    // Verify project ownership
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+    });
+
+    if (!project) {
+      throw new Error('Project not found or access denied');
+    }
+
+    if (!elements || elements.length === 0) {
+      throw new Error('No elements provided for creation');
+    }
+
+    try {
+      // Transform and create elements
+      const elementsToCreate = elements.map(element => ({
+        projectId,
+        selector: element.selector,
+        elementType: element.elementType,
+        description: element.description,
+        confidence: element.confidence || 0.95,
+        attributes: element.attributes || {},
+        category: element.category || 'project-analysis',
+        sourcePageTitle: `Source Code Analysis`,
+        sourceUrlPath: element.attributes?.filePath || 'unknown',
+        discoveryState: 'confirmed',
+        discoveryTrigger: element.source || 'project-upload'
+      }));
+
+      // Batch create elements
+      const createdElements = await this.prisma.projectElement.createMany({
+        data: elementsToCreate,
+        skipDuplicates: true // Skip if selector already exists
+      });
+
+      console.log(`✅ Successfully created ${createdElements.count} project elements`);
+
+      return {
+        success: true,
+        message: `Created ${createdElements.count} elements from project analysis`,
+        elementsCreated: createdElements.count,
+        totalProvided: elements.length,
+        skippedDuplicates: elements.length - createdElements.count
+      };
+
+    } catch (error) {
+      console.error('Failed to create project elements:', error);
+      throw new Error(`Failed to create project elements: ${error.message}`);
+    }
+  }
+
+  async analyzeProjectFolder(userId: string, files: Array<{
+    name: string;
+    path: string;
+    size: number;
+    type: string;
+    content: string;
+  }>) {
+    console.log(`🔍 Starting server-side project folder analysis for ${files.length} files`);
+    
+    try {
+      // Use the project analyzer service to analyze the uploaded files
+      const analysisResult = await this.projectAnalyzer.analyzeProjectFiles(files);
+      
+      // Create the project with discovered information
+      const projectData = {
+        name: `${analysisResult.framework} Project (${new Date().toLocaleDateString()})`,
+        description: analysisResult.statistics.elementsFound > 0 
+          ? `Auto-generated from folder upload: ${analysisResult.statistics.elementsFound} elements found across ${analysisResult.statistics.totalFiles} files`
+          : `Project uploaded with ${analysisResult.statistics.totalFiles} files. Framework: ${analysisResult.framework}. No UI elements detected - may need manual configuration.`,
+        urls: analysisResult.urls.length > 0 
+          ? analysisResult.urls.map(url => ({
+              url: url.url,
+              title: url.title,
+              description: url.description
+            }))
+          : [{
+              url: 'http://localhost:3000',
+              title: 'Local Development Server',
+              description: 'Default development URL - update as needed'
+            }]
+      };
+      
+      const project = await this.create(userId, projectData);
+      
+      // Add discovered elements to the project if any were found
+      if (analysisResult.elements.length > 0) {
+        await this.createProjectElements(userId, project.id, analysisResult.elements.map(element => ({
+          selector: element.selector,
+          elementType: element.elementType,
+          description: element.description,
+          attributes: element.attributes,
+          confidence: element.confidence,
+          source: element.source
+        })));
+      }
+      
+      console.log(`✅ Successfully created project ${project.id} with ${analysisResult.elements.length} elements from folder analysis`);
+      
+      const successMessage = analysisResult.elements.length > 0 
+        ? `Successfully created project with ${analysisResult.elements.length} UI elements discovered from your ${analysisResult.framework} code`
+        : `Project created successfully! Framework: ${analysisResult.framework}. No UI elements were auto-detected, but you can add URLs and analyze pages manually.`;
+
+      return {
+        success: true,
+        project,
+        analysis: analysisResult,
+        message: successMessage
+      };
+      
+    } catch (error) {
+      console.error('❌ Failed to analyze project folder:', error);
+      throw new Error(`Project folder analysis failed: ${error.message}`);
+    }
+  }
+
   async clearProjectElements(userId: string, projectId: string) {
     // Verify project ownership
     const project = await this.prisma.project.findFirst({
@@ -947,6 +1068,269 @@ export class ProjectsService {
     } catch (error) {
       console.error('Failed to store project elements:', error);
       throw error;
+    }
+  }
+
+  async huntNewElements(userId: string, projectId: string, data: { steps: any[], testId: string }) {
+    console.log(`🔍 Starting element hunting for project ${projectId} with ${data.steps.length} steps`);
+    
+    try {
+      // Verify project ownership
+      const project = await this.prisma.project.findFirst({
+        where: { id: projectId, userId },
+        include: { urls: true, elements: true }
+      });
+
+      if (!project) {
+        throw new Error('Project not found or access denied');
+      }
+
+      if (data.steps.length === 0) {
+        throw new Error('No test steps provided for element hunting');
+      }
+
+      // Get the starting URL from the first project URL or from test steps
+      const startingUrl = project.urls[0]?.url;
+      if (!startingUrl) {
+        throw new Error('No starting URL found in project');
+      }
+
+      console.log(`🌐 Starting browser automation from: ${startingUrl}`);
+      console.log(`⚡ Executing ${data.steps.length} test steps to discover new elements`);
+
+      // Execute test steps and discover new elements
+      const newElements = await this.elementAnalyzer.huntElementsAfterSteps({
+        startingUrl,
+        steps: data.steps,
+        projectId,
+        testId: data.testId
+      });
+
+      console.log(`🎯 Discovered ${newElements.length} potential new elements`);
+
+      // Filter out elements that already exist in the project
+      const existingSelectors = new Set(project.elements.map(el => el.selector));
+      const uniqueNewElements = newElements.filter(element => 
+        !existingSelectors.has(element.selector)
+      );
+
+      console.log(`✨ Found ${uniqueNewElements.length} truly new elements (${newElements.length - uniqueNewElements.length} were duplicates)`);
+
+      // Store new unique elements
+      if (uniqueNewElements.length > 0) {
+        await this.storeProjectElements(projectId, uniqueNewElements);
+        console.log(`💾 Successfully stored ${uniqueNewElements.length} new elements`);
+      }
+
+      return {
+        success: true,
+        message: `Found ${uniqueNewElements.length} new elements after executing ${data.steps.length} test steps`,
+        newElements: uniqueNewElements,
+        totalDiscovered: newElements.length,
+        duplicatesFiltered: newElements.length - uniqueNewElements.length,
+        testId: data.testId
+      };
+
+    } catch (error) {
+      console.error('Element hunting failed:', error);
+      throw new Error(`Element hunting failed: ${error.message}`);
+    }
+  }
+
+  // Live Step Execution - Execute a single step immediately for preview
+  async liveExecuteStep(userId: string, projectId: string, data: { step: any, startingUrl: string, tempExecutionId: string }) {
+    const { chromium } = require('playwright');
+    
+    console.log(`🔴 Live executing step: ${data.step.description} on ${data.startingUrl}`);
+    
+    let browser = null;
+    let page = null;
+    
+    try {
+      // Verify project ownership
+      const project = await this.findById(userId, projectId);
+      if (!project) {
+        throw new Error('Project not found');
+      }
+
+      // Launch browser with Docker-compatible settings (copied from working LiveBrowserService)
+      browser = await chromium.launch({
+        headless: true, // Use headless for reliable Docker execution
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
+      page = await browser.newPage();
+
+      // Set desktop viewport for consistent execution (matches live-browser.service.ts)
+      await page.setViewportSize({ width: 1920, height: 1080 });
+
+      // Browser session ready - will be integrated with live viewing
+      console.log(`🚀 Browser session launched successfully with Docker-compatible settings`);
+
+      // Only navigate to starting URL if this is the first step in sequence
+      // For subsequent steps, continue from current page
+      const isFirstStep = data.tempExecutionId.endsWith('-0');
+      if (isFirstStep) {
+        console.log(`🌍 Navigating to starting URL: ${data.startingUrl}`);
+        await page.goto(data.startingUrl, { waitUntil: 'networkidle' });
+        
+        // Navigation complete - visible through noVNC iframe
+        console.log(`🔗 Navigated to: ${data.startingUrl}`);
+        
+        // Wait for page to be ready
+        await page.waitForTimeout(1000);
+      } else {
+        console.log(`↪️ Continuing from current page (step ${data.tempExecutionId})`);
+      }
+
+      // Capture screenshot before step execution
+      const beforeScreenshot = await page.screenshot({
+        type: 'png',
+        fullPage: false // Use viewport screenshot for speed
+      });
+
+      // Execute the step
+      const step = data.step;
+      const timeout = 10000; // 10 seconds timeout
+
+      console.log(`⚡ Executing step: ${step.type} on ${step.selector}`);
+
+      switch (step.type) {
+        case 'click':
+        case 'doubleclick':
+        case 'rightclick':
+          if (step.type === 'doubleclick') {
+            await page.dblclick(step.selector, { timeout });
+          } else if (step.type === 'rightclick') {
+            await page.click(step.selector, { button: 'right', timeout });
+          } else {
+            await page.click(step.selector, { timeout });
+          }
+          break;
+
+        case 'hover':
+          await page.hover(step.selector, { timeout });
+          break;
+
+        case 'type':
+          await page.fill(step.selector, step.value || '', { timeout });
+          break;
+
+        case 'clear':
+          await page.fill(step.selector, '', { timeout });
+          break;
+
+        case 'select':
+          await page.selectOption(step.selector, step.value || '', { timeout });
+          break;
+
+        case 'check':
+          await page.check(step.selector, { timeout });
+          break;
+
+        case 'uncheck':
+          await page.uncheck(step.selector, { timeout });
+          break;
+
+        case 'upload':
+          // For live execution, we can't upload actual files, so we'll simulate
+          console.log(`⚠️ Upload simulation - would upload file: ${step.value}`);
+          break;
+
+        case 'scroll':
+          if (step.value) {
+            const scrollAmount = parseInt(step.value, 10);
+            await page.evaluate((amount) => window.scrollBy(0, amount), scrollAmount);
+          } else {
+            await page.evaluate((selector) => {
+              const element = document.querySelector(selector);
+              if (element) element.scrollIntoView();
+            }, step.selector);
+          }
+          break;
+
+        case 'press':
+          await page.keyboard.press(step.value || 'Enter');
+          break;
+
+        case 'wait':
+          const waitTime = parseInt(step.value || '1000', 10);
+          await page.waitForTimeout(waitTime);
+          break;
+
+        case 'assert':
+          const element = await page.locator(step.selector).first();
+          const textContent = await element.textContent();
+          if (!textContent || !textContent.includes(step.value || '')) {
+            throw new Error(
+              `Assertion failed: Expected "${step.value}" but found "${textContent}"`
+            );
+          }
+          break;
+
+        default:
+          throw new Error(`Unknown step type: ${step.type}`);
+      }
+
+      // Wait a moment for any changes to take effect
+      await page.waitForTimeout(500);
+
+      console.log(`✅ Step completed: ${step.type} on ${step.selector}`);
+
+      // Capture screenshot after step execution
+      const afterScreenshot = await page.screenshot({
+        type: 'png',
+        fullPage: false
+      });
+
+      console.log(`✅ Live step execution completed successfully`);
+
+      return {
+        success: true,
+        result: `Step "${step.description}" executed successfully`,
+        step: step,
+        beforeScreenshot: beforeScreenshot.toString('base64'),
+        screenshot: afterScreenshot.toString('base64'),
+        tempExecutionId: data.tempExecutionId,
+        executedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      console.error(`❌ Live step execution failed:`, error);
+      
+      console.error(`❌ Step failed: ${data.step.type} on ${data.step.selector} - ${error.message}`);
+      
+      // Try to capture error screenshot
+      let errorScreenshot = null;
+      try {
+        if (page) {
+          errorScreenshot = await page.screenshot({ type: 'png', fullPage: false });
+        }
+      } catch (screenshotError) {
+        console.warn('Could not capture error screenshot:', screenshotError);
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        step: data.step,
+        screenshot: errorScreenshot ? errorScreenshot.toString('base64') : null,
+        tempExecutionId: data.tempExecutionId,
+        executedAt: new Date().toISOString()
+      };
+
+    } finally {
+      // Browser session cleanup handled by noVNC
+      console.log(`🧹 Browser session cleanup complete`);
+      
+      if (page) await page.close();
+      if (browser) await browser.close();
     }
   }
 }

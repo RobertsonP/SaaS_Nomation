@@ -25,7 +25,7 @@ export interface AnalysisProgressEvent {
 @Injectable()
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'],
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -133,4 +133,5 @@ export class AnalysisProgressGateway implements OnGatewayConnection, OnGatewayDi
       timestamp: new Date(),
     });
   }
+
 }

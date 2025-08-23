@@ -57,7 +57,7 @@ services:
         condition: service_healthy
     networks:
       - nomation-network
-    command: sh -c "npx prisma db push --accept-data-loss && npm run dev"
+    command: bash -c "/usr/local/bin/start-with-display.sh bash -c 'npx prisma db push --accept-data-loss && npm run dev'"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
       interval: 30s

@@ -57,4 +57,33 @@ export class BrowserController {
     await this.liveBrowserService.closeSession(sessionToken);
     return { success: true };
   }
+
+  @Get('sessions/:sessionToken/view')
+  async getSessionView(@Param('sessionToken') sessionToken: string) {
+    return this.liveBrowserService.getSessionView(sessionToken);
+  }
+
+  @Get('sessions/:sessionToken/screenshot')
+  async getSessionScreenshot(@Param('sessionToken') sessionToken: string) {
+    const screenshot = await this.liveBrowserService.getSessionScreenshot(sessionToken);
+    return { screenshot };
+  }
+
+  @Post('cross-origin-element-detection')
+  async crossOriginElementDetection(
+    @Body() body: { 
+      url: string; 
+      clickX: number; 
+      clickY: number; 
+      viewport: { width: number; height: number } 
+    }
+  ) {
+    return this.liveBrowserService.crossOriginElementDetection(
+      body.url, 
+      body.clickX, 
+      body.clickY, 
+      body.viewport
+    );
+  }
+
 }

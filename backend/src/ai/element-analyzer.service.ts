@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { chromium } from 'playwright';
 import { AiService } from './ai.service';
-import { PageAnalysisResult, SelectorValidationResult, QualityMetrics } from './interfaces/element.interface';
+import { DetectedElement, PageAnalysisResult, SelectorValidationResult, QualityMetrics } from './interfaces/element.interface';
 
 @Injectable()
 export class ElementAnalyzerService {
@@ -32,14 +32,21 @@ export class ElementAnalyzerService {
       };
     } catch (error) {
       await this.closeBrowser(browser);
-      console.error('Page analysis failed:', error);
+      console.error('❌ Page analysis failed:', error);
+      
+      // Enhanced error categorization and feedback
+      const errorCategory = this.categorizeAnalysisError(error, url);
+      console.error(`🔍 Error category: ${errorCategory.category}`);
+      console.error(`📝 Error details:`, errorCategory.details);
       
       return {
         url,
         elements: [],
         analysisDate: new Date(),
         success: false,
-        errorMessage: error.message
+        errorMessage: errorCategory.message,
+        errorCategory: errorCategory.category,
+        errorDetails: errorCategory.details
       };
     }
   }
@@ -422,16 +429,42 @@ export class ElementAnalyzerService {
               
             const hasText = element.textContent && element.textContent.trim().length > 0;
             
-            // More permissive filtering - include more elements
+            // Enhanced permissive filtering - include more element types for better discovery
             const shouldInclude = 
               isInteractiveElement ||
               hasInteractiveAttributes ||
               hasInteractiveRole ||
               isClickable ||
-              (hasText && tagName !== 'script' && tagName !== 'style') ||
+              (hasText && tagName !== 'script' && tagName !== 'style' && tagName !== 'noscript') ||
               tagName === 'img' ||
               tagName === 'iframe' ||
-              tagName === 'form';
+              tagName === 'form' ||
+              tagName === 'video' ||
+              tagName === 'audio' ||
+              tagName === 'canvas' ||
+              tagName === 'svg' ||
+              // Include structural elements that might be clickable
+              (tagName === 'div' && (element.hasAttribute('onclick') || 
+                                     element.hasAttribute('data-testid') ||
+                                     element.hasAttribute('data-test') ||
+                                     element.hasAttribute('role') ||
+                                     element.className.includes('btn') ||
+                                     element.className.includes('button') ||
+                                     element.className.includes('click') ||
+                                     element.className.includes('link'))) ||
+              // Include navigation elements
+              (tagName === 'nav' || element.closest('nav') !== null) ||
+              // Include list items that might be clickable
+              (tagName === 'li' && (element.hasAttribute('onclick') || 
+                                   element.querySelector('a') !== null ||
+                                   element.className.includes('menu') ||
+                                   element.className.includes('item'))) ||
+              // Include headers if they have interactive properties
+              (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName) && 
+               (element.hasAttribute('onclick') || element.hasAttribute('data-testid'))) ||
+              // Include spans and divs with specific patterns (modern frameworks)
+              ((tagName === 'span' || tagName === 'div') && 
+               (element.hasAttribute('data-') || element.className.match(/\b(component|widget|control|action)\b/i)));
             
             if (!shouldInclude) {
               return;
@@ -838,7 +871,9 @@ export class ElementAnalyzerService {
    * Setup browser with optimal configuration for element analysis
    */
   private async setupBrowser() {
-    return await chromium.launch({ 
+    console.log('🚀 Setting up browser with enhanced configuration for slow sites...');
+    
+    const browser = await chromium.launch({ 
       headless: true,
       args: [
         '--no-sandbox', 
@@ -846,22 +881,139 @@ export class ElementAnalyzerService {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
-      ] // Enhanced Docker compatibility
+        '--disable-features=VizDisplayCompositor',
+        // Enhanced args for slow/problematic sites
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images', // Skip images for faster loading in analysis
+        '--disable-javascript-harmony-shipping',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-default-apps'
+      ]
     });
+    
+    console.log('✅ Browser setup complete');
+    return browser;
   }
 
   /**
-   * Navigate to page and wait for content to load
+   * Navigate to page and wait for content to load with enhanced loading strategies
    */
   private async navigateToPage(page: any, url: string) {
-    await page.goto(url, { 
-      waitUntil: 'networkidle', 
-      timeout: 30000 
-    });
+    console.log(`🌐 Navigating to ${url} with enhanced loading strategy...`);
     
-    // Wait for dynamic content to load
+    try {
+      // Strategy 1: Try networkidle first (fast sites)
+      console.log(`📡 Attempting fast load strategy (networkidle, 15s timeout)...`);
+      await page.goto(url, { 
+        waitUntil: 'networkidle', 
+        timeout: 15000 
+      });
+      console.log(`✅ Fast load successful for ${url}`);
+      
+    } catch (error) {
+      console.log(`⚠️ Fast load failed: ${error.message}`);
+      console.log(`🔄 Trying progressive load strategy (domcontentloaded + load + manual waits)...`);
+      
+      try {
+        // Strategy 2: Progressive loading for slow sites
+        await page.goto(url, { 
+          waitUntil: 'domcontentloaded',  // Wait for DOM only
+          timeout: 45000  // Longer timeout for slow sites
+        });
+        console.log(`📄 DOM loaded for ${url}`);
+        
+        // Wait for basic page load event
+        try {
+          await page.waitForLoadState('load', { timeout: 15000 });
+          console.log(`🔗 Load event completed for ${url}`);
+        } catch (loadError) {
+          console.log(`⚠️ Load event timeout - proceeding anyway: ${loadError.message}`);
+        }
+        
+        // Wait for document ready state
+        await page.evaluate(() => {
+          return new Promise((resolve) => {
+            if (document.readyState === 'complete') {
+              resolve(true);
+            } else {
+              const checkReady = () => {
+                if (document.readyState === 'complete') {
+                  resolve(true);
+                } else {
+                  setTimeout(checkReady, 100);
+                }
+              };
+              checkReady();
+            }
+          });
+        });
+        console.log(`📋 Document ready state complete for ${url}`);
+        
+        console.log(`✅ Progressive load successful for ${url}`);
+        
+      } catch (progressiveError) {
+        console.log(`⚠️ Progressive load also failed: ${progressiveError.message}`);
+        console.log(`🚀 Trying minimal load strategy (domcontentloaded only)...`);
+        
+        // Strategy 3: Minimal loading for problematic sites
+        await page.goto(url, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 60000  // Maximum timeout
+        });
+        console.log(`⚡ Minimal load completed for ${url}`);
+      }
+    }
+    
+    // Progressive waits for dynamic content with multiple stages
+    console.log(`⏳ Waiting for dynamic content to load...`);
+    
+    // Stage 1: Basic content stabilization
     await page.waitForTimeout(2000);
+    
+    // Stage 2: Check for common loading indicators and wait for them to disappear
+    try {
+      await page.waitForFunction(() => {
+        const loadingSelectors = [
+          '.loading', '.loader', '.spinner', '.preloader',
+          '[data-loading]', '[data-testid="loading"]',
+          '.fa-spinner', '.fa-circle-o-notch'
+        ];
+        
+        for (const selector of loadingSelectors) {
+          const element = document.querySelector(selector);
+          if (element && window.getComputedStyle(element).display !== 'none') {
+            return false; // Still loading
+          }
+        }
+        return true; // No visible loading indicators
+      }, {}, { timeout: 5000 });
+      console.log(`🎯 Loading indicators cleared for ${url}`);
+    } catch (indicatorError) {
+      console.log(`⏰ Loading indicator wait timeout - proceeding: ${indicatorError.message}`);
+    }
+    
+    // Stage 3: Wait for images to load
+    try {
+      await page.waitForFunction(() => {
+        const images = document.querySelectorAll('img');
+        return Array.from(images).every(img => img.complete || img.naturalWidth > 0);
+      }, {}, { timeout: 3000 });
+      console.log(`🖼️ Images loaded for ${url}`);
+    } catch (imageError) {
+      console.log(`📷 Image load timeout - proceeding: ${imageError.message}`);
+    }
+    
+    // Stage 4: Final stabilization wait
+    await page.waitForTimeout(1000);
+    
+    console.log(`🏁 Navigation and content loading complete for ${url}`);
   }
 
   /**
@@ -1426,30 +1578,123 @@ export class ElementAnalyzerService {
     }
   }
 
-  // Error categorization for better debugging
-  categorizeAnalysisError(error: any, url: string): { category: string; message: string; details: any } {
+  // Enhanced error categorization for better debugging and user feedback
+  categorizeAnalysisError(error: any, url: string): { category: 'NETWORK_ERROR' | 'TIMEOUT_ERROR' | 'AUTHENTICATION_ERROR' | 'JAVASCRIPT_ERROR' | 'BROWSER_ERROR' | 'ELEMENT_ANALYSIS_ERROR' | 'SSL_ERROR' | 'UNKNOWN_ERROR' | 'SLOW_SITE_TIMEOUT' | 'LOADING_TIMEOUT' | 'BOT_DETECTION'; message: string; details: any } {
     const errorMessage = error.message || error.toString();
+    const lowerMessage = errorMessage.toLowerCase();
     
-    if (errorMessage.includes('net::ERR_') || errorMessage.includes('timeout')) {
+    // Timeout errors (most common for slow sites)
+    if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
+      if (lowerMessage.includes('networkidle') || lowerMessage.includes('waiting until')) {
+        return {
+          category: 'SLOW_SITE_TIMEOUT',
+          message: `Site loads too slowly (>30s): ${new URL(url).hostname} may have heavy content, ads, or slow CDN. Try again or contact site administrator.`,
+          details: { 
+            url, 
+            error: errorMessage,
+            suggestions: [
+              'Site has heavy JavaScript, analytics, or ads causing slow loading',
+              'CDN or external resources may be slow',
+              'Try analyzing a different page from this site',
+              'Site may require authentication or have bot protection'
+            ]
+          }
+        };
+      } else {
+        return {
+          category: 'LOADING_TIMEOUT',
+          message: `Page loading timeout: ${errorMessage}`,
+          details: { url, error: errorMessage }
+        };
+      }
+    }
+    
+    // Network connection errors
+    if (lowerMessage.includes('net::err_') || lowerMessage.includes('connection') || 
+        lowerMessage.includes('econnrefused') || lowerMessage.includes('enotfound')) {
       return {
         category: 'NETWORK_ERROR',
-        message: `Network connection failed: ${errorMessage}`,
+        message: `Network connection failed: Cannot reach ${new URL(url).hostname}. Check URL or internet connection.`,
+        details: { 
+          url, 
+          error: errorMessage,
+          suggestions: [
+            'Verify the URL is correct and accessible',
+            'Check if the site is down or blocking automated access',
+            'Try accessing the site manually in a browser'
+          ]
+        }
+      };
+    }
+    
+    // SSL/Certificate errors
+    if (lowerMessage.includes('ssl') || lowerMessage.includes('certificate') || 
+        lowerMessage.includes('tls') || lowerMessage.includes('cert')) {
+      return {
+        category: 'SSL_ERROR',
+        message: `SSL certificate error: ${new URL(url).hostname} has certificate issues.`,
         details: { url, error: errorMessage }
       };
     }
     
-    if (errorMessage.includes('auth') || errorMessage.includes('login')) {
+    // Authentication/Access errors
+    if (lowerMessage.includes('auth') || lowerMessage.includes('login') ||
+        lowerMessage.includes('unauthorized') || lowerMessage.includes('forbidden')) {
       return {
         category: 'AUTHENTICATION_ERROR',
-        message: `Authentication failed: ${errorMessage}`,
+        message: `Authentication required: ${new URL(url).hostname} requires login to access this page.`,
+        details: { 
+          url, 
+          error: errorMessage,
+          suggestions: [
+            'Page may require user login',
+            'Set up authentication flow in project settings',
+            'Try analyzing a public page first'
+          ]
+        }
+      };
+    }
+    
+    // Bot detection/blocking errors
+    if (lowerMessage.includes('blocked') || lowerMessage.includes('captcha') ||
+        lowerMessage.includes('cloudflare') || lowerMessage.includes('bot')) {
+      return {
+        category: 'BOT_DETECTION',
+        message: `Site blocking automated access: ${new URL(url).hostname} has anti-bot protection.`,
+        details: { 
+          url, 
+          error: errorMessage,
+          suggestions: [
+            'Site uses Cloudflare, CAPTCHA, or bot detection',
+            'Try again after a few minutes',
+            'Contact site administrator about automated testing access'
+          ]
+        }
+      };
+    }
+    
+    // JavaScript/Content errors
+    if (lowerMessage.includes('javascript') || lowerMessage.includes('evaluation failed')) {
+      return {
+        category: 'JAVASCRIPT_ERROR',
+        message: `JavaScript execution failed: ${errorMessage}`,
         details: { url, error: errorMessage }
       };
     }
     
+    // Generic fallback
     return {
       category: 'UNKNOWN_ERROR',
-      message: `Analysis failed: ${errorMessage}`,
-      details: { url, error: errorMessage }
+      message: `Analysis failed for ${new URL(url).hostname}: ${errorMessage}`,
+      details: { 
+        url, 
+        error: errorMessage,
+        suggestions: [
+          'Try analyzing the page again',
+          'Check browser console for detailed errors',
+          'Contact support if the issue persists'
+        ]
+      }
     };
   }
 
@@ -1517,5 +1762,125 @@ export class ElementAnalyzerService {
       await this.closeBrowser(browser);
       return null;
     }
+  }
+
+  async huntElementsAfterSteps(config: {
+    startingUrl: string;
+    steps: any[];
+    projectId: string;
+    testId: string;
+  }): Promise<DetectedElement[]> {
+    console.log(`🔍 Starting element hunting after executing ${config.steps.length} test steps`);
+    
+    let browser = null;
+    try {
+      browser = await this.setupBrowser();
+      const page = await browser.newPage();
+      
+      // Set desktop viewport and navigate to starting URL (matches live-browser.service.ts)
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      console.log(`🌐 Navigating to: ${config.startingUrl}`);
+      await page.goto(config.startingUrl, { waitUntil: 'networkidle', timeout: 30000 });
+      
+      // Execute each test step to reach the final state
+      console.log(`⚡ Executing ${config.steps.length} test steps...`);
+      for (let i = 0; i < config.steps.length; i++) {
+        const step = config.steps[i];
+        console.log(`  Step ${i + 1}/${config.steps.length}: ${step.type} on ${step.selector}`);
+        
+        try {
+          await this.executeTestStep(page, step);
+          // Small delay between steps for stability
+          await page.waitForTimeout(500);
+        } catch (stepError) {
+          console.warn(`⚠️ Step ${i + 1} failed: ${stepError.message}`);
+          // Continue with remaining steps even if one fails
+        }
+      }
+      
+      console.log(`✅ Completed test step execution. Now discovering elements in final state...`);
+      
+      // Wait for page to stabilize after all interactions
+      await page.waitForTimeout(1000);
+      
+      // Discover elements in the final state using existing method
+      const elements = await this.extractAllPageElements(page);
+      
+      console.log(`🎯 Discovered ${elements.length} elements in post-interaction state`);
+      
+      await this.closeBrowser(browser);
+      return elements;
+      
+    } catch (error) {
+      console.error(`❌ Element hunting failed: ${error.message}`);
+      await this.closeBrowser(browser);
+      throw error;
+    }
+  }
+
+  private async executeTestStep(page: any, step: any): Promise<void> {
+    const { type, selector, value } = step;
+    
+    // Wait for element to be available
+    await page.waitForSelector(selector, { timeout: 10000 });
+    
+    switch (type) {
+      case 'click':
+        await page.click(selector);
+        break;
+      
+      case 'doubleclick':
+        await page.dblclick(selector);
+        break;
+      
+      case 'type':
+        await page.type(selector, value || '');
+        break;
+      
+      case 'clear':
+        await page.evaluate((sel) => {
+          const element = document.querySelector(sel);
+          if (element) element.value = '';
+        }, selector);
+        break;
+      
+      case 'hover':
+        await page.hover(selector);
+        break;
+      
+      case 'select':
+        await page.select(selector, value || '');
+        break;
+      
+      case 'check':
+        await page.check(selector);
+        break;
+      
+      case 'uncheck':
+        await page.uncheck(selector);
+        break;
+      
+      case 'press':
+        await page.keyboard.press(value || 'Enter');
+        break;
+      
+      case 'wait':
+        const waitTime = parseInt(value) || 1000;
+        await page.waitForTimeout(waitTime);
+        break;
+      
+      case 'scroll':
+        await page.evaluate((sel) => {
+          const element = document.querySelector(sel);
+          if (element) element.scrollIntoView();
+        }, selector);
+        break;
+      
+      default:
+        console.warn(`Unknown step type: ${type}`);
+    }
+    
+    // Wait for any potential page changes after the action
+    await page.waitForTimeout(200);
   }
 }

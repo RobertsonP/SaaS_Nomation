@@ -75,7 +75,12 @@
       "Bash(pkill:*)",
       "Bash(npm start)",
       "Bash(git push:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(ss:*)",
+      "Bash(sudo fuser:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "WebFetch(domain:www.lambdatest.com)"
     ],
     "deny": []
   }

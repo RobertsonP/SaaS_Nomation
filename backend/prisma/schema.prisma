@@ -1,4 +1,3 @@
-// Nomation Database Schema
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-1.1.x", "linux-musl"]
@@ -10,298 +9,278 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String    @id @default(cuid())
+  email     String    @unique
   name      String
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   projects  Project[]
-  
+
   @@map("users")
 }
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // NEW: Multiple URLs per project
-  urls            ProjectUrl[]
-  elements        ProjectElement[]
-  tests           Test[]
-  
-  // NEW: Dynamic element discovery features
-  authFlows       AuthFlow[]
-  pageStates      PageState[]
-  browserSessions BrowserSession[]
-  
-  // Phase 2: Quality and performance tracking
-  cssPreviewPerformance CSSPreviewPerformance[]
+  id                    String                  @id @default(cuid())
+  name                  String
+  description           String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  userId                String
+  authFlows             AuthFlow[]
+  browserSessions       BrowserSession[]
   crossPageValidations  CrossPageValidation[]
-  
+  cssPreviewPerformance CSSPreviewPerformance[]
+  pageStates            PageState[]
+  elements              ProjectElement[]
+  urls                  ProjectUrl[]
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tests                 Test[]
+  testSuites            TestSuite[]
+
   @@map("projects")
 }
 
 model ProjectUrl {
-  id          String   @id @default(cuid())
-  url         String
-  title       String?
-  description String?
-  analyzed    Boolean  @default(false)
+  id           String           @id @default(cuid())
+  url          String
+  title        String?
+  description  String?
+  analyzed     Boolean          @default(false)
   analysisDate DateTime?
-  createdAt   DateTime @default(now())
-  
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Elements found on this specific URL
-  elements    ProjectElement[]
-  
+  createdAt    DateTime         @default(now())
+  projectId    String
+  elements     ProjectElement[]
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@map("project_urls")
 }
 
 model Test {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   description String?
-  
-  // NEW: Test has its own starting URL
-  startingUrl String
-  
-  steps       Json     // Test steps as JSON
-  status      String   @default("draft") // draft, active, archived
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  steps       Json
+  status      String          @default("draft")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Authentication flow for tests that require login
+  startingUrl String
   authFlowId  String?
-  authFlow    AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
-  
   executions  TestExecution[]
-  
+  suiteTests  TestSuiteTest[]
+  authFlow    AuthFlow?       @relation(fields: [authFlowId], references: [id])
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@map("tests")
 }
 
 model TestExecution {
-  id          String   @id @default(cuid())
-  status      String   // running, passed, failed, error
-  startedAt   DateTime @default(now())
+  id          String    @id @default(cuid())
+  status      String
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
-  duration    Int?     // Duration in milliseconds
-  
-  // Enhanced results structure
-  results     Json?    // Detailed step-by-step results
-  screenshots Json?    // Screenshot URLs for each step
-  logs        Json?    // Detailed execution logs
-  metrics     Json?    // Performance metrics
+  duration    Int?
+  results     Json?
   errorMsg    String?
-  
   testId      String
-  test        Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
-  
+  logs        Json?
+  metrics     Json?
+  screenshots Json?
+  test        Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
+
   @@map("test_executions")
 }
 
 model ProjectElement {
-  id          String   @id @default(cuid())
-  selector    String
-  elementType String   // button, input, link, form, navigation, text
-  description String
-  confidence  Float    // AI confidence score 0-1
-  attributes  Json?    // Additional element attributes
-  
-  // NEW: Element grouping and categorization
-  category    String?  // header, footer, form, navigation, content
-  group       String?  // Elements that appear together
-  isCommon    Boolean  @default(false) // Appears on multiple URLs
-  
-  // NEW: Discovery context for dynamic elements
-  discoveryState   String?  // static, after_login, after_interaction, modal, hover
-  discoveryTrigger String?  // "clicked #menu", "logged in", "hovered .tooltip"
-  sourcePageTitle  String?  // Actual page title when discovered
-  sourceUrlPath    String?  // /contact, /dashboard when discovered
-  requiresAuth     Boolean  @default(false)
-  isModal          Boolean  @default(false)
-  
-  // NEW: Visual data for element recreation
-  cssInfo          Json?    // Comprehensive CSS styles for preview
-  boundingRect     Json?    // Position and size data
-  screenshot       String?  // Base64 encoded screenshot of the element
-  
-  // Phase 2: Enhanced quality and validation metrics
-  uniquenessScore  Float?   // 0-1 score for selector uniqueness
-  stabilityScore   Float?   // 0-1 score for selector stability
-  accessibilityScore Float? // 0-1 score for accessibility attributes
-  specificityScore Float?   // 0-1 score for selector specificity
-  overallQuality   Float?   // Weighted overall quality score 0-1
-  qualityMetrics   Json?    // Detailed quality breakdown
-  
-  // Phase 2: Alternative and fallback selectors
-  fallbackSelectors String[] // Alternative selectors for this element
-  isValidated      Boolean  @default(false) // Has been through Phase 2 validation
-  lastValidated    DateTime? // When quality validation was last performed
-  validationErrors String[] // Any validation errors or warnings
-  
-  // URL where this element was found
-  sourceUrlId String?
-  sourceUrl   ProjectUrl? @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
-  
-  // NEW: Authentication flow used to discover this element
-  authFlowId  String?
-  authFlow    AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
-  
-  // NEW: Page state when this element was discovered
-  pageStateId String?
-  pageState   PageState? @relation(fields: [pageStateId], references: [id], onDelete: SetNull)
-  
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Phase 2: Quality tracking history
-  qualityHistory SelectorQualityHistory[]
-  
-  @@map("project_elements")
+  id                 String                   @id @default(cuid())
+  projectId          String
+  selector           String
+  elementType        String
+  description        String
+  confidence         Float
+  attributes         Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  authFlowId         String?
+  boundingRect       Json?
+  category           String?
+  cssInfo            Json?
+  discoveryState     String?
+  discoveryTrigger   String?
+  group              String?
+  isCommon           Boolean                  @default(false)
+  isModal            Boolean                  @default(false)
+  pageStateId        String?
+  requiresAuth       Boolean                  @default(false)
+  sourcePageTitle    String?
+  sourceUrlId        String?
+  sourceUrlPath      String?
+  screenshot         String?
+  accessibilityScore Float?
+  fallbackSelectors  String[]
+  isValidated        Boolean                  @default(false)
+  lastValidated      DateTime?
+  overallQuality     Float?
+  qualityMetrics     Json?
+  specificityScore   Float?
+  stabilityScore     Float?
+  uniquenessScore    Float?
+  validationErrors   String[]
+  authFlow           AuthFlow?                @relation(fields: [authFlowId], references: [id])
+  pageState          PageState?               @relation(fields: [pageStateId], references: [id])
+  project            Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceUrl          ProjectUrl?              @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
+  qualityHistory     SelectorQualityHistory[]
+
   @@unique([projectId, selector, sourceUrlId, discoveryState])
+  @@map("project_elements")
 }
 
-// NEW: Authentication flow configuration
 model AuthFlow {
-  id          String   @id @default(cuid())
-  name        String   // "Admin Login", "User Login"
-  loginUrl    String   // URL to start authentication
-  steps       Json     // Array of LoginStep objects
-  credentials Json     // Username/password (encrypted)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Elements discovered using this auth flow
-  elements    ProjectElement[]
-  
-  // Page states that used this auth flow
-  pageStates  PageState[]
-  
-  // Browser sessions using this auth flow
+  id              String           @id @default(cuid())
+  name            String
+  loginUrl        String
+  steps           Json
+  credentials     Json
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  projectId       String
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   browserSessions BrowserSession[]
-  
-  // Tests that use this auth flow
-  tests       Test[]
-  
+  pageStates      PageState[]
+  elements        ProjectElement[]
+  tests           Test[]
+
   @@map("auth_flows")
 }
 
-// NEW: Page state tracking for multi-state analysis
 model PageState {
-  id           String   @id @default(cuid())
-  stateName    String   // "initial", "after_login", "after_interaction"
-  trigger      String?  // What action led to this state
-  url          String   // URL of the page in this state
-  pageTitle    String?  // Page title in this state
-  capturedAt   DateTime @default(now())
-  
-  // Authentication flow used (if any)
-  authFlowId   String?
-  authFlow     AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
-  
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Elements discovered in this state
-  elements     ProjectElement[]
-  
+  id         String           @id @default(cuid())
+  stateName  String
+  trigger    String?
+  url        String
+  pageTitle  String?
+  capturedAt DateTime         @default(now())
+  authFlowId String?
+  projectId  String
+  authFlow   AuthFlow?        @relation(fields: [authFlowId], references: [id])
+  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  elements   ProjectElement[]
+
   @@map("page_states")
 }
 
-// NEW: Live browser session management
 model BrowserSession {
-  id              String   @id @default(cuid())
-  sessionToken    String   @unique // UUID for session identification
-  isAuthenticated Boolean  @default(false)
-  currentState    String   @default("initial") // current page state
-  currentUrl      String?  // current page URL
-  startedAt       DateTime @default(now())
-  lastActivity    DateTime @default(now())
-  expiresAt       DateTime // Sessions expire after inactivity
-  
+  id              String    @id @default(cuid())
+  sessionToken    String    @unique
+  isAuthenticated Boolean   @default(false)
+  currentState    String    @default("initial")
+  currentUrl      String?
+  startedAt       DateTime  @default(now())
+  lastActivity    DateTime  @default(now())
+  expiresAt       DateTime
   projectId       String
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Authentication flow in use (if any)
   authFlowId      String?
-  authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
-  
+  authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id])
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@map("browser_sessions")
 }
 
-// Phase 2: Selector quality tracking over time
 model SelectorQualityHistory {
-  id              String   @id @default(cuid())
-  selector        String
-  uniquenessScore Float
-  stabilityScore  Float
+  id                 String         @id @default(cuid())
+  selector           String
+  uniquenessScore    Float
+  stabilityScore     Float
   accessibilityScore Float
-  specificityScore Float
-  overallQuality  Float
-  matchCount      Int      // Number of elements matched
-  testResults     Json?    // Cross-page validation results
-  validationDate  DateTime @default(now())
-  
-  elementId       String
-  element         ProjectElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
-  
-  @@map("selector_quality_history")
+  specificityScore   Float
+  overallQuality     Float
+  matchCount         Int
+  testResults        Json?
+  validationDate     DateTime       @default(now())
+  elementId          String
+  element            ProjectElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
+
   @@index([elementId, validationDate])
+  @@map("selector_quality_history")
 }
 
-// Phase 2: CSS preview performance tracking
 model CSSPreviewPerformance {
-  id                String   @id @default(cuid())
-  elementCount      Int      // Number of elements processed
-  extractionTimeMs  Int      // CSS extraction time in milliseconds
-  renderingTimeMs   Int?     // Frontend rendering time (if available)
-  totalTimeMs       Int      // Total processing time
-  success           Boolean  @default(true)
-  errorMessage      String?  // Error details if failed
-  createdAt         DateTime @default(now())
-  
-  projectId         String
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  @@map("css_preview_performance")
+  id               String   @id @default(cuid())
+  elementCount     Int
+  extractionTimeMs Int
+  renderingTimeMs  Int?
+  totalTimeMs      Int
+  success          Boolean  @default(true)
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@index([projectId, createdAt])
+  @@map("css_preview_performance")
 }
 
-// Phase 2: Cross-page validation results
 model CrossPageValidation {
   id                String   @id @default(cuid())
   selector          String
-  totalUrls         Int      // Total URLs tested
-  validUrls         Int      // URLs where selector was found
-  uniqueOnAllPages  Boolean  // True if selector is unique on all pages
-  averageMatchCount Float    // Average number of matches per page
-  inconsistentPages String[] // URLs where selector is not unique
-  validationErrors  String[] // Any errors during validation
-  overallScore      Float    // Overall cross-page quality score
+  totalUrls         Int
+  validUrls         Int
+  uniqueOnAllPages  Boolean
+  averageMatchCount Float
+  inconsistentPages String[]
+  validationErrors  String[]
+  overallScore      Float
   validatedAt       DateTime @default(now())
-  
   projectId         String
   project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  @@map("cross_page_validations")
+
   @@index([projectId, selector, validatedAt])
+  @@map("cross_page_validations")
+}
+
+model TestSuite {
+  id          String               @id @default(cuid())
+  name        String
+  description String?
+  status      String               @default("draft") // draft, active
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  projectId   String
+  project     Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tests       TestSuiteTest[]
+  executions  TestSuiteExecution[]
+
+  @@map("test_suites")
+}
+
+model TestSuiteTest {
+  id        String    @id @default(cuid())
+  suiteId   String
+  testId    String
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  suite     TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  test      Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@unique([suiteId, testId])
+  @@map("test_suite_tests")
+}
+
+model TestSuiteExecution {
+  id            String    @id @default(cuid())
+  status        String    // running, passed, failed
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  duration      Int?      // milliseconds
+  results       Json?     // aggregated results
+  errorMsg      String?
+  suiteId       String
+  totalTests    Int       @default(0)
+  passedTests   Int       @default(0)
+  failedTests   Int       @default(0)
+  suite         TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+
+  @@map("test_suite_executions")
 }

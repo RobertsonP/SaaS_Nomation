@@ -9,6 +9,7 @@ import { BrowserModule } from './browser/browser.module';
 import { AuthFlowsModule } from './auth-flows/auth-flows.module';
 import { McpModule } from './mcp/mcp.module';
 import { AnalysisModule } from './analysis/analysis.module';
+import { TestSuitesModule } from './test-suites/test-suites.module';
 import { AppController } from './app.controller';
 import { StandaloneTemplatesController } from './auth-flows/standalone-templates.controller';
 
@@ -18,6 +19,7 @@ import { StandaloneTemplatesController } from './auth-flows/standalone-templates
     AuthModule,
     ProjectsModule, // Restored - dependency issue fixed
     TestsModule,
+    TestSuitesModule, // Added for test suite functionality
     ExecutionModule,
     AiModule,
     BrowserModule,

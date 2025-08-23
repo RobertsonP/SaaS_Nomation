@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
+import { FolderUploadZone } from '../../components/project-upload/FolderUploadZone';
 
 interface Project {
   id: string;
@@ -19,12 +20,19 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
+  const [showFolderUpload, setShowFolderUpload] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    stage: '',
+    progress: 0,
+    message: ''
+  });
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    urls: ['']
+    description: ''
   });
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -65,34 +73,39 @@ export function ProjectsPage() {
     if (isCreating) return; // Prevent multiple submissions
     
     try {
-      // Filter out empty URLs and use first URL as main URL for backward compatibility
-      const validUrls = formData.urls.filter(url => url.trim() !== '');
-      if (validUrls.length === 0) {
-        showError('Validation Error', 'Please add at least one URL');
-        return;
-      }
-      
       setIsCreating(true);
+      
+      // Simplified creation: Just create the project with basic info
+      setUploadProgress({
+        stage: 'creation',
+        progress: 50,
+        message: 'Creating project...'
+      });
       
       const projectData = {
         name: formData.name,
         description: formData.description,
-        urls: validUrls.map(url => ({
-          url: url,
-          title: 'Page',
-          description: 'Project URL'
-        })) // Properly formatted URLs array
+        urls: [] // Start with empty URLs - will be added later
       };
       
       const response = await projectsAPI.create(projectData);
       const createdProject = response.data;
       
+      // Complete
+      setUploadProgress({
+        stage: 'complete',
+        progress: 100,
+        message: 'Project created successfully!'
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Reset form and close
-      setFormData({ name: '', description: '', urls: [''] });
+      setFormData({ name: '', description: '' });
       setShowForm(false);
       
       // Show success notification
-      showSuccess('Project Created', `Successfully created project "${formData.name}" with ${validUrls.length} URL${validUrls.length > 1 ? 's' : ''}`);
+      showSuccess('Project Created', `Successfully created project "${formData.name}". You can now add URLs and analyze pages in the project details.`);
       
       // Navigate to the created project
       navigate(`/projects/${createdProject.id}`);
@@ -102,32 +115,44 @@ export function ProjectsPage() {
       showError('Creation Failed', 'Failed to create project. Please try again.');
     } finally {
       setIsCreating(false);
+      setUploadProgress({ stage: '', progress: 0, message: '' });
     }
   };
 
-  const addUrlField = () => {
-    setFormData({
-      ...formData,
-      urls: [...formData.urls, '']
-    });
+  // NEW: Folder upload handlers
+  const handleFolderUpload = async (files: any[]) => {
+    setUploadedFiles(files);
+    console.log(`Received ${files.length} files for analysis`);
+    
+    try {
+      setIsAnalyzing(true);
+      
+      // Use server-side analysis instead of client-side
+      const response = await projectsAPI.analyzeProjectFolder(files);
+      
+      showSuccess('Project Created!', `Successfully created project "${response.project.name}" with ${response.analysis.elements.length} elements discovered from your code.`);
+      
+      // Reset upload state and navigate
+      setShowFolderUpload(false);
+      setUploadedFiles([]);
+      setIsAnalyzing(false);
+      
+      navigate(`/projects/${response.project.id}`);
+      
+    } catch (error) {
+      console.error('Failed to create project from upload:', error);
+      showError('Creation Failed', 'Failed to create project from uploaded files. Please try again.');
+      setIsAnalyzing(false);
+    }
   };
 
-  const removeUrlField = (index: number) => {
-    const newUrls = formData.urls.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      urls: newUrls.length > 0 ? newUrls : ['']
-    });
+  const handleCancelUpload = () => {
+    setShowFolderUpload(false);
+    setUploadedFiles([]);
+    setIsAnalyzing(false);
   };
 
-  const updateUrl = (index: number, value: string) => {
-    const newUrls = [...formData.urls];
-    newUrls[index] = value;
-    setFormData({
-      ...formData,
-      urls: newUrls
-    });
-  };
+  // URL management removed - now handled in project details page
 
 
   // Delete project function
@@ -337,78 +362,84 @@ export function ProjectsPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Projects</h1>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Create Project
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setShowFolderUpload(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+          >
+            <span>📁</span>
+            <span>Upload Folder</span>
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Create Project
+          </button>
+        </div>
       </div>
 
       {showForm && (
         <div className="bg-white p-6 rounded-lg shadow mb-6">
           <h2 className="text-lg font-semibold mb-4">Create New Project</h2>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <div className="text-blue-600 text-2xl">🚀</div>
+              <div>
+                <h3 className="text-blue-800 font-medium text-sm mb-1">Simplified Project Creation</h3>
+                <p className="text-blue-700 text-sm mb-2">
+                  Just provide a name and description to get started. You'll add URLs and analyze pages after creation.
+                </p>
+                <ul className="text-xs text-blue-600 space-y-1">
+                  <li>• Quick project setup in seconds</li>
+                  <li>• Add URLs and analyze pages later in project details</li>
+                  <li>• Upload files or use live element picker when ready</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Project Name <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="e.g., My E-commerce Site, Admin Dashboard, User Portal"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
               />
+              <p className="text-xs text-gray-500 mt-1">Choose a descriptive name for your testing project</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Description (optional)
+              </label>
               <textarea
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder="Brief description of what this project tests..."
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
+              <p className="text-xs text-gray-500 mt-1">Optional: Describe the purpose or scope of this project</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Website URLs</label>
-              {formData.urls.map((url, index) => (
-                <div key={index} className="flex items-center space-x-2 mb-2">
-                  <input
-                    type="url"
-                    required={index === 0}
-                    placeholder="https://example.com"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                    value={url}
-                    onChange={(e) => updateUrl(index, e.target.value)}
-                  />
-                  {formData.urls.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeUrlField(index)}
-                      className="bg-red-500 text-white px-2 py-2 rounded-md hover:bg-red-600 text-sm"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addUrlField}
-                className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm mt-2"
-              >
-                + Add URL
-              </button>
-            </div>
-            <div className="flex space-x-4">
+            
+            <div className="flex space-x-4 pt-4">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                disabled={isCreating || !formData.name.trim()}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
-                Create Project
+                {isCreating ? 'Creating...' : 'Create Project'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
@@ -471,7 +502,15 @@ export function ProjectsPage() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">No URLs configured</p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="text-yellow-600">⚠️</div>
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">Setup Required</p>
+                        <p className="text-xs text-yellow-700">Add URLs and analyze pages to get started</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -493,18 +532,37 @@ export function ProjectsPage() {
 
               {/* Action Buttons */}
               <div className="flex space-x-2">
-                <Link
-                  to={`/projects/${project.id}/tests`}
-                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-center text-sm"
-                >
-                  View Tests
-                </Link>
-                <Link
-                  to={`/projects/${project.id}/tests/new`}
-                  className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-center text-sm"
-                >
-                  Create Test
-                </Link>
+                {project.urls && project.urls.length > 0 ? (
+                  <>
+                    <Link
+                      to={`/projects/${project.id}/tests`}
+                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-center text-sm"
+                    >
+                      View Tests
+                    </Link>
+                    <Link
+                      to={`/projects/${project.id}/tests/new`}
+                      className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-center text-sm"
+                    >
+                      Create Test
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to={`/projects/${project.id}`}
+                      className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 text-center text-sm font-medium"
+                    >
+                      🚀 Setup Project
+                    </Link>
+                    <Link
+                      to={`/projects/${project.id}/tests`}
+                      className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-center text-sm"
+                    >
+                      View ({project._count.tests})
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -793,17 +851,166 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* Loading Modals */}
-      <LoadingModal
-        isOpen={isCreating}
-        message="Creating Project"
-        subMessage="Please wait while we set up your project..."
-      />
+      {/* Simplified Project Creation Progress Modal */}
+      {isCreating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="text-center space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-center space-x-3">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Creating Project</h3>
+                    <p className="text-sm text-gray-600">Quick setup - just the essentials</p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div 
+                    className="bg-green-600 h-3 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${uploadProgress.progress}%` }}
+                  />
+                </div>
+
+                {/* Progress Text */}
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    {uploadProgress.progress}% Complete
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {uploadProgress.message}
+                  </p>
+                </div>
+
+                {/* Simplified Stage Indicators */}
+                <div className="flex justify-center space-x-8 text-xs text-gray-500">
+                  <div className={`flex flex-col items-center space-y-1 ${
+                    ['creation', 'complete'].includes(uploadProgress.stage)
+                      ? 'text-green-600' : 'text-gray-400'
+                  }`}>
+                    <div className={`w-4 h-4 rounded-full ${
+                      ['creation', 'complete'].includes(uploadProgress.stage)
+                        ? 'bg-green-600' : 'bg-gray-300'
+                    }`} />
+                    <span>Create</span>
+                  </div>
+                  <div className={`flex flex-col items-center space-y-1 ${
+                    ['complete'].includes(uploadProgress.stage)
+                      ? 'text-green-600' : 'text-gray-400'
+                  }`}>
+                    <div className={`w-4 h-4 rounded-full ${
+                      ['complete'].includes(uploadProgress.stage)
+                        ? 'bg-green-600' : 'bg-gray-300'
+                    }`} />
+                    <span>Ready</span>
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-left">
+                  <h4 className="text-sm font-medium text-green-800 mb-1">🚀 What's next?</h4>
+                  <ul className="text-xs text-green-700 space-y-1">
+                    <li>• Add URLs to your project</li>
+                    <li>• Analyze pages to discover elements</li>
+                    <li>• Upload source code files (optional)</li>
+                    <li>• Start building your tests</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Folder Upload Modal */}
+      {showFolderUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">📁 Upload Project Folder</h2>
+                  <p className="text-sm opacity-90">
+                    Upload your project files for automatic analysis and element discovery
+                  </p>
+                </div>
+                <button
+                  onClick={handleCancelUpload}
+                  className="text-white hover:text-gray-200 text-2xl font-bold p-2 rounded-full hover:bg-black hover:bg-opacity-20 transition-colors"
+                  aria-label="Close modal"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {!uploadedFiles.length ? (
+                <FolderUploadZone
+                  onFolderUploaded={handleFolderUpload}
+                  className="w-full"
+                />
+              ) : isAnalyzing ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="animate-spin h-8 w-8 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-xl font-semibold text-gray-900">🔍 Analyzing Your Project</h3>
+                    <p className="text-gray-600 max-w-md">
+                      Our intelligent system is analyzing your {uploadedFiles.length} files to detect framework type, discover UI elements, and create your project...
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg">
+                    <h4 className="text-sm font-medium text-blue-800 mb-2">🧠 What we're doing:</h4>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• Detecting framework (React, Vue, Angular, HTML)</li>
+                      <li>• Extracting UI elements and selectors</li>
+                      <li>• Discovering page structures and URLs</li>
+                      <li>• Creating your project with discovered elements</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between">
+              <div className="text-sm text-gray-600">
+                {uploadedFiles.length > 0 && (
+                  <span>📂 {uploadedFiles.length} files uploaded</span>
+                )}
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleCancelUpload}
+                  disabled={isAnalyzing}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAnalyzing ? 'Analyzing...' : 'Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <LoadingModal
-        isOpen={isUpdating}
-        message="Updating Project"
-        subMessage="Please wait while we save your changes..."
+        isOpen={isUpdating || isCreating}
+        message={isCreating ? "Creating Project" : "Updating Project"}
+        subMessage={isCreating ? "Analyzing files and setting up project..." : "Please wait while we save your changes..."}
       />
     </div>
   );
