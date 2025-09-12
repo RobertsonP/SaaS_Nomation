@@ -330,6 +330,7 @@ export function TestBuilderPage() {
               initialSteps={test?.steps || []}
               projectId={projectId}
               testId={testId}
+              startingUrl={selectedStartingUrl} // 🎯 CRITICAL FIX: Pass test's starting URL
             />
           </div>
         </div>

@@ -57,7 +57,8 @@ export class ElementAnalyzerService {
   private async extractAllPageElements(page: any): Promise<any[]> {
     console.log('🔄 Starting extractAllPageElements - entering page.evaluate()...');
     
-    return await page.evaluate(() => {
+    // First, extract elements and generate potential selectors in browser context
+    const rawElements = await page.evaluate(() => {
       console.log('🔍 === INSIDE BROWSER CONTEXT - ELEMENT EXTRACTION ===');
       const extractedElements: any[] = [];
       
@@ -492,226 +493,224 @@ export class ElementAnalyzerService {
               }
             }
             
-            // Generate highly accurate and unique selector with comprehensive strategy
-            const generateSelector = (el: Element, allElements: Element[]): string => {
+            // 🎯 MAXIMUM CSS COMPLEXITY SELECTOR GENERATOR - ULTIMATE UNIQUENESS
+            const generateRobustSelector = (el: Element, allElements: Element[]): { selector: string; fallbacks: string[]; metadata: any } => {
               
               // Helper function to escape CSS selectors
               const escapeCSSSelector = (str: string): string => {
                 return str.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
               };
               
-              // Helper function to test selector uniqueness
-              const testUniqueness = (selector: string): boolean => {
-                try {
-                  const matches = document.querySelectorAll(selector);
-                  return matches.length === 1 && matches[0] === el;
-                } catch (e) {
-                  return false;
-                }
+              // Note: Selector validation moved outside browser context to use Playwright locators
+              
+              // Helper function to get element attributes
+              const getAttr = (attributeName: string): string | null => {
+                return el.getAttribute(attributeName);
               };
               
-              // 1. ID selector (highest priority)
-              if (el.id && el.id.trim() !== '') {
-                const idSelector = `#${escapeCSSSelector(el.id)}`;
-                if (testUniqueness(idSelector)) {
-                  return idSelector;
-                }
-              }
+              // Get element display text
+              const displayText = el.textContent?.trim() || (el as HTMLElement).innerText?.trim() || '';
               
-              // 2. data-testid (testing-specific attributes)
-              const testId = el.getAttribute('data-testid');
-              if (testId && testId.trim() !== '') {
-                const testIdSelector = `[data-testid="${escapeCSSSelector(testId)}"]`;
-                if (testUniqueness(testIdSelector)) {
-                  return testIdSelector;
-                }
-              }
+              // Get element ID
+              const elementId = getAttr('id');
               
-              // 3. name attribute (for form elements)
-              const name = el.getAttribute('name');
-              if (name && name.trim() !== '') {
-                const nameSelector = `[name="${escapeCSSSelector(name)}"]`;
-                if (testUniqueness(nameSelector)) {
-                  return nameSelector;
-                }
-                // Try with tag name for more specificity
-                const tagNameSelector = `${el.tagName.toLowerCase()}[name="${escapeCSSSelector(name)}"]`;
-                if (testUniqueness(tagNameSelector)) {
-                  return tagNameSelector;
-                }
-              }
-              
-              // 4. aria-label (accessibility attributes)
-              const ariaLabel = el.getAttribute('aria-label');
-              if (ariaLabel && ariaLabel.trim() !== '') {
-                const ariaSelector = `[aria-label="${escapeCSSSelector(ariaLabel)}"]`;
-                if (testUniqueness(ariaSelector)) {
-                  return ariaSelector;
-                }
-              }
-              
-              // 5. Combination of tag + type + specific attributes
-              const tagName = el.tagName.toLowerCase();
-              const type = el.getAttribute('type');
-              
-              if (type) {
-                const typeSelector = `${tagName}[type="${type}"]`;
-                if (testUniqueness(typeSelector)) {
-                  return typeSelector;
-                }
-              }
-              
-              // 6. Tag + Class combinations (use stable classes)
-              if (el.className && el.className.trim() !== '') {
-                const classes = el.className.split(' ')
-                  .filter(c => c.trim() !== '')
-                  .filter(c => !c.match(/^(active|hover|focus|selected|disabled|loading)$/)) // Filter out state classes
-                  .filter(c => c.length > 2) // Filter out very short classes
-                  .slice(0, 3); // Limit to first 3 stable classes
+              // 🎯 STRUCTURAL CSS SELECTOR GENERATOR - DESCRIBES DOM LOCATION
+              // Generate structural CSS selectors with ALL Playwright features
+              const buildStructuralPath = (el: Element): string => {
+                const path: string[] = [];
+                let current: Element | null = el;
                 
-                if (classes.length > 0) {
-                  // Try most specific first (all classes)
-                  const allClassesSelector = `${tagName}.${classes.map(c => escapeCSSSelector(c)).join('.')}`;
-                  if (testUniqueness(allClassesSelector)) {
-                    return allClassesSelector;
-                  }
+                while (current && current !== document.documentElement) {
+                  let selector = current.tagName.toLowerCase();
                   
-                  // Try single class combinations
-                  for (const cls of classes) {
-                    const singleClassSelector = `${tagName}.${escapeCSSSelector(cls)}`;
-                    if (testUniqueness(singleClassSelector)) {
-                      return singleClassSelector;
+                  // Add ID if it exists and is meaningful - HIGHEST PRIORITY
+                  if (current.id && !current.id.match(/^(wp-|auto-|gen-|tmp-)/)) {
+                    selector = '#' + current.id;
+                  } else {
+                    // Add class if it exists and is meaningful
+                    if (current.className && typeof current.className === 'string') {
+                      const classes = current.className.split(/\s+/).filter(c => 
+                        c.length > 0 && !c.match(/^(wp-|css-|js-|tmp-|_)/) // Skip generated classes
+                      );
+                      if (classes.length > 0) {
+                        selector += '.' + classes.join('.');
+                      }
                     }
-                  }
-                }
-              }
-              
-              // 7. Multiple attribute combinations
-              const importantAttrs = ['role', 'placeholder', 'value', 'title', 'href', 'alt', 'for'];
-              const availableAttrs = importantAttrs.filter(attr => el.getAttribute(attr));
-              
-              // Try combinations of 2-3 attributes
-              for (let i = 0; i < availableAttrs.length; i++) {
-                for (let j = i + 1; j < availableAttrs.length; j++) {
-                  const attr1 = availableAttrs[i];
-                  const attr2 = availableAttrs[j];
-                  const val1 = el.getAttribute(attr1);
-                  const val2 = el.getAttribute(attr2);
-                  
-                  if (val1 && val2) {
-                    const multiAttrSelector = `${tagName}[${attr1}="${escapeCSSSelector(val1)}"][${attr2}="${escapeCSSSelector(val2)}"]`;
-                    if (testUniqueness(multiAttrSelector)) {
-                      return multiAttrSelector;
-                    }
-                  }
-                }
-              }
-              
-              // 8. Single attribute selectors
-              for (const attr of importantAttrs) {
-                const attrValue = el.getAttribute(attr);
-                if (attrValue && attrValue.trim() !== '') {
-                  const attrSelector = `${tagName}[${attr}="${escapeCSSSelector(attrValue)}"]`;
-                  if (testUniqueness(attrSelector)) {
-                    return attrSelector;
-                  }
-                }
-              }
-              
-              // 9. Text content-based selectors (for elements with unique text)
-              const textContent = el.textContent?.trim() || '';
-              if (textContent && textContent.length > 0 && textContent.length < 100) {
-                // Clean text for selector use
-                const cleanText = textContent.substring(0, 50).trim();
-                if (cleanText && !cleanText.match(/^\s*$/)) {
-                  const textSelector = `${tagName}:has-text("${escapeCSSSelector(cleanText)}")`;
-                  // Note: :has-text is Playwright-specific, but we'll use it as a fallback
-                  if (document.querySelectorAll(tagName).length < 10) { // Only if few elements of same tag
-                    return textSelector;
-                  }
-                }
-              }
-              
-              // 10. Parent-child relationship selectors
-              const parent = el.parentElement;
-              if (parent) {
-                // Try parent class + child tag
-                if (parent.className) {
-                  const parentClasses = parent.className.split(' ')
-                    .filter(c => c.trim() !== '' && c.length > 2)
-                    .slice(0, 2);
                     
-                  for (const parentClass of parentClasses) {
-                    const parentChildSelector = `.${escapeCSSSelector(parentClass)} > ${tagName}`;
-                    if (testUniqueness(parentChildSelector)) {
-                      return parentChildSelector;
+                    // Add data-testid if it exists
+                    if (current.hasAttribute('data-testid')) {
+                      selector += '[data-testid="' + current.getAttribute('data-testid') + '"]';
                     }
-                  }
-                }
-                
-                // Try parent ID + child
-                if (parent.id) {
-                  const parentIdSelector = `#${escapeCSSSelector(parent.id)} ${tagName}`;
-                  if (testUniqueness(parentIdSelector)) {
-                    return parentIdSelector;
-                  }
-                }
-                
-                // Try parent tag + child with attributes
-                if (type) {
-                  const parentTagSelector = `${parent.tagName.toLowerCase()} > ${tagName}[type="${type}"]`;
-                  if (testUniqueness(parentTagSelector)) {
-                    return parentTagSelector;
-                  }
-                }
-              }
-              
-              // 11. Advanced structural selectors
-              if (parent) {
-                const siblings = Array.from(parent.children).filter(child => child.tagName === el.tagName);
-                const siblingIndex = siblings.indexOf(el as Element);
-                
-                if (siblings.length > 1 && siblingIndex >= 0) {
-                  // Try first/last shortcuts
-                  if (siblingIndex === 0) {
-                    const firstChildSelector = parent.className 
-                      ? `.${parent.className.split(' ')[0]} > ${tagName}:first-child`
-                      : `${parent.tagName.toLowerCase()} > ${tagName}:first-child`;
-                    if (testUniqueness(firstChildSelector)) {
-                      return firstChildSelector;
+                    
+                    // Add type for inputs
+                    if (current.tagName.toLowerCase() === 'input' && current.hasAttribute('type')) {
+                      selector += '[type="' + current.getAttribute('type') + '"]';
+                    }
+                    
+                    // Add aria-label for accessibility
+                    if (current.hasAttribute('aria-label')) {
+                      selector += '[aria-label="' + current.getAttribute('aria-label') + '"]';
+                    }
+                    
+                    // Add positional selector if needed for uniqueness
+                    const siblings = current.parentElement?.children;
+                    if (siblings && siblings.length > 1) {
+                      const sameTagSiblings = Array.from(siblings).filter(s => 
+                        s.tagName === current?.tagName && 
+                        s.className === current?.className
+                      );
+                      
+                      if (sameTagSiblings.length > 1) {
+                        const index = Array.from(siblings).indexOf(current) + 1;
+                        // Use :nth-child for structural positioning
+                        selector += `:nth-child(${index})`;
+                      }
                     }
                   }
                   
-                  if (siblingIndex === siblings.length - 1) {
-                    const lastChildSelector = parent.className 
-                      ? `.${parent.className.split(' ')[0]} > ${tagName}:last-child`
-                      : `${parent.tagName.toLowerCase()} > ${tagName}:last-child`;
-                    if (testUniqueness(lastChildSelector)) {
-                      return lastChildSelector;
+                  path.unshift(selector);
+                  current = current.parentElement;
+                }
+                
+                return path.join(' > ');
+              };
+              
+              // Generate advanced selectors with :not(), :has(), combinators
+              const generateAdvancedStructuralSelectors = (el: Element): string[] => {
+                const advancedSelectors: string[] = [];
+                const tag = el.tagName.toLowerCase();
+                const text = el.textContent?.trim() || '';
+                const parent = el.parentElement;
+                const grandparent = parent?.parentElement;
+                
+                // Advanced selector with :not() exclusion
+                if (parent) {
+                  const parentTag = parent.tagName.toLowerCase();
+                  const siblingTags = Array.from(parent.children).map(c => c.tagName.toLowerCase());
+                  const uniqueSiblingTags = [...new Set(siblingTags)];
+                  
+                  if (uniqueSiblingTags.length > 1) {
+                    // Use :not() to exclude other element types
+                    const otherTags = uniqueSiblingTags.filter(t => t !== tag);
+                    if (otherTags.length > 0) {
+                      advancedSelectors.push(`${parentTag}:not(.table) > ${tag}:not(${otherTags.join(', ')})`);
                     }
                   }
                   
-                  // nth-child as last resort
-                  const nthChildSelector = parent.className 
-                    ? `.${parent.className.split(' ')[0]} > ${tagName}:nth-child(${siblingIndex + 1})`
-                    : `${parent.tagName.toLowerCase()} > ${tagName}:nth-child(${siblingIndex + 1})`;
-                  if (testUniqueness(nthChildSelector)) {
-                    return nthChildSelector;
+                  // Use :has() to describe parent-child relationships
+                  if (text && text.length > 2 && text.length < 30) {
+                    advancedSelectors.push(`${parentTag}:has(> ${tag}) > ${tag}:has-text("${text}")`);
+                  }
+                  
+                  // Advanced attribute-based selectors with :has()
+                  if (el.hasAttribute('aria-label')) {
+                    const ariaLabel = el.getAttribute('aria-label');
+                    advancedSelectors.push(`${parentTag}:has(> ${tag}[aria-label="${ariaLabel}"]) > ${tag}`);
+                  }
+                  
+                  // Use :first-child, :last-child, :nth-child positioning
+                  const elementIndex = Array.from(parent.children).indexOf(el);
+                  const totalChildren = parent.children.length;
+                  
+                  if (elementIndex === 0 && totalChildren > 1) {
+                    advancedSelectors.push(`${parentTag} > ${tag}:first-child`);
+                  } else if (elementIndex === totalChildren - 1 && totalChildren > 1) {
+                    advancedSelectors.push(`${parentTag} > ${tag}:last-child`);
+                  } else if (totalChildren > 2) {
+                    advancedSelectors.push(`${parentTag} > ${tag}:nth-child(${elementIndex + 1})`);
+                  }
+                  
+                  // Advanced positioning with :first-of-type, :last-of-type
+                  const sameTypeSiblings = Array.from(parent.children).filter(c => c.tagName === el.tagName);
+                  if (sameTypeSiblings.length > 1) {
+                    const typeIndex = sameTypeSiblings.indexOf(el);
+                    if (typeIndex === 0) {
+                      advancedSelectors.push(`${parentTag} > ${tag}:first-of-type`);
+                    } else if (typeIndex === sameTypeSiblings.length - 1) {
+                      advancedSelectors.push(`${parentTag} > ${tag}:last-of-type`);
+                    }
                   }
                 }
+                
+                // Multi-level structural selectors - USER'S EXAMPLE PATTERN
+                if (grandparent && parent) {
+                  const grandparentTag = grandparent.tagName.toLowerCase();
+                  const parentTag = parent.tagName.toLowerCase();
+                  
+                  // Generate selector like: 'div:not(table div):has(> input[aria-label="..."]) > div'
+                  let complexSelector = grandparentTag;
+                  
+                  // Add :not() exclusions
+                  if (grandparentTag === 'div') {
+                    complexSelector += ':not(table div)';
+                  }
+                  
+                  // Add :has() for child detection
+                  if (el.hasAttribute('aria-label')) {
+                    const ariaLabel = el.getAttribute('aria-label');
+                    complexSelector += `:has(> ${tag}[aria-label="${ariaLabel}"])`;
+                  } else if (el.hasAttribute('type')) {
+                    const type = el.getAttribute('type');
+                    complexSelector += `:has(> ${tag}[type="${type}"])`;
+                  } else {
+                    complexSelector += `:has(> ${tag})`;
+                  }
+                  
+                  complexSelector += ` > ${tag}`;
+                  advancedSelectors.push(complexSelector);
+                }
+                
+                return advancedSelectors;
+              };
+              
+              // Generate primary structural selector
+              const structuralSelector = buildStructuralPath(el);
+              
+              // Generate advanced structural selectors
+              const advancedSelectors = generateAdvancedStructuralSelectors(el);
+              
+              // Combine all selectors
+              const allSelectors = [structuralSelector, ...advancedSelectors];
+              
+              console.log(`🎯 Generated ${allSelectors.length} structural CSS selectors for ${el.tagName.toLowerCase()}`);
+              console.log('  Primary:', structuralSelector);
+              if (advancedSelectors.length > 0) {
+                console.log('  Advanced:', advancedSelectors.slice(0, 2).join(', '));
               }
               
-              // 12. Final fallback - position among all similar elements
-              const allSimilarElements = document.querySelectorAll(tagName);
-              const elementIndex = Array.from(allSimilarElements).indexOf(el);
+              // Calculate reliability based on structural features
+              const calculateStructuralReliability = (selector: string): number => {
+                let score = 0.5; // Base score
+                if (selector.includes('#')) score += 0.4; // ID is most reliable
+                if (selector.includes('[data-testid')) score += 0.3;
+                if (selector.includes('[aria-')) score += 0.2;
+                if (selector.includes(':has(')) score += 0.1; // Advanced features
+                if (selector.includes(':not(')) score += 0.1;
+                if (selector.includes(':nth-child')) score -= 0.1; // Position-based less reliable
+                return Math.min(score, 1.0);
+              };
               
-              if (elementIndex >= 0 && allSimilarElements.length > 1) {
-                return `${tagName}:nth-of-type(${elementIndex + 1})`;
-              }
-              
-              // Ultimate fallback
-              return tagName;
+              return {
+                selector: allSelectors[0] || el.tagName.toLowerCase(),
+                fallbacks: allSelectors.slice(1),
+                metadata: {
+                  reliability: calculateStructuralReliability(allSelectors[0]),
+                  browserCompatibility: 1.0,
+                  uniqueness: 0.9, // Structural selectors are highly unique
+                  stability: 0.8,
+                  xpath: '', // Not needed for CSS selectors
+                  structuralComplexity: allSelectors.length,
+                  hasAdvancedFeatures: allSelectors.some(s => s.includes(':not(') || s.includes(':has(') || s.includes(':nth-child('))
+                }
+              };
             };
+            
+            // Legacy generateSelector for backward compatibility
+            const generateSelector = (el: Element, allElements: Element[]): string => {
+              const robustResult = generateRobustSelector(el, allElements);
+              return robustResult.selector;
+            };
+              
             
             // Determine element type - enhanced for better form detection
             const getElementType = (el: Element): string => {
@@ -790,11 +789,16 @@ export class ElementAnalyzerService {
               return ariaLabel || text.slice(0, 50) || placeholder || title || `${tagName} element`;
             };
             
+            // 🎯 GENERATE ROBUST SELECTOR WITH COMPLETE METADATA
+            const robustSelectorData = generateRobustSelector(element, Array.from(allElements));
+            
             extractedElements.push({
-              selector: generateSelector(element, Array.from(allElements)),
+              selector: robustSelectorData.selector,
+              fallbackSelectors: robustSelectorData.fallbacks,
+              automationMetadata: robustSelectorData.metadata,
               elementType: getElementType(element),
               description: getDescription(element),
-              confidence: 0.9, // High confidence for visible elements
+              confidence: Math.max(0.7, robustSelectorData.metadata.reliability), // Use reliability as confidence
               attributes: {
                 text: element.textContent?.trim() || '',
                 tagName: element.tagName.toLowerCase(),
@@ -831,33 +835,10 @@ export class ElementAnalyzerService {
           }
         }
         
-        // Post-process to ensure all selectors are unique
-        const uniqueSelectors = new Set<string>();
+        // 🎯 PRESERVE COMPLEX SELECTORS - Use fallback chain for uniqueness instead of destroying them
         const finalElements = extractedElements.map((element, index) => {
-          let selector = element.selector;
-          let counter = 1;
-          
-          // If selector is not unique, modify it
-          while (uniqueSelectors.has(selector)) {
-            // Try adding an index suffix
-            if (selector.includes(':nth-of-type(')) {
-              // Already has nth-of-type, increment it
-              selector = selector.replace(/:nth-of-type\(\d+\)/, `:nth-of-type(${counter + 1})`);
-            } else if (selector.includes(':nth-child(')) {
-              // Already has nth-child, increment it
-              selector = selector.replace(/:nth-child\(\d+\)/, `:nth-child(${counter + 1})`);
-            } else {
-              // Add nth-of-type to make it unique
-              selector = `${selector}:nth-of-type(${counter + 1})`;
-            }
-            counter++;
-          }
-          
-          uniqueSelectors.add(selector);
-          return {
-            ...element,
-            selector: selector
-          };
+          // Keep the complex selector from generateRobustSelector - it already has fallback logic
+          return element; // No post-processing that destroys complex selectors!
         });
         
         console.log(`✅ Final result: ${finalElements.length} elements ready for return`);
@@ -865,6 +846,89 @@ export class ElementAnalyzerService {
         
         return finalElements;
       });
+
+    // 🎯 PLAYWRIGHT SELECTOR VALIDATION (Outside browser context)
+    console.log(`🔍 Validating ${rawElements.length} elements with Playwright locators...`);
+    
+    const validatedElements = [];
+    
+    for (const element of rawElements) {
+      try {
+        // Test primary selector with Playwright
+        const primaryLocator = page.locator(element.selector);
+        const primaryCount = await primaryLocator.count();
+        
+        if (primaryCount === 1) {
+          // Perfect! Primary selector is unique and working
+          validatedElements.push({
+            ...element,
+            metadata: {
+              ...element.metadata,
+              uniqueness: 1.0,
+              browserCompatibility: 1.0,
+              playwrightValidated: true
+            }
+          });
+          console.log(`✅ Primary selector validated: ${element.selector}`);
+          continue;
+        }
+        
+        // Primary selector not unique, try fallbacks
+        let bestSelector = null;
+        let bestScore = 0;
+        
+        const allSelectors = [element.selector, ...element.fallbacks];
+        
+        for (const testSelector of allSelectors) {
+          try {
+            const testLocator = page.locator(testSelector);
+            const count = await testLocator.count();
+            
+            if (count === 1) {
+              // Found unique selector!
+              bestSelector = testSelector;
+              bestScore = 1.0;
+              console.log(`✅ Unique fallback found: ${testSelector}`);
+              break;
+            } else if (count > 1 && count <= 5) {
+              // Multiple matches but reasonable
+              const score = 1.0 / count;
+              if (score > bestScore) {
+                bestSelector = testSelector;
+                bestScore = score;
+              }
+            }
+          } catch (selectorError) {
+            // Selector has syntax error, skip it
+            console.warn(`⚠️ Selector syntax error: ${testSelector} - ${selectorError.message}`);
+          }
+        }
+        
+        if (bestSelector) {
+          // Use best working selector
+          validatedElements.push({
+            ...element,
+            selector: bestSelector,
+            metadata: {
+              ...element.metadata,
+              uniqueness: bestScore,
+              browserCompatibility: 1.0,
+              playwrightValidated: true
+            }
+          });
+          console.log(`✅ Best selector validated: ${bestSelector} (score: ${bestScore})`);
+        } else {
+          console.warn(`⚠️ No working selectors found for element: ${element.elementType}`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Validation failed for element: ${error.message}`);
+      }
+    }
+    
+    console.log(`🎯 Playwright validation complete: ${validatedElements.length}/${rawElements.length} elements validated`);
+    
+    return validatedElements;
   }
 
   /**

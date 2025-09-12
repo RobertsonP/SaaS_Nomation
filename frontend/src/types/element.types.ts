@@ -129,6 +129,9 @@ export interface ProjectElement {
   overallQuality?: number;      // Weighted overall quality score 0-1
   qualityMetrics?: QualityMetrics; // Detailed quality breakdown
   
+  // 🎯 CRITICAL FIX: Dedicated CSS info column for optimized preview rendering
+  cssInfo?: CSSProperties; // CSS data stored in dedicated database column
+  
   // Phase 2: Alternative and fallback selectors
   fallbackSelectors?: string[]; // Alternative selectors for this element
   isValidated?: boolean;        // Has been through Phase 2 validation

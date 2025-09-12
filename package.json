@@ -16,6 +16,8 @@
     "@modelcontextprotocol/server-github": "^2025.4.8",
     "@modelcontextprotocol/server-memory": "^2025.4.25",
     "@modelcontextprotocol/server-postgres": "^0.6.2",
-    "@playwright/mcp": "^0.0.30"
+    "@modelcontextprotocol/server-sequential-thinking": "^2025.7.1",
+    "@playwright/mcp": "^0.0.30",
+    "@wonderwhy-er/desktop-commander": "^0.2.10"
   }
 }

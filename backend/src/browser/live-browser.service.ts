@@ -17,52 +17,113 @@ export class LiveBrowserService {
     setInterval(() => this.cleanupExpiredSessions(), 30 * 60 * 1000);
   }
 
+  /**
+   * Translate localhost URLs for Docker container networking
+   */
+  private translateUrlForDocker(url: string): string {
+    // From inside Docker container, localhost refers to container's localhost
+    // We need to translate to host URLs for local development
+    if (url.includes('localhost:3001')) {
+      return url.replace('localhost:3001', 'host.docker.internal:3001');
+    }
+    if (url.includes('127.0.0.1:3001')) {
+      return url.replace('127.0.0.1:3001', 'host.docker.internal:3001');
+    }
+    return url;
+  }
+
   async createSession(projectId: string, authFlow?: LoginFlow): Promise<BrowserSession> {
     const sessionToken = uuidv4();
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
 
-    // Launch browser with Docker-compatible settings
-    const browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
-      ]
-    });
+    console.log(`🚀 Creating new browser session ${sessionToken} for project ${projectId}`);
 
-    const page = await browser.newPage();
-    
-    // Set desktop viewport for proper desktop view
-    await page.setViewportSize({
-      width: 1920,
-      height: 1080
-    });
-    
-    // Store browser and page instances
-    this.activeSessions.set(sessionToken, { browser, page });
+    try {
+      // Launch browser with Docker-compatible settings
+      const browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
 
-    // Create session record in database
-    const session = await this.prisma.browserSession.create({
-      data: {
-        sessionToken,
-        projectId,
-        authFlowId: authFlow?.id,
-        isAuthenticated: false,
-        currentState: 'initial',
-        expiresAt,
-      },
-    });
+      const page = await browser.newPage();
+      
+      // Set desktop viewport for proper desktop view
+      await page.setViewportSize({
+        width: 1920,
+        height: 1080
+      });
+      
+      // Store browser and page instances FIRST (memory session)
+      this.activeSessions.set(sessionToken, { browser, page });
+      console.log(`✅ Memory session created: ${sessionToken}`);
 
-    // If authFlow provided, execute authentication
-    if (authFlow) {
-      await this.authenticateSession(sessionToken, authFlow);
+      // Create session record in database with proper error handling
+      let session: BrowserSession;
+      try {
+        session = await this.prisma.browserSession.create({
+          data: {
+            sessionToken,
+            projectId: projectId || 'default', // Ensure projectId is never null
+            authFlowId: authFlow?.id || null,
+            isAuthenticated: false,
+            currentState: 'initial',
+            expiresAt,
+          },
+        });
+        console.log(`✅ Database session created: ${sessionToken}`);
+      } catch (dbError) {
+        console.warn(`⚠️ Database session creation failed, continuing with memory session: ${dbError.message}`);
+        // Create minimal session object for compatibility
+        session = {
+          id: sessionToken,
+          sessionToken,
+          projectId: projectId || 'default',
+          authFlowId: authFlow?.id || null,
+          isAuthenticated: false,
+          currentState: 'initial',
+          currentUrl: null,
+          expiresAt,
+          startedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastActivity: new Date(),
+        } as BrowserSession;
+      }
+
+      // If authFlow provided, execute authentication
+      if (authFlow) {
+        try {
+          await this.authenticateSession(sessionToken, authFlow);
+        } catch (authError) {
+          console.warn(`⚠️ Authentication failed, continuing with unauthenticated session: ${authError.message}`);
+        }
+      }
+
+      return session;
+      
+    } catch (error) {
+      // Clean up memory session if browser launch failed
+      if (this.activeSessions.has(sessionToken)) {
+        const sessionData = this.activeSessions.get(sessionToken);
+        try {
+          await sessionData?.page?.close();
+          await sessionData?.browser?.close();
+        } catch (cleanupError) {
+          console.warn(`Failed to cleanup failed session: ${cleanupError.message}`);
+        }
+        this.activeSessions.delete(sessionToken);
+      }
+      
+      console.error(`❌ Session creation failed: ${error.message}`);
+      throw new Error(`Failed to create browser session: ${error.message}`);
     }
-
-    return session;
   }
 
   async authenticateSession(sessionToken: string, authFlow: LoginFlow): Promise<void> {
@@ -120,74 +181,106 @@ export class LiveBrowserService {
     const { page } = sessionData;
 
     try {
-      console.log(`🔍 Navigating session ${sessionToken} to URL: ${url}`);
+      // Translate localhost URLs for Docker networking
+      const dockerUrl = this.translateUrlForDocker(url);
+      console.log(`🔍 Navigating session ${sessionToken} to URL: ${url} (Docker: ${dockerUrl})`);
       
-      // Get the current session from database to check for auth flow
-      const session = await this.prisma.browserSession.findUnique({
-        where: { sessionToken },
-        include: { authFlow: true }
-      });
-
-      if (!session) {
-        throw new Error('Session not found in database');
+      // Try to get the current session from database to check for auth flow
+      // This is optional - if DB fails, we continue with simple navigation
+      let session = null;
+      let hasAuthFlow = false;
+      
+      try {
+        session = await this.prisma.browserSession.findUnique({
+          where: { sessionToken },
+          include: { authFlow: true }
+        });
+        
+        if (session) {
+          console.log(`✅ Database session found: ${sessionToken}`);
+          hasAuthFlow = session.authFlow && !session.isAuthenticated;
+        } else {
+          console.log(`⚠️ Session not found in database, continuing with memory session only`);
+        }
+      } catch (dbError) {
+        console.warn(`⚠️ Database query failed, continuing with simple navigation: ${dbError.message}`);
+        hasAuthFlow = false;
       }
 
       // Check if this session actually has an auth flow that needs to be executed
-      if (session.authFlow && !session.isAuthenticated) {
+      if (hasAuthFlow && session?.authFlow) {
         console.log(`🔐 Session has auth flow - using unified auth service`);
         
-        // Convert database authFlow to LoginFlow interface
-        const authFlow = {
-          id: session.authFlow.id,
-          name: session.authFlow.name,
-          loginUrl: session.authFlow.loginUrl,
-          steps: Array.isArray(session.authFlow.steps) ? session.authFlow.steps as unknown as LoginFlow['steps'] : [],
-          credentials: typeof session.authFlow.credentials === 'object' ? session.authFlow.credentials as unknown as LoginFlow['credentials'] : { username: '', password: '' }
-        } as LoginFlow;
-        
-        const authResult = await this.unifiedAuthService.authenticateForUrl(
-          url,
-          authFlow,
-          sessionData.browser
-        );
+        try {
+          // Convert database authFlow to LoginFlow interface
+          const authFlow = {
+            id: session.authFlow.id,
+            name: session.authFlow.name,
+            loginUrl: session.authFlow.loginUrl,
+            steps: Array.isArray(session.authFlow.steps) ? session.authFlow.steps as unknown as LoginFlow['steps'] : [],
+            credentials: typeof session.authFlow.credentials === 'object' ? session.authFlow.credentials as unknown as LoginFlow['credentials'] : { username: '', password: '' }
+          } as LoginFlow;
+          
+          const authResult = await this.unifiedAuthService.authenticateForUrl(
+            dockerUrl,
+            authFlow,
+            sessionData.browser
+          );
 
-        if (!authResult.result.success) {
-          throw new Error(`Authentication failed: ${authResult.result.errorMessage}`);
+          if (!authResult.result.success) {
+            throw new Error(`Authentication failed: ${authResult.result.errorMessage}`);
+          }
+
+          // Update the session's page reference
+          this.activeSessions.set(sessionToken, {
+            browser: authResult.browser,
+            page: authResult.page
+          });
+
+          // Try to update session as authenticated (optional)
+          try {
+            await this.prisma.browserSession.update({
+              where: { sessionToken },
+              data: {
+                currentUrl: authResult.result.finalUrl,
+                isAuthenticated: authResult.result.authenticated,
+                currentState: authResult.result.authenticated ? 'after_login' : 'initial',
+                lastActivity: new Date(),
+              },
+            });
+          } catch (updateError) {
+            console.warn(`⚠️ Failed to update session in database: ${updateError.message}`);
+          }
+
+          console.log(`✅ Session ${sessionToken} authenticated and navigated to: ${authResult.result.finalUrl}`);
+        } catch (authError) {
+          console.warn(`⚠️ Authentication failed, falling back to simple navigation: ${authError.message}`);
+          // Continue with simple navigation below
+          hasAuthFlow = false;
         }
-
-        // Update the session's page reference
-        this.activeSessions.set(sessionToken, {
-          browser: authResult.browser,
-          page: authResult.page
-        });
-
-        // Update session as authenticated
-        await this.prisma.browserSession.update({
-          where: { sessionToken },
-          data: {
-            currentUrl: authResult.result.finalUrl,
-            isAuthenticated: authResult.result.authenticated,
-            currentState: authResult.result.authenticated ? 'after_login' : 'initial',
-            lastActivity: new Date(),
-          },
-        });
-
-        console.log(`✅ Session ${sessionToken} authenticated and navigated to: ${authResult.result.finalUrl}`);
-      } else {
-        // Simple test execution navigation - use direct page navigation with progressive loading
+      }
+      
+      if (!hasAuthFlow) {
+        // Simple navigation - use direct page navigation with progressive loading
         console.log(`🚀 Simple navigation - using direct page navigation with progressive loading`);
         
-        await this.navigateToPageWithProgressiveLoading(page, url);
+        await this.navigateToPageWithProgressiveLoading(page, dockerUrl);
         
-        // Update session URL without authentication
-        await this.prisma.browserSession.update({
-          where: { sessionToken },
-          data: {
-            currentUrl: url,
-            currentState: 'after_navigation',
-            lastActivity: new Date(),
-          },
-        });
+        // Try to update session URL (optional - element picker works without DB updates)
+        try {
+          if (session) {
+            await this.prisma.browserSession.update({
+              where: { sessionToken },
+              data: {
+                currentUrl: url,
+                currentState: 'after_navigation',
+                lastActivity: new Date(),
+              },
+            });
+          }
+        } catch (updateError) {
+          console.warn(`⚠️ Failed to update session URL in database: ${updateError.message}`);
+        }
 
         console.log(`✅ Session ${sessionToken} navigated successfully to: ${url}`);
       }
@@ -525,10 +618,15 @@ export class LiveBrowserService {
       this.activeSessions.delete(sessionToken);
     }
 
-    // Remove from database
-    await this.prisma.browserSession.delete({
-      where: { sessionToken },
-    });
+    // Remove from database (graceful handling if record doesn't exist)
+    try {
+      await this.prisma.browserSession.delete({
+        where: { sessionToken },
+      });
+      console.log(`✅ Database session deleted: ${sessionToken}`);
+    } catch (error) {
+      console.warn(`⚠️ Database session deletion failed (likely already deleted): ${sessionToken}`, error.message);
+    }
   }
 
   private async cleanupExpiredSessions(): Promise<void> {
@@ -561,6 +659,167 @@ export class LiveBrowserService {
     });
   }
 
+  // 🎯 FULLY INTERACTIVE BROWSER CONTROL METHODS
+  async scrollPage(sessionToken: string, deltaY: number, deltaX: number = 0): Promise<void> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    
+    // Execute scroll in the browser
+    await page.evaluate(({ deltaY, deltaX }) => {
+      window.scrollBy(deltaX, deltaY);
+    }, { deltaY, deltaX });
+
+    console.log(`✅ Scrolled page: deltaY=${deltaY}, deltaX=${deltaX}`);
+  }
+
+  async clickAtPosition(sessionToken: string, x: number, y: number): Promise<any> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    
+    // Get element at position and click it
+    const element = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement;
+      if (el) {
+        // Get element details before clicking
+        const rect = el.getBoundingClientRect();
+        const styles = window.getComputedStyle(el);
+        
+        // Collect comprehensive element data
+        const elementData = {
+          tagName: el.tagName.toLowerCase(),
+          id: el.id || null,
+          className: el.className || null,
+          textContent: el.textContent?.trim() || '',
+          innerText: el.innerText?.trim() || '',
+          attributes: {} as Record<string, string>,
+          position: {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height
+          },
+          cssInfo: {
+            backgroundColor: styles.backgroundColor,
+            color: styles.color,
+            fontSize: styles.fontSize,
+            fontFamily: styles.fontFamily,
+            padding: styles.padding,
+            border: styles.border,
+            cursor: styles.cursor
+          }
+        };
+        
+        // Collect all attributes
+        for (let i = 0; i < el.attributes.length; i++) {
+          const attr = el.attributes[i];
+          elementData.attributes[attr.name] = attr.value;
+        }
+        
+        // Perform the click
+        (el as HTMLElement).click();
+        
+        return elementData;
+      }
+      return null;
+    }, { x, y });
+
+    console.log(`✅ Clicked at position (${x}, ${y})`);
+    return element;
+  }
+
+  async hoverAtPosition(sessionToken: string, x: number, y: number): Promise<any> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    
+    // Hover at position and get element details
+    await page.mouse.move(x, y);
+    
+    const element = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const styles = window.getComputedStyle(el);
+        
+        return {
+          tagName: el.tagName.toLowerCase(),
+          id: el.id || null,
+          className: el.className || null,
+          textContent: el.textContent?.trim().substring(0, 50) || '',
+          position: {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height
+          },
+          cssInfo: {
+            backgroundColor: styles.backgroundColor,
+            color: styles.color,
+            cursor: styles.cursor
+          }
+        };
+      }
+      return null;
+    }, { x, y });
+
+    return element;
+  }
+
+  async sendKey(sessionToken: string, key: string): Promise<void> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    await page.keyboard.press(key);
+    console.log(`✅ Sent key: ${key}`);
+  }
+
+  async refreshPage(sessionToken: string): Promise<void> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    await page.reload();
+    console.log(`✅ Page refreshed`);
+  }
+
+  async goBack(sessionToken: string): Promise<void> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    await page.goBack();
+    console.log(`✅ Navigated back`);
+  }
+
+  async goForward(sessionToken: string): Promise<void> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { page } = sessionData;
+    await page.goForward();
+    console.log(`✅ Navigated forward`);
+  }
+
   // Cross-origin element detection using headless browser
   async crossOriginElementDetection(
     url: string, 
@@ -568,7 +827,8 @@ export class LiveBrowserService {
     clickY: number, 
     viewport: { width: number; height: number }
   ) {
-    console.log(`🔍 Cross-origin element detection at ${url} (${clickX}, ${clickY})`);
+    const dockerUrl = this.translateUrlForDocker(url);
+    console.log(`🔍 Cross-origin element detection at ${url} (Docker: ${dockerUrl}) (${clickX}, ${clickY})`);
     
     let browser: Browser | null = null;
     let page: Page | null = null;
@@ -595,7 +855,7 @@ export class LiveBrowserService {
       });
       
       // Navigate to the target URL
-      await page.goto(url, { waitUntil: 'networkidle' });
+      await page.goto(dockerUrl, { waitUntil: 'networkidle' });
       
       // Wait for page to be fully loaded
       await page.waitForTimeout(2000);
@@ -627,34 +887,22 @@ export class LiveBrowserService {
           
           // Include elements within detection radius
           if (distance <= DETECTION_RADIUS) {
-            // Generate optimized selector
+            // Generate FULL DOM PATH selector for maximum reliability
             let selector = '';
             
-            // Prioritize unique identifiers
-            if (element.id) {
+            // PRIORITY 1: Unique ID (highest reliability)
+            if (element.id && element.id.trim() !== '') {
               selector = '#' + element.id;
-            } else if (element.hasAttribute('data-testid')) {
+            } 
+            // PRIORITY 2: Test attributes (automation-friendly)
+            else if (element.hasAttribute('data-testid')) {
               selector = `[data-testid="${element.getAttribute('data-testid')}"]`;
             } else if (element.hasAttribute('data-test')) {
               selector = `[data-test="${element.getAttribute('data-test')}"]`;
-            } else if (element.className && typeof element.className === 'string') {
-              const classes = element.className.trim().split(/\\s+/).filter(c => c && c.length < 30);
-              if (classes.length > 0) {
-                selector = '.' + classes.slice(0, 3).join('.');
-              }
             }
-            
-            // Fallback to element path
-            if (!selector) {
-              const tagName = element.tagName.toLowerCase();
-              const parent = element.parentElement;
-              if (parent) {
-                const siblings = Array.from(parent.children).filter(el => el.tagName === element.tagName);
-                const siblingIndex = siblings.indexOf(element);
-                selector = `${tagName}:nth-of-type(${siblingIndex + 1})`;
-              } else {
-                selector = tagName;
-              }
+            // PRIORITY 3: Generate full DOM path (most reliable fallback)
+            else {
+              selector = this.generateFullDomPath(element);
             }
             
             foundElements.push({
@@ -720,5 +968,51 @@ export class LiveBrowserService {
       if (page) await page.close();
       if (browser) await browser.close();
     }
+  }
+
+  /**
+   * Generate full DOM path selector like #root > div > nav > div > ...
+   * This provides maximum reliability for element selection
+   */
+  private generateFullDomPath(element: Element): string {
+    const path: string[] = [];
+    let currentElement = element as Element;
+
+    while (currentElement && currentElement !== document.body) {
+      let selector = currentElement.tagName.toLowerCase();
+      
+      // Add ID if available (makes path shorter and more reliable)
+      if (currentElement.id && currentElement.id.trim() !== '') {
+        selector = `#${currentElement.id}`;
+        path.unshift(selector);
+        break; // ID is unique, we can stop here
+      }
+      
+      // Add classes for specificity (filter out utility classes)
+      if (currentElement.className && typeof currentElement.className === 'string') {
+        const classes = currentElement.className.trim().split(/\s+/)
+          .filter(c => c && 
+            c.length < 30 && 
+            // Filter out utility classes that change frequently
+            !c.match(/^(w-|h-|p-|m-|text-|bg-|border-|flex|grid|hidden|block|inline|opacity-|transform|transition)/)
+          )
+          .slice(0, 2); // Limit to 2 classes to avoid overly long selectors
+        
+        if (classes.length > 0) {
+          selector += '.' + classes.join('.');
+        }
+      }
+      
+      // Add to path
+      path.unshift(selector);
+      
+      // Move up to parent
+      currentElement = currentElement.parentElement;
+      
+      // Prevent infinite loops and overly long paths
+      if (path.length > 10) break;
+    }
+
+    return path.join(' > ');
   }
 }

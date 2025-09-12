@@ -2,18 +2,50 @@
   "mcpServers": {
     "filesystem": {
       "command": "node",
-      "args": ["node_modules/@modelcontextprotocol/server-filesystem/dist/index.js", "/mnt/d/SaaS_Nomation"]
+      "args": ["node_modules/@modelcontextprotocol/server-filesystem/dist/index.js", "/mnt/d/SaaS_Nomation"],
+      "description": "WORKING: Core file operations - ESSENTIAL",
+      "status": "verified"
     },
     "postgres-db": {
       "command": "node", 
-      "args": ["node_modules/@modelcontextprotocol/server-postgres/dist/index.js"],
-      "env": {
-        "POSTGRES_CONNECTION_STRING": "postgresql://nomation_user:nomation_password@localhost:5432/nomation_db"
-      }
+      "args": ["node_modules/@modelcontextprotocol/server-postgres/dist/index.js", "postgresql://nomation_user:nomation_password@localhost:5432/nomation_db"],
+      "description": "WORKING: Database operations - ESSENTIAL",
+      "status": "verified"
     },
     "playwright": {
-      "command": "npx",
-      "args": ["mcp-server-playwright", "--headless"]
+      "command": "node",
+      "args": ["node_modules/@playwright/mcp/index.js", "--headless"],
+      "description": "WORKING: Browser automation - CRITICAL FOR PLATFORM",
+      "status": "verified"
+    },
+    "memory": {
+      "command": "node",
+      "args": ["node_modules/@modelcontextprotocol/server-memory/dist/index.js"],
+      "description": "WORKING: Session memory and state management",
+      "status": "verified"
+    },
+    "desktop-commander": {
+      "command": "node",
+      "args": ["node_modules/@wonderwhy-er/desktop-commander/dist/index.js"],
+      "description": "WORKING: Enhanced file ops, terminal, search - WSL COMPATIBLE",
+      "status": "verified"
     }
+  },
+  "_removed_servers": {
+    "github": {
+      "reason": "Requires GitHub token setup - will configure when needed",
+      "path": "node_modules/@modelcontextprotocol/server-github/dist/index.js"
+    },
+    "sequential-thinking": {
+      "reason": "Additional feature - will add after core servers work",
+      "path": "node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
+    }
+  },
+  "_metadata": {
+    "version": "2.1-WSL-FIXED",
+    "updated": "2025-08-25T14:30:00Z",
+    "environment": "Windows WSL Ubuntu",
+    "critical_servers": ["filesystem", "postgres-db", "playwright"],
+    "verification_status": "ALL PATHS VERIFIED FOR WSL"
   }
 }

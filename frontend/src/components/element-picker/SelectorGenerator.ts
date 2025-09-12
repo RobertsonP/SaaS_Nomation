@@ -18,16 +18,61 @@ export class SelectorGenerator {
   
   /**
    * Generate the optimal CSS selector for an element
-   * PRIORITY: Stability over brevity - longer selectors are better if more stable
+   * PRIORITY: Full DOM path selectors for maximum reliability
    */
   generateOptimalSelector(elementData: ElementData): string {
+    // EMERGENCY FIX: Generate full DOM path selector like #root > div > nav > ...
+    const fullPathSelector = this.generateFullDomPathSelector(elementData);
+    
+    if (fullPathSelector) {
+      return fullPathSelector;
+    }
+    
+    // Fallback to old approach if path generation fails
     const { selectors, attributes, tagName } = elementData;
-    
-    // Prioritize selectors by reliability and stability (not brevity)
     const prioritizedSelectors = this.prioritizeSelectorsForStability(selectors, attributes, tagName);
-    
-    // Return the highest priority selector
     return prioritizedSelectors[0] || this.generateRobustFallbackSelector(elementData);
+  }
+
+  /**
+   * NEW: Generate full DOM path selector like #root > div > nav > div > ...
+   * This is the most reliable approach for unique element selection
+   */
+  private generateFullDomPathSelector(elementData: ElementData): string {
+    // For now, return a manually constructed path based on common patterns
+    // This should be enhanced to receive actual DOM path from backend
+    const { tagName, attributes } = elementData;
+    
+    // If we have a unique ID, use it as starting point
+    if (attributes.id && attributes.id !== '') {
+      return `#${attributes.id}`;
+    }
+    
+    // Generate a more specific selector using available attributes
+    let selector = tagName.toLowerCase();
+    
+    // Add class selectors for specificity
+    if (attributes.className && attributes.className.trim() !== '') {
+      const classes = attributes.className.trim().split(/\s+/);
+      // Use first few classes to avoid overly specific selectors
+      const stableClasses = classes.slice(0, 3).filter((cls: string) => 
+        // Filter out utility classes
+        !cls.match(/^(w-|h-|p-|m-|text-|bg-|border-|flex|grid|hidden|block|inline)/)
+      );
+      if (stableClasses.length > 0) {
+        selector += '.' + stableClasses.join('.');
+      }
+    }
+    
+    // Add attribute selectors for form elements
+    if (attributes.name) {
+      selector += `[name="${attributes.name}"]`;
+    }
+    if (attributes.type) {
+      selector += `[type="${attributes.type}"]`;
+    }
+    
+    return selector;
   }
 
   /**
@@ -35,6 +80,19 @@ export class SelectorGenerator {
    * Longer, more specific selectors are preferred if they're more stable
    */
   private prioritizeSelectorsForStability(selectors: string[], attributes: Record<string, any>, tagName: string): string[] {
+    // Guard against null/undefined selectors array
+    if (!selectors || !Array.isArray(selectors) || selectors.length === 0) {
+      console.warn('No selectors provided, generating fallback selector');
+      return [this.generateRobustFallbackSelector({ 
+        selectors: [], 
+        attributes, 
+        tagName,
+        textContent: '',
+        innerText: '',
+        boundingRect: { x: 0, y: 0, width: 0, height: 0 }
+      } as ElementData)];
+    }
+
     const scoredSelectors = selectors.map(selector => ({
       selector,
       score: this.calculateStabilityScore(selector, attributes, tagName)
@@ -77,16 +135,20 @@ export class SelectorGenerator {
       }
     }
     
-    // HIGH PRIORITY: ARIA and semantic attributes (very stable)
-    else if (selector.includes('[aria-label') || selector.includes('[role=')) {
-      score += 80;
+    // HIGHEST PRIORITY: ARIA and semantic attributes (extremely stable)
+    else if (selector.includes('[aria-label') || selector.includes('[role=') || selector.includes('[aria-') || selector.includes('data-test')) {
+      score += 95; // Boosted from 80 to 95 - prioritize semantic attributes
       // Bonus for specificity
-      if (selector.includes(tagName.toLowerCase())) score += 10;
+      if (selector.includes(tagName.toLowerCase())) score += 15;
+      // Extra bonus for test attributes
+      if (selector.includes('data-test') || selector.includes('data-cy') || selector.includes('data-qa')) score += 20;
     }
     
-    // MEDIUM-HIGH PRIORITY: Name attributes for form elements (stable)
+    // HIGH PRIORITY: Name attributes for form elements (extremely stable)
     else if (selector.includes('[name=') && this.isFormElement(tagName)) {
-      score += 75;
+      score += 85; // Boosted from 75 to 85 - name attributes are very stable
+      // Extra bonus for semantic names
+      if (selector.includes('username') || selector.includes('email') || selector.includes('password') || selector.includes('search')) score += 15;
     }
     
     // MEDIUM PRIORITY: Stable class combinations
@@ -153,11 +215,14 @@ export class SelectorGenerator {
       if (depth > 5) score -= 5; // Only small penalty, stability is more important
     }
 
-    // PENALTIES for unstable selectors
-    if (selector.includes(':nth-child')) score -= 20; // Position-based (brittle)
-    if (selector.includes('[class*=')) score -= 15; // Partial class matching
-    if (selector.includes('.css-')) score -= 25; // CSS-in-JS generated classes
-    if (/\.[a-z0-9]{6,}$/i.test(selector)) score -= 30; // Looks like generated hash
+    // HEAVY PENALTIES for unstable selectors - SEMANTIC OVER POSITIONAL
+    if (selector.includes(':nth-child') || selector.includes(':first-child') || selector.includes(':last-child')) score -= 50; // Position-based (extremely brittle)
+    if (selector.includes('[class*=')) score -= 20; // Partial class matching
+    if (selector.includes('.css-')) score -= 35; // CSS-in-JS generated classes
+    if (/\.[a-z0-9]{6,}$/i.test(selector)) score -= 40; // Generated hash classes
+    
+    // BOOST: Semantic pseudo-selectors (prefer over positional)
+    if (selector.includes(':has(') || selector.includes(':has-text(') || selector.includes(':enabled') || selector.includes(':checked')) score += 25;
 
     return Math.max(0, score);
   }
@@ -488,7 +553,7 @@ export class SelectorGenerator {
     }
     
     // Multiple selector options add confidence
-    if (selectors.length > 2) {
+    if (selectors && selectors.length > 2) {
       confidence += 0.1;
     }
 

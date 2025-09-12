@@ -472,14 +472,6 @@ export function ElementLibraryPanel({
                           >
                             Use in Test
                           </button>
-                          {/* Preview button for list view */}
-                          <button
-                            onClick={() => requestElementScreenshot(element.id, element.selector, element.sourceUrl?.url || '')}
-                            className="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                            title="Capture element preview"
-                          >
-                            📸 Preview
-                          </button>
                         </div>
 
                         {/* Live Mode Actions */}
@@ -577,14 +569,6 @@ export function ElementLibraryPanel({
                   title="Use this element in test"
                 >
                   Use in Test
-                </button>
-                {/* Preview button for list view */}
-                <button
-                  onClick={() => requestElementScreenshot(element.id, element.selector, element.sourceUrl?.url || '')}
-                  className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                  title="Capture element preview"
-                >
-                  📸 Preview
                 </button>
               </div>
 

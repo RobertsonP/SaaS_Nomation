@@ -117,6 +117,12 @@ export const projectsAPI = {
     const response = await api.post(`/projects/${projectId}/hunt-elements`, data);
     return response.data;
   },
+  
+  // 🎯 SMART ELEMENT ANALYSIS - Context-aware selectors + Visual recreation
+  analyzeElementsSmart: async (url: string, authFlowId?: string) => {
+    const response = await api.post('/api/ai/analyze-elements-smart', { url, authFlowId });
+    return response.data;
+  },
   // Live Step Execution
   liveExecuteStep: async (projectId: string, data: { step: any, startingUrl: string, tempExecutionId: string }) => {
     const response = await api.post(`/projects/${projectId}/live-execute-step`, data);
@@ -149,7 +155,7 @@ export const projectsAPI = {
   },
 };
 
-// Browser API for live element interaction
+// Browser API for live element interaction - Uses PUBLIC endpoints (no auth required)
 export const browserAPI = {
   // Cross-origin element detection using backend headless browser
   crossOriginElementDetection: async (data: {
@@ -158,55 +164,55 @@ export const browserAPI = {
     clickY: number;
     viewport: { width: number; height: number };
   }) => {
-    const response = await api.post('/api/browser/cross-origin-element-detection', data);
+    const response = await api.post('/api/public/browser/cross-origin-element-detection', data);
     return response.data;
   },
   
   // Create browser session for live interaction
   createSession: async (projectId: string, authFlow?: any) => {
-    const response = await api.post('/api/browser/sessions', { projectId, authFlow });
+    const response = await api.post('/api/public/browser/sessions', { projectId, authFlow });
     return response.data;
   },
   
   // Navigate session to page
   navigateSession: async (sessionToken: string, url: string) => {
-    const response = await api.post(`/api/browser/sessions/${sessionToken}/navigate`, { url });
+    const response = await api.post(`/api/public/browser/sessions/${sessionToken}/navigate`, { url });
     return response.data;
   },
   
   // Capture elements from current page in session
   captureElements: async (sessionToken: string) => {
-    const response = await api.get(`/api/browser/sessions/${sessionToken}/elements`);
+    const response = await api.get(`/api/public/browser/sessions/${sessionToken}/elements`);
     return response.data;
   },
   
   // Execute action in browser session
   executeAction: async (sessionToken: string, action: { type: string; selector: string; value?: string }) => {
-    const response = await api.post(`/api/browser/sessions/${sessionToken}/actions`, action);
+    const response = await api.post(`/api/public/browser/sessions/${sessionToken}/actions`, action);
     return response.data;
   },
   
   // Get session information
   getSessionInfo: async (sessionToken: string) => {
-    const response = await api.get(`/api/browser/sessions/${sessionToken}`);
+    const response = await api.get(`/api/public/browser/sessions/${sessionToken}`);
     return response.data;
   },
   
-  // Get session view for live browser display
+  // Get session view for live browser display (Note: Not implemented in public controller yet)
   getSessionView: async (sessionToken: string) => {
-    const response = await api.get(`/api/browser/sessions/${sessionToken}/view`);
+    const response = await api.get(`/api/public/browser/sessions/${sessionToken}/view`);
     return response.data;
   },
   
   // Get session screenshot for live visual display
   getSessionScreenshot: async (sessionToken: string) => {
-    const response = await api.get(`/api/browser/sessions/${sessionToken}/screenshot`);
+    const response = await api.get(`/api/public/browser/sessions/${sessionToken}/screenshot`);
     return response.data;
   },
   
   // Close browser session
   closeSession: async (sessionToken: string) => {
-    const response = await api.delete(`/api/browser/sessions/${sessionToken}`);
+    const response = await api.delete(`/api/public/browser/sessions/${sessionToken}`);
     return response.data;
   },
 };

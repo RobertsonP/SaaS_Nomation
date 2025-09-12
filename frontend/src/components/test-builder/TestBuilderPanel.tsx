@@ -41,6 +41,7 @@ interface TestBuilderPanelProps {
   testId?: string // For localStorage key identification
   projectId?: string // For element hunting
   onHuntNewElements?: (newElements: ProjectElement[]) => void // Callback for new elements
+  startingUrl?: string // 🎯 CRITICAL FIX: Use test's starting URL instead of project's first URL
   // NEW: Auto-add to test steps integration
   _onAutoAddToTestSteps?: (element: ProjectElement, action?: string) => void
 }
@@ -55,6 +56,7 @@ export function TestBuilderPanel({
   testId,
   projectId,
   onHuntNewElements,
+  startingUrl, // 🎯 CRITICAL FIX: Accept test's starting URL
   _onAutoAddToTestSteps
 }: TestBuilderPanelProps) {
   // Initialize steps with localStorage persistence
@@ -377,16 +379,16 @@ export function TestBuilderPanel({
       if (!sessionToken) {
         console.log(`🌐 Creating browser session for single step execution...`)
         const project = await projectsAPI.getById(projectId)
-        const startingUrl = project.data.urls?.[0]?.url || 'https://example.com'
+        const testStartingUrl = startingUrl || project.data.urls?.[0]?.url || 'https://example.com' // 🎯 CRITICAL FIX: Use test's starting URL
         
         const sessionResponse = await browserAPI.createSession(projectId)
         sessionToken = sessionResponse.sessionToken
         setBrowserSessionToken(sessionToken)
         
         // Navigate to starting URL
-        await browserAPI.navigateSession(sessionToken!, startingUrl)
-        setCurrentBrowserUrl(startingUrl)
-        console.log(`✅ Browser session created and navigated to: ${startingUrl}`)
+        await browserAPI.navigateSession(sessionToken!, testStartingUrl)
+        setCurrentBrowserUrl(testStartingUrl)
+        console.log(`✅ Browser session created and navigated to: ${testStartingUrl}`)
       }
 
       // Convert test step to browser action format
@@ -527,17 +529,17 @@ export function TestBuilderPanel({
     try {
       console.log(`🚀 Starting sequential execution of ${steps.length} steps`)
       
-      // Get project data to extract starting URL
+      // Get project data to extract starting URL (with test starting URL priority)
       const project = await projectsAPI.getById(projectId)
       console.log('🔍 DEBUG URLs array:', project.data.urls?.[0])
-      const startingUrl = project.data.urls?.[0]?.url || 'https://example.com'
-      console.log('🔍 DEBUG startingUrl type:', typeof startingUrl, 'value:', startingUrl)
+      const testStartingUrl = startingUrl || project.data.urls?.[0]?.url || 'https://example.com' // 🎯 CRITICAL FIX: Use test's starting URL
+      console.log('🔍 DEBUG testStartingUrl type:', typeof testStartingUrl, 'value:', testStartingUrl)
       
-      console.log(`📍 Starting URL: ${startingUrl}`)
+      console.log(`📍 Starting URL: ${testStartingUrl}`)
       
       // Set URL for browser execution view
-      setExecutionStartingUrl(startingUrl)
-      setCurrentBrowserUrl(startingUrl)
+      setExecutionStartingUrl(testStartingUrl)
+      setCurrentBrowserUrl(testStartingUrl)
 
       // Create shared browser session for live execution
       console.log(`🌐 Creating shared browser session...`)
@@ -547,8 +549,8 @@ export function TestBuilderPanel({
       console.log(`✅ Browser session created: ${sessionToken}`)
 
       // Navigate to starting URL in the session
-      console.log(`🌍 Navigating session to: ${startingUrl}`)
-      await browserAPI.navigateSession(sessionToken, startingUrl)
+      console.log(`🌍 Navigating session to: ${testStartingUrl}`)
+      await browserAPI.navigateSession(sessionToken, testStartingUrl)
       console.log(`✅ Navigation completed`)
 
       const results: Array<{step: TestStep, result: any, success: boolean}> = []

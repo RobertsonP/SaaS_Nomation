@@ -1021,9 +1021,13 @@ export class ProjectsService {
         // Extract screenshot from attributes if it exists
         const screenshot = element.attributes?.screenshot || null;
         
-        // Create a clean attributes object without the screenshot
+        // 🎯 CRITICAL FIX: Extract CSS info for dedicated column storage
+        const cssInfo = element.attributes?.cssInfo || null;
+        
+        // Create a clean attributes object without the screenshot and cssInfo (stored in dedicated columns)
         const cleanAttributes = element.attributes ? { ...element.attributes } : {};
         delete cleanAttributes.screenshot;
+        // Keep cssInfo in attributes for backward compatibility, but also store in dedicated column
         
         return {
           projectId,
@@ -1034,6 +1038,8 @@ export class ProjectsService {
           confidence: element.confidence,
           attributes: cleanAttributes,
           screenshot: screenshot,
+          // 🎯 CRITICAL FIX: Store CSS data in dedicated cssInfo column
+          cssInfo: cssInfo,
           // CRITICAL: Include discoveryState and authentication fields
           discoveryState: element.discoveryState || null,
           discoveryTrigger: element.discoveryTrigger || null,

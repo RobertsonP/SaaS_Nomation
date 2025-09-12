@@ -223,16 +223,6 @@ export function ElementCard({
           >
             🔍 Preview
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Add screenshot capture functionality  
-            }}
-            className="px-2 py-1 bg-white text-gray-700 rounded text-xs hover:bg-gray-100 transition-colors"
-            title="Capture screenshot"
-          >
-            📸 Capture
-          </button>
         </div>
 
         {/* Quality indicator overlay */}

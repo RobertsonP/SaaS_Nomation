@@ -80,8 +80,23 @@
       "Bash(sudo fuser:*)",
       "Bash(npm run dev:*)",
       "Bash(node:*)",
-      "WebFetch(domain:www.lambdatest.com)"
+      "WebFetch(domain:www.lambdatest.com)",
+      "WebFetch(domain:github.com)",
+      "mcp__filesystem__edit_file",
+      "Bash(npm ls:*)",
+      "mcp__filesystem__write_file",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebSearch",
+      "Bash(npx @smithery/cli install:*)",
+      "Bash(git clone:*)",
+      "Bash(sed:*)",
+      "WebFetch(domain:www.w3schools.com)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=/home/robus/.cache/ms-playwright npx playwright install chrome)",
+      "Read(//home/robus/.cache/ms-playwright/**)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "/tmp/docker-mcp"
+    ]
   }
 }

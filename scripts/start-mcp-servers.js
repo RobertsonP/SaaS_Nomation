@@ -15,41 +15,41 @@ const runningProcesses = new Map();
 function startMcpServer(serverName, serverConfig) {
   console.log(`🚀 Starting MCP server: ${serverName}`);
   
-  const process = spawn(serverConfig.command, serverConfig.args, {
+  const childProcess = spawn(serverConfig.command, serverConfig.args, {
     env: { ...process.env, ...serverConfig.env },
     stdio: ['inherit', 'pipe', 'pipe']
   });
 
   // Handle server output
-  process.stdout.on('data', (data) => {
+  childProcess.stdout.on('data', (data) => {
     console.log(`[${serverName}] ${data.toString().trim()}`);
   });
 
-  process.stderr.on('data', (data) => {
+  childProcess.stderr.on('data', (data) => {
     console.error(`[${serverName}] ERROR: ${data.toString().trim()}`);
   });
 
-  process.on('close', (code) => {
+  childProcess.on('close', (code) => {
     console.log(`[${serverName}] Process exited with code ${code}`);
     runningProcesses.delete(serverName);
   });
 
-  process.on('error', (error) => {
+  childProcess.on('error', (error) => {
     console.error(`[${serverName}] Failed to start: ${error.message}`);
     runningProcesses.delete(serverName);
   });
 
-  runningProcesses.set(serverName, process);
-  return process;
+  runningProcesses.set(serverName, childProcess);
+  return childProcess;
 }
 
 // Function to stop all MCP servers
 function stopAllServers() {
   console.log('🛑 Stopping all MCP servers...');
   
-  for (const [serverName, process] of runningProcesses) {
+  for (const [serverName, childProcess] of runningProcesses) {
     console.log(`Stopping ${serverName}...`);
-    process.kill('SIGTERM');
+    childProcess.kill('SIGTERM');
   }
   
   runningProcesses.clear();
@@ -57,18 +57,18 @@ function stopAllServers() {
 
 // Function to check server health
 function checkServerHealth(serverName) {
-  const process = runningProcesses.get(serverName);
-  if (process && !process.killed) {
-    return { status: 'running', pid: process.pid };
+  const childProcess = runningProcesses.get(serverName);
+  if (childProcess && !childProcess.killed) {
+    return { status: 'running', pid: childProcess.pid };
   }
   return { status: 'stopped' };
 }
 
 // Function to restart a server
 function restartServer(serverName) {
-  const process = runningProcesses.get(serverName);
-  if (process) {
-    process.kill('SIGTERM');
+  const childProcess = runningProcesses.get(serverName);
+  if (childProcess) {
+    childProcess.kill('SIGTERM');
   }
   
   setTimeout(() => {
@@ -104,9 +104,9 @@ async function main() {
 
     case 'stop':
       if (serverName) {
-        const process = runningProcesses.get(serverName);
-        if (process) {
-          process.kill('SIGTERM');
+        const childProcess = runningProcesses.get(serverName);
+        if (childProcess) {
+          childProcess.kill('SIGTERM');
           console.log(`🛑 Stopped ${serverName}`);
         } else {
           console.log(`⚠️  Server '${serverName}' is not running`);

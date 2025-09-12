@@ -121,7 +121,9 @@ export function ElementPreviewCard({
     if (previewMode === 'css') return true;
     if (previewMode === 'screenshot') return false;
     // Auto mode: use CSS if available, fallback to screenshot
-    return !!(element.attributes?.cssInfo?.isVisible !== false);
+    // 🎯 CRITICAL FIX: Check both dedicated cssInfo column and attributes.cssInfo for compatibility
+    const cssInfo = element.cssInfo || element.attributes?.cssInfo;
+    return !!(cssInfo?.isVisible !== false);
   };
   
   const useCSSPreview = shouldUseCSSPreview();
@@ -132,7 +134,7 @@ export function ElementPreviewCard({
     <div className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200">
       {/* Visual Preview Section */}
       <div className="relative">
-        {useCSSPreview && element.attributes?.cssInfo ? (
+        {useCSSPreview && (element.cssInfo || element.attributes?.cssInfo) ? (
           // Phase 2: CSS-first preview with quality integration
           <div className="bg-gray-50 p-2">
             <CSSPreviewRenderer
@@ -143,7 +145,7 @@ export function ElementPreviewCard({
               className="max-h-32 mx-auto"
             />
             <div className="text-xs text-gray-500 text-center mt-1">
-              CSS Preview {element.attributes?.cssInfo?.isVisible === false ? '(Hidden Element)' : ''}
+              CSS Preview {(element.cssInfo || element.attributes?.cssInfo)?.isVisible === false ? '(Hidden Element)' : ''}
             </div>
           </div>
         ) : screenshot ? (
@@ -160,32 +162,18 @@ export function ElementPreviewCard({
             </div>
           </div>
         ) : (
-          // No preview available - show icon and capture option
-          <div className="bg-gray-100 p-4 flex flex-col items-center justify-center min-h-24">
-            <div className="text-2xl mb-1">{getElementIcon(element.elementType)}</div>
-            <div className="text-xs text-gray-500 text-center mb-2">No preview available</div>
-            <button
-              onClick={handleScreenshotRequest}
-              disabled={loadingScreenshot || !onRequestScreenshot}
-              className="px-3 py-1.5 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={!onRequestScreenshot ? 'Screenshot capture not available' : 'Capture element preview from live page'}
-            >
-              {loadingScreenshot ? (
-                <>
-                  <span className="inline-block animate-spin mr-1">⏳</span>
-                  Capturing...
-                </>
-              ) : (
-                <>
-                  📸 Capture Preview
-                </>
-              )}
-            </button>
-            {onRequestScreenshot && (
-              <div className="text-xs text-gray-400 text-center mt-1">
-                Click to capture live element screenshot
-              </div>
-            )}
+          // Force CSS preview even when no explicit screenshot exists
+          <div className="bg-gray-50 p-2">
+            <CSSPreviewRenderer
+              element={element}
+              mode={compact ? 'compact' : 'detailed'}
+              showQuality={showQuality}
+              interactive={false}
+              className="max-h-32 mx-auto"
+            />
+            <div className="text-xs text-gray-500 text-center mt-1">
+              CSS Preview (Rendered from Element Data)
+            </div>
           </div>
         )}
         
@@ -299,17 +287,6 @@ export function ElementPreviewCard({
             Use in Test
           </button>
 
-          {/* CRITICAL FIX: Always show preview button elegantly */}
-          {onRequestScreenshot && (
-            <button
-              onClick={handleScreenshotRequest}
-              disabled={loadingScreenshot}
-              className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
-              title={screenshot ? 'Refresh element preview' : 'Capture element preview'}
-            >
-              {loadingScreenshot ? 'Capturing...' : screenshot ? '🔄 Refresh' : '📸 Preview'}
-            </button>
-          )}
 
           {/* Live Mode Actions */}
           {isLiveMode && onPerformAction && (

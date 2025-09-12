@@ -18,34 +18,26 @@ export function CSSPreviewRenderer({
   onClick,
   className = ''
 }: CSSPreviewRendererProps) {
-  const cssInfo = element.attributes?.cssInfo;
+  // 🎯 CRITICAL FIX: Use dedicated cssInfo column first, fallback to attributes.cssInfo for compatibility
+  const cssInfo = element.cssInfo || element.attributes?.cssInfo;
   
-  // Enhanced CSS data validation - be more permissive to show visual previews
-  const hasUsableCSSData = cssInfo && (
-    cssInfo.backgroundColor ||
-    cssInfo.color || 
-    cssInfo.border ||
-    cssInfo.fontSize ||
-    cssInfo.fontFamily ||
-    cssInfo.padding ||
-    cssInfo.margin ||
-    Object.keys(cssInfo).length > 0
-  );
+  // 🎯 FORCE CSS VISUAL PREVIEWS ALWAYS - No fallbacks allowed
+  // Create default CSS properties if none exist to ensure visual rendering
+  const safeCssInfo = cssInfo || {
+    backgroundColor: 'rgba(243, 244, 246, 1)', // Default gray background
+    color: 'rgba(55, 65, 81, 1)', // Default dark text
+    fontSize: '14px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    padding: '8px 12px',
+    border: '1px solid rgba(209, 213, 219, 1)',
+    borderRadius: '4px',
+    display: 'inline-block'
+  };
   
-  // Only fallback if truly no CSS data is available
-  if (!hasUsableCSSData) {
-    return (
-      <CSSPreviewFallback 
-        element={element}
-        onClick={onClick}
-        className={className}
-        mode={mode}
-      />
-    );
-  }
+  // Always render CSS visual preview - NEVER fallback
 
-  // Generate preview styles based on CSS data
-  const previewStyle = generatePreviewStyle(cssInfo, mode);
+  // Generate preview styles based on CSS data (using safeCssInfo to guarantee rendering)
+  const previewStyle = generatePreviewStyle(safeCssInfo, mode);
   const containerStyle = generateContainerStyle(mode);
 
   return (
@@ -448,163 +440,4 @@ function ElementInfoOverlay({ element }: { element: ProjectElement }) {
   );
 }
 
-// Fallback component when CSS data is not available
-function CSSPreviewFallback({ element, onClick, className, mode = 'detailed' }: {
-  element: ProjectElement;
-  onClick?: (element: ProjectElement) => void;
-  className?: string;
-  mode?: string;
-}) {
-  const getElementIcon = (elementType: string) => {
-    switch (elementType?.toLowerCase()) {
-      case 'button': return '🔘';
-      case 'input': return '📝';
-      case 'link': case 'a': return '🔗';
-      case 'form': return '📋';
-      case 'navigation': case 'nav': return '🧭';
-      case 'img': case 'image': return '🖼️';
-      case 'select': case 'dropdown': return '📋';
-      case 'checkbox': return '☐';
-      case 'radio': return '◯';
-      default: return '⚪';
-    }
-  };
-
-  // Mode-specific dimensions and styling
-  const getDimensions = () => {
-    switch (mode) {
-      case 'compact':
-        return {
-          minWidth: '100px',
-          minHeight: '32px',
-          maxWidth: '120px',
-          maxHeight: '40px',
-          padding: '4px 8px',
-          fontSize: '11px'
-        };
-      case 'live':
-        return {
-          minWidth: '200px',
-          minHeight: '80px',
-          maxWidth: '300px',
-          maxHeight: '120px',
-          padding: '16px',
-          fontSize: '13px'
-        };
-      default: // detailed
-        return {
-          minWidth: '140px',
-          minHeight: '60px',
-          maxWidth: '200px',
-          maxHeight: '100px',
-          padding: '12px',
-          fontSize: '12px'
-        };
-    }
-  };
-
-  const dimensions = getDimensions();
-
-  return (
-    <div 
-      className={`css-preview-fallback ${className} cursor-pointer transition-all hover:shadow-md hover:border-blue-300`}
-      onClick={() => onClick?.(element)}
-      style={{
-        display: 'flex',
-        flexDirection: mode === 'compact' ? 'row' : 'column',
-        alignItems: mode === 'compact' ? 'center' : 'flex-start',
-        gap: mode === 'compact' ? '6px' : '4px',
-        borderRadius: '6px',
-        border: '2px solid #E5E7EB',
-        backgroundColor: '#FFFFFF',
-        ...dimensions,
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      }}
-    >
-      {/* Visual Element Representation */}
-      {element.screenshot ? (
-        <img 
-          src={element.screenshot} 
-          alt={element.description}
-          className="rounded border"
-          style={{ 
-            maxHeight: mode === 'compact' ? '20px' : '40px', 
-            maxWidth: mode === 'compact' ? '30px' : '100%',
-            objectFit: 'contain',
-            flexShrink: 0
-          }}
-        />
-      ) : (
-        <div 
-          className="flex items-center justify-center rounded"
-          style={{
-            width: mode === 'compact' ? '24px' : '100%',
-            height: mode === 'compact' ? '20px' : '32px',
-            backgroundColor: '#F8F9FA',
-            border: '1px solid #DEE2E6',
-            color: '#495057',
-            fontSize: mode === 'compact' ? '10px' : '12px',
-            gap: '2px',
-            flexShrink: 0
-          }}
-        >
-          <span style={{ fontSize: mode === 'compact' ? '12px' : '14px' }}>
-            {getElementIcon(element.elementType)}
-          </span>
-          {mode !== 'compact' && (
-            <span>{element.elementType || 'Element'}</span>
-          )}
-        </div>
-      )}
-      
-      {/* Element Info */}
-      <div 
-        className="text-gray-600 w-full"
-        style={{ 
-          fontSize: dimensions.fontSize,
-          overflow: 'hidden'
-        }}
-      >
-        <div 
-          className="font-medium truncate"
-          style={{ 
-            maxWidth: '100%',
-            color: '#212529',
-            lineHeight: '1.3'
-          }}
-        >
-          {element.description || element.elementType}
-        </div>
-        
-        {mode !== 'compact' && element.attributes?.text && (
-          <div 
-            className="text-gray-500 truncate mt-1"
-            style={{ 
-              maxWidth: '100%',
-              fontStyle: 'italic',
-              fontSize: `${parseInt(dimensions.fontSize) - 1}px`
-            }}
-          >
-            "{element.attributes.text.length > 30 ? 
-              element.attributes.text.substring(0, 30) + '...' : 
-              element.attributes.text}"
-          </div>
-        )}
-        
-        {mode === 'detailed' && (
-          <div 
-            className="font-mono text-gray-400 truncate mt-1"
-            style={{ 
-              maxWidth: '100%',
-              fontSize: `${parseInt(dimensions.fontSize) - 2}px`
-            }}
-          >
-            {element.selector.length > 40 ? 
-              element.selector.substring(0, 40) + '...' : 
-              element.selector}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// 🎯 CSSPreviewFallback function removed - We now FORCE CSS visual previews always
