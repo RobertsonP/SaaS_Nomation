@@ -37,6 +37,8 @@ export function BrowserPreview({
 
   // Handle iframe load events
   const handleIframeLoad = useCallback(() => {
+    console.log('🌐 BrowserPreview: Iframe loaded successfully');
+
     // Clear any existing timeout
     if (loadTimeout) {
       clearTimeout(loadTimeout);
@@ -46,22 +48,29 @@ export function BrowserPreview({
     setIsLoading(false);
     setLoadError(null);
     setRetryCount(0); // Reset retry count on successful load
-    
+
     // Try to inject element selection script if same-origin
     try {
       const iframe = iframeRef.current;
-      if (!iframe || !iframe.contentWindow || !iframe.contentDocument) return;
+      if (!iframe || !iframe.contentWindow || !iframe.contentDocument) {
+        console.warn('⚠️ BrowserPreview: Iframe not accessible - missing window or document');
+        return;
+      }
 
       // Check if we can access the iframe content (same-origin)
       const iframeDoc = iframe.contentDocument;
-      
+      console.log(`✅ BrowserPreview: Iframe document accessible - same origin detected`);
+
       // Inject our element picker script
       if (iframeDoc && isPickingMode) {
+        console.log('🎯 BrowserPreview: Injecting element picker script (picking mode is active)');
         injectElementPickerScript(iframeDoc);
+      } else if (iframeDoc) {
+        console.log('📋 BrowserPreview: Iframe loaded but picking mode is not active yet');
       }
-      
+
     } catch (error) {
-      console.warn('Cannot inject scripts into cross-origin iframe:', error);
+      console.warn('❌ BrowserPreview: Cannot inject scripts into cross-origin iframe:', error);
       // For cross-origin, use backend proxy solution
       setIsCrossOrigin(true);
       setLoadError('⚠️ Cross-origin website detected. Using advanced element detection...');
@@ -178,11 +187,19 @@ export function BrowserPreview({
 
   // Inject element picker functionality into the iframe
   const injectElementPickerScript = useCallback((doc: Document) => {
-    if (!isPickingMode) return;
+    if (!isPickingMode) {
+      console.log('⏸️ BrowserPreview: Script injection skipped - picking mode not active');
+      return;
+    }
+
+    console.log('🚀 BrowserPreview: Starting script injection process...');
 
     // Remove existing scripts
     const existingScript = doc.getElementById('element-picker-script');
-    if (existingScript) existingScript.remove();
+    if (existingScript) {
+      console.log('🔄 BrowserPreview: Removing existing element picker script');
+      existingScript.remove();
+    }
 
     // Create and inject the element picker script
     const script = doc.createElement('script');
@@ -580,19 +597,31 @@ export function BrowserPreview({
         window.parent.postMessage({ type: 'PICKER_READY' }, '*');
       })();
     `;
-    
-    doc.head.appendChild(script);
+
+    try {
+      doc.head.appendChild(script);
+      console.log('✅ BrowserPreview: Element picker script injected successfully');
+      console.log(`📜 BrowserPreview: Script size: ${script.innerHTML.length} characters`);
+    } catch (error) {
+      console.error('❌ BrowserPreview: Failed to inject element picker script:', error);
+    }
   }, [isPickingMode]);
 
   // Handle messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log('📨 BrowserPreview: Received message from iframe:', event.data);
+
       if (event.data.type === 'ELEMENT_SELECTED') {
+        console.log('🎯 BrowserPreview: Element selected from iframe:', event.data.data);
         onElementSelected(event.data.data);
       } else if (event.data.type === 'PICKER_READY') {
-        console.log('Element picker ready in iframe');
+        console.log('✅ BrowserPreview: Element picker is ready in iframe');
       } else if (event.data.type === 'PICKING_CANCELLED') {
+        console.log('❌ BrowserPreview: Picking mode cancelled in iframe');
         setHighlight(prev => ({ ...prev, visible: false }));
+      } else {
+        console.log('❓ BrowserPreview: Unknown message type from iframe:', event.data.type);
       }
     };
 
@@ -602,17 +631,32 @@ export function BrowserPreview({
 
   // Update picking mode
   useEffect(() => {
+    console.log(`🔄 BrowserPreview: Picking mode changed to: ${isPickingMode}`);
+
     const iframe = iframeRef.current;
-    if (!iframe || !iframe.contentWindow) return;
+    if (!iframe || !iframe.contentWindow) {
+      console.warn('⚠️ BrowserPreview: Cannot send picking mode update - iframe not available');
+      return;
+    }
 
     try {
-      iframe.contentWindow.postMessage({
+      const message = {
         type: isPickingMode ? 'START_PICKING' : 'STOP_PICKING'
-      }, '*');
+      };
+
+      console.log(`📤 BrowserPreview: Sending message to iframe:`, message);
+      iframe.contentWindow.postMessage(message, '*');
+
+      // Also try to inject script if picking mode is enabled and iframe is loaded
+      if (isPickingMode && iframe.contentDocument) {
+        console.log('🔄 BrowserPreview: Re-injecting script due to picking mode activation');
+        injectElementPickerScript(iframe.contentDocument);
+      }
+
     } catch (error) {
-      console.warn('Cannot send message to iframe:', error);
+      console.error('❌ BrowserPreview: Cannot send message to iframe:', error);
     }
-  }, [isPickingMode]);
+  }, [isPickingMode, injectElementPickerScript]);
 
   // Handle URL changes with timeout
   useEffect(() => {

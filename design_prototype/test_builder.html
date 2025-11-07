@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Test Builder</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-success: #48BB78;
+        }
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-primary); 
+            color: var(--text-primary);
+            overflow: hidden; /* Prevent scrolling of the whole page */
+        }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; }
+        .top-header { padding: 12px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .main-content { flex-grow: 1; overflow: hidden; }
+        .builder-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100%; }
+        .panel { border-right: 1px solid var(--border-color); display: flex; flex-direction: column; height: 100%; background-color: var(--bg-primary); }
+        .panel:last-child { border-right: none; }
+        .panel-header { padding: 16px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .panel-content { overflow-y: auto; flex-grow: 1; padding: 16px; }
+        .step-action { font-weight: 600; color: var(--accent-primary); }
+        .visual-picker { background-color: var(--bg-secondary); padding: 16px; position: relative; }
+        .selection-box { position: absolute; border: 2px solid var(--accent-primary); background-color: rgba(56, 178, 172, 0.2); }
+        .element-details .snapshot { background-color: var(--bg-secondary); border-radius: 4px; margin-bottom: 16px; }
+        .form-input { width: 100%; box-sizing: border-box; background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 10px 12px; font-size: 0.875rem; }
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border-color: var(--accent-primary); }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">...</aside>
+        <div class="page-container">
+            <header class="top-header">...</header>
+            <main class="main-content">
+                <div class="builder-layout">
+                    <!-- Left Panel: Element Library -->
+                    <div class="panel">
+                        <div class="panel-header"><h3>Element Library</h3></div>
+                        <div class="panel-content">
+                            <div style="padding-bottom: 16px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+                                <input class="form-input" placeholder="Search elements...">
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 12px;">
+                                <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: grab;">
+                                    <div style="font-weight: 600;">Login Button</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: 'Fira Code', monospace;">button[type="submit"]</div>
+                                </div>
+                                <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: grab;">
+                                    <div style="font-weight: 600;">Username Input</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: 'Fira Code', monospace;">input[name="username"]</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Center Panel: Test Steps -->
+                    <div class="panel" style="background-color: var(--bg-secondary);">
+                        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Test Steps: User Login</h3>
+                            <button class="btn-primary" style="padding: 8px 16px;">▶ Run Test</button>
+                        </div>
+                        <div class="panel-content" style="padding: 0;">
+                            <div class="drop-zone" style="padding: 24px; text-align: center; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                                Drag elements here to build your test
+                            </div>
+                            <!-- Test Step Example -->
+                            <div class="test-step" style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 12px;">
+                                <span style="color: var(--text-secondary); cursor: move;">☰</span>
+                                <div style="flex-grow: 1;">
+                                    <div><span class="step-action">CLICK</span> on <strong>Login Button</strong></div>
+                                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Waits for button to be visible</div>
+                                </div>
+                                <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;">Edit</button>
+                            </div>
+                            <!-- Inline Editing View -->
+                            <div class="test-step" style="padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-primary);">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                                    <span style="color: var(--text-secondary); cursor: move;">☰</span>
+                                    <div style="flex-grow: 1; font-weight: 600;"><span class="step-action">TYPE TEXT</span></div>
+                                    <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;">Save</button>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Target Element</label>
+                                    <input class="form-input" value="Username Input" disabled>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Text to Type</label>
+                                    <input class="form-input" value="testuser@example.com">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Panel: Test Details (Simplified) -->
+                    <div class="panel">
+                        <div class="panel-header"><h3>Test Details</h3></div>
+                        <div class="panel-content">
+                            <p style="color: var(--text-secondary);">Select a step to view or edit its details, variables, and assertions.</p>
+                            <button class="btn-secondary" style="width: 100%; margin-top: 12px;">+ Add Variable</button>
+                            <button class="btn-secondary" style="width: 100%; margin-top: 12px;">+ Add Assertion</button>
+                        </div>
+                    </div>
+                </div>

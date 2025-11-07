@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
+import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { useNotification } from '../../contexts/NotificationContext';
 import { ProjectElement } from '../../types/element.types';
 import { io, Socket } from 'socket.io-client';
@@ -31,7 +32,6 @@ interface Project {
 
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,11 @@ export function ProjectDetailsPage() {
   
   // NEW: Auth setup state for collapsible section
   const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
-  
+
+  // Authentication modal state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [editingAuthFlow, setEditingAuthFlow] = useState<{id: string; data: any} | null>(null);
+
   // NEW: Progress and technical details state
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [currentAnalysisStep, setCurrentAnalysisStep] = useState('Ready');
@@ -427,6 +431,58 @@ export function ProjectDetailsPage() {
       console.error('Failed to remove URL:', error);
       showError('Failed to Remove URL', 'Please try again.');
     }
+  };
+
+  // Authentication CRUD handlers
+  const handleAddAuthentication = () => {
+    setEditingAuthFlow(null);
+    setShowAuthModal(true);
+  };
+
+  const handleEditAuthentication = (authFlow: any) => {
+    setEditingAuthFlow({
+      id: authFlow.id,
+      data: {
+        name: authFlow.name,
+        loginUrl: authFlow.loginUrl,
+        username: authFlow.credentials?.username || '',
+        password: authFlow.credentials?.password || '',
+        steps: authFlow.steps
+      }
+    });
+    setShowAuthModal(true);
+  };
+
+  const handleDeleteAuthentication = async (authFlowId: string, authFlowName: string) => {
+    if (!confirm(`Are you sure you want to delete authentication flow "${authFlowName}"?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await authFlowsAPI.delete(authFlowId);
+      showSuccess('Authentication Deleted', `Successfully deleted authentication flow "${authFlowName}"`);
+      loadAuthFlows(); // Reload auth flows
+    } catch (error) {
+      console.error('Failed to delete auth flow:', error);
+      showError('Delete Failed', 'Failed to delete authentication flow. Please try again.');
+    }
+  };
+
+  const handleAuthModalComplete = () => {
+    setShowAuthModal(false);
+    setEditingAuthFlow(null);
+    loadAuthFlows(); // Reload auth flows
+    showSuccess(
+      editingAuthFlow ? 'Authentication Updated' : 'Authentication Added',
+      editingAuthFlow
+        ? 'Authentication flow updated successfully'
+        : 'Authentication flow added successfully'
+    );
+  };
+
+  const handleAuthModalCancel = () => {
+    setShowAuthModal(false);
+    setEditingAuthFlow(null);
   };
 
   // Filter elements based on type and URL
@@ -806,11 +862,18 @@ export function ProjectDetailsPage() {
                           </div>
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => navigate(`/projects/${projectId}/auth/setup?edit=${authFlow.id}`)}
+                              onClick={() => handleEditAuthentication(authFlow)}
                               className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded"
                               title="Edit authentication"
                             >
                               ✏️ Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAuthentication(authFlow.id, authFlow.name)}
+                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 hover:bg-red-50 rounded"
+                              title="Delete authentication"
+                            >
+                              🗑️ Delete
                             </button>
                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
                               Active
@@ -823,8 +886,8 @@ export function ProjectDetailsPage() {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-sm text-gray-500 mb-2">No authentication configured</p>
-                    <button 
-                      onClick={() => navigate(`/projects/${projectId}/auth/setup`)}
+                    <button
+                      onClick={handleAddAuthentication}
                       className="text-xs text-blue-600 hover:text-blue-800"
                     >
                       + Add Authentication
@@ -963,6 +1026,17 @@ export function ProjectDetailsPage() {
         projectId={projectId || ''}
         projectName={project.name}
       />
+
+      {/* Authentication Setup Modal */}
+      {showAuthModal && (
+        <SimplifiedAuthSetup
+          projectId={projectId!}
+          onComplete={handleAuthModalComplete}
+          onCancel={handleAuthModalCancel}
+          authFlowId={editingAuthFlow?.id}
+          initialData={editingAuthFlow?.data}
+        />
+      )}
     </div>
   );
 }

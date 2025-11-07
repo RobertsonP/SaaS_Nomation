@@ -1,26 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DetectedElement } from './interfaces/element.interface';
-// import { OllamaService } from './ollama.service';
+import { OllamaService } from './ollama.service';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
 
-  // constructor(private ollamaService: OllamaService) {}
+  constructor(private ollamaService: OllamaService) {}
 
   async analyzeAriaSnapshot(ariaSnapshot: string, url: string): Promise<DetectedElement[]> {
     try {
       this.logger.log(`Starting AI analysis for ${url}`);
       
-      // TODO: Ollama AI analysis temporarily disabled
-      // const htmlContent = this.extractHtmlFromAriaSnapshot(ariaSnapshot);
-      // if (htmlContent) {
-      //   const ollamaElements = await this.ollamaService.analyzePageElements(htmlContent, url);
-      //   if (ollamaElements.length > 0) {
-      //     this.logger.log(`Ollama found ${ollamaElements.length} elements`);
-      //     return ollamaElements;
-      //   }
-      // }
+      // Try OLLAMA AI analysis first
+      const htmlContent = this.extractHtmlFromAriaSnapshot(ariaSnapshot);
+      if (htmlContent && this.ollamaService.isOllamaAvailable()) {
+        const ollamaElements = await this.ollamaService.analyzePageElements(htmlContent, url);
+        if (ollamaElements.length > 0) {
+          this.logger.log(`✅ Ollama found ${ollamaElements.length} elements`);
+          return ollamaElements;
+        }
+      }
       
       // Fallback to rule-based analysis
       this.logger.log('Falling back to rule-based analysis');

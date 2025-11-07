@@ -1,637 +1,252 @@
-import { useState, useMemo } from 'react';
 import { ProjectElement } from '../../types/element.types';
-import { ElementPreviewCard } from '../elements/ElementPreviewCard';
-import { projectsAPI } from '../../lib/api';
+import { ElementVisualPreview } from '../shared/ElementVisualPreview';
 
 interface ElementLibraryPanelProps {
   elements: ProjectElement[];
   onSelectElement: (element: ProjectElement) => void;
   isLoading: boolean;
-  isLiveMode?: boolean;
-  onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
-  // Phase 2: Missing props that ProjectDetailsPage is trying to pass
   selectedElementType?: string;
   selectedUrl?: string;
   onElementTypeChange?: (type: string) => void;
   onUrlChange?: (url: string) => void;
-  previewMode?: 'css' | 'screenshot' | 'auto';
+  previewMode?: 'auto' | 'css' | 'screenshot';
   showQuality?: boolean;
   compact?: boolean;
 }
 
-export function ElementLibraryPanel({ 
-  elements, 
-  onSelectElement, 
-  isLoading, 
-  isLiveMode, 
-  onPerformAction,
-  // Phase 2: Accept and use the new props
-  selectedElementType,
-  selectedUrl,
+// Simple element type icons
+const getElementTypeIcon = (elementType: string): string => {
+  switch (elementType) {
+    case 'button': return '🔘';
+    case 'input': return '📝';
+    case 'link': return '🔗';
+    case 'form': return '📋';
+    case 'navigation': return '🧭';
+    case 'text': return '📄';
+    case 'image': return '🖼️';
+    default: return '⚙️';
+  }
+};
+
+// Enhanced element card component with quality indicators and flexible preview modes
+function EnhancedElementCard({
+  element,
+  onSelect,
+  previewMode = 'auto',
+  showQuality = false,
+  compact = false
+}: {
+  element: ProjectElement;
+  onSelect: (element: ProjectElement) => void;
+  previewMode?: 'auto' | 'css' | 'screenshot';
+  showQuality?: boolean;
+  compact?: boolean;
+}) {
+  const getQualityColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'text-green-600 bg-green-100';
+    if (confidence >= 0.6) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
+
+  const getQualityLabel = (confidence: number) => {
+    if (confidence >= 0.8) return 'High';
+    if (confidence >= 0.6) return 'Medium';
+    return 'Low';
+  };
+
+  return (
+    <div
+      className={`border rounded-lg hover:shadow-md cursor-pointer transition-all bg-white ${
+        compact ? 'p-2' : 'p-3'
+      }`}
+      onClick={() => onSelect(element)}
+    >
+      {/* Header: Icon + Description + Quality */}
+      <div className="flex items-start space-x-2 mb-2">
+        <span className={`flex-shrink-0 ${compact ? 'text-lg' : 'text-xl'}`}>
+          {getElementTypeIcon(element.elementType)}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className={`font-medium text-gray-900 truncate ${compact ? 'text-xs' : 'text-sm'}`}>
+            {element.description}
+          </p>
+          <p className={`text-gray-500 capitalize ${compact ? 'text-xs' : 'text-xs'}`}>
+            {element.elementType}
+          </p>
+        </div>
+        {showQuality && (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            getQualityColor(element.confidence || 0.5)
+          }`}>
+            {getQualityLabel(element.confidence || 0.5)}
+          </span>
+        )}
+      </div>
+
+      {/* Visual Preview */}
+      {!compact && (
+        <ElementVisualPreview element={element} className="mb-3" />
+      )}
+
+      {/* Selector */}
+      <div className={`bg-gray-100 p-2 rounded font-mono text-gray-700 truncate ${
+        compact ? 'text-xs' : 'text-xs'
+      }`}>
+        {element.selector}
+      </div>
+
+      {/* Compact mode quality indicator */}
+      {compact && showQuality && (
+        <div className="mt-1">
+          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+            getQualityColor(element.confidence || 0.5)
+          }`}>
+            {getQualityLabel(element.confidence || 0.5)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Simple element card component (kept for backward compatibility)
+function SimpleElementCard({ element, onSelect }: { element: ProjectElement; onSelect: (element: ProjectElement) => void }) {
+  return (
+    <EnhancedElementCard
+      element={element}
+      onSelect={onSelect}
+      previewMode="auto"
+      showQuality={false}
+      compact={false}
+    />
+  );
+}
+
+export function ElementLibraryPanel({
+  elements,
+  onSelectElement,
+  isLoading,
+  selectedElementType = 'all',
+  selectedUrl = 'all',
   onElementTypeChange,
   onUrlChange,
   previewMode = 'auto',
-  showQuality = true,
+  showQuality = false,
   compact = false
 }: ElementLibraryPanelProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<string>(selectedElementType || 'all');
-  const [internalSelectedUrl, setInternalSelectedUrl] = useState<string>(selectedUrl || 'all');
-  const [selectedDiscoveryState, setSelectedDiscoveryState] = useState<string>('all');
 
-  const filteredElements = useMemo(() => {
-    return elements.filter(element => {
-      const matchesSearch = element.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           element.selector.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = selectedType === 'all' || element.elementType === selectedType;
-      const matchesUrl = internalSelectedUrl === 'all' || element.sourceUrl?.id === internalSelectedUrl;
-      const matchesDiscoveryState = selectedDiscoveryState === 'all' || 
-                                   (element.attributes as any)?.discoveryState === selectedDiscoveryState;
-      return matchesSearch && matchesType && matchesUrl && matchesDiscoveryState;
-    });
-  }, [elements, searchTerm, selectedType, internalSelectedUrl, selectedDiscoveryState]);
+  // Filter elements based on type and URL
+  const filteredElements = elements.filter(element => {
+    const matchesType = selectedElementType === 'all' || element.elementType === selectedElementType;
+    const matchesUrl = selectedUrl === 'all' || element.sourceUrl?.id === selectedUrl;
+    return matchesType && matchesUrl;
+  });
 
-  // Group elements by source URL for better organization
-  const elementsByUrl = useMemo(() => {
-    return filteredElements.reduce((acc, element) => {
-      const urlId = element.sourceUrl?.id || 'unknown';
-      if (!acc[urlId]) {
-        acc[urlId] = [];
-      }
-      acc[urlId].push(element);
-      return acc;
-    }, {} as Record<string, ProjectElement[]>);
-  }, [filteredElements]);
-
-  const elementTypes = ['all', 'button', 'input', 'link', 'form', 'navigation', 'text'];
-  const discoveryStates = ['all', 'static', 'after_login', 'login_page', 'after_interaction', 'modal', 'hover'];
-  
-  const uniqueUrls = useMemo(() => {
-    const urls = elements
-      .filter(el => el.sourceUrl)
-      .map(el => el.sourceUrl!)
-      .filter((url, index, self) => self.findIndex(u => u.id === url.id) === index);
-    return urls;
-  }, [elements]);
-
-  // Helper function to get discovery state badge
-  const getDiscoveryStateBadge = (discoveryState?: string) => {
-    if (!discoveryState) return null;
-    
-    const stateConfig = {
-      static: { color: 'bg-gray-100 text-gray-800', icon: '📄', label: 'Static' },
-      after_login: { color: 'bg-blue-100 text-blue-800', icon: '🔐', label: 'After Login' },
-      login_page: { color: 'bg-indigo-100 text-indigo-800', icon: '🔑', label: 'Login Page' },
-      after_interaction: { color: 'bg-green-100 text-green-800', icon: '👆', label: 'Interactive' },
-      modal: { color: 'bg-purple-100 text-purple-800', icon: '🪟', label: 'Modal' },
-      hover: { color: 'bg-yellow-100 text-yellow-800', icon: '🎯', label: 'Hover' }
-    };
-    
-    const config = stateConfig[discoveryState as keyof typeof stateConfig];
-    if (!config) return null;
-    
-    return (
-      <span className={`px-1 py-0.5 text-xs rounded whitespace-nowrap ${config.color}`}>
-        {config.icon} {config.label}
-      </span>
-    );
-  };
-
-  // Helper function to handle live actions
-  const handleLiveAction = (action: string, element: ProjectElement) => {
-    if (!onPerformAction) return;
-    
-    const actionMap = {
-      click: { type: 'click', selector: element.selector },
-      hover: { type: 'hover', selector: element.selector },
-      type: { type: 'type', selector: element.selector, value: 'test input' }
-    };
-    
-    const actionConfig = actionMap[action as keyof typeof actionMap];
-    if (actionConfig) {
-      onPerformAction(actionConfig);
-    }
-  };
-
-  // Function to request screenshot from backend
-  const requestElementScreenshot = async (elementId: string, selector: string, url: string): Promise<string> => {
-    try {
-      // Extract project ID from the current URL or context
-      const projectId = window.location.pathname.split('/')[2]; // Assuming URL structure /projects/:id/...
-      
-      const data = await projectsAPI.captureElementScreenshot(projectId, elementId, selector, url);
-      if (data.success) {
-        return data.screenshot;
-      } else {
-        throw new Error(data.error || 'Failed to capture screenshot');
-      }
-    } catch (error) {
-      console.error('Screenshot request failed:', error);
-      throw error;
-    }
-  };
-
-  // Helper functions for URL display
-  const getPageDisplayName = (url: string): string => {
-    try {
-      const urlObj = new URL(url);
-      const path = urlObj.pathname;
-      
-      if (path === '/' || path === '') return 'Homepage';
-      if (path.includes('login')) return 'Login Page';
-      if (path.includes('dashboard')) return 'Dashboard';
-      if (path.includes('signup') || path.includes('register')) return 'Registration';
-      if (path.includes('profile')) return 'Profile';
-      if (path.includes('settings')) return 'Settings';
-      if (path.includes('about')) return 'About';
-      if (path.includes('contact')) return 'Contact';
-      if (path.includes('products')) return 'Products';
-      if (path.includes('services')) return 'Services';
-      
-      // Use the last part of the path
-      const segments = path.split('/').filter(Boolean);
-      const lastSegment = segments[segments.length - 1];
-      if (lastSegment) {
-        return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1).replace(/[-_]/g, ' ');
-      }
-      
-      return 'Page';
-    } catch {
-      return 'Page';
-    }
-  };
-
-  const getShortUrl = (url: string): string => {
-    try {
-      const urlObj = new URL(url);
-      return `${urlObj.hostname}${urlObj.pathname}`;
-    } catch {
-      return url;
-    }
-  };
+  // Get unique element types and URLs for filter dropdowns
+  const elementTypes = ['all', ...new Set(elements.map(e => e.elementType))];
+  const sourceUrls = ['all', ...new Set(elements.map(e => e.sourceUrl?.id).filter(Boolean))];
 
   if (isLoading) {
     return (
-      <div className="bg-gray-50 border rounded-lg p-4">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-300 rounded w-1/4 mb-4"></div>
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-10 bg-gray-300 rounded"></div>
-            ))}
-          </div>
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading elements...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (elements.length === 0) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center text-gray-500">
+          <div className="text-4xl mb-4">🔍</div>
+          <p>No elements found</p>
+          <p className="text-sm">Use Live Element Picker to select website elements</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-50 border rounded-lg p-4">
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-medium flex items-center">
-            Element Library
-            {isLiveMode && (
-              <span className="ml-2 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
-                🔴 Live
-              </span>
-            )}
-          </h3>
-          
-          {/* Preview Mode Toggle */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-600">Preview:</span>
-            <button
-              onClick={() => {/* Preview mode toggle disabled - controlled by parent */}}
-              className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                previewMode 
-                  ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                  : 'bg-gray-100 text-gray-600 border border-gray-200'
-              }`}
-              title={`Switch to ${previewMode ? 'list' : 'visual'} mode`}
-            >
-              {previewMode ? '🖼️ Visual' : '📋 List'}
-            </button>
-          </div>
-        </div>
-        <p className="text-sm text-gray-600 mb-3">
-          {isLiveMode 
-            ? 'Real-time elements from live browser session' 
-            : 'AI-discovered elements from your project pages'
-          }
+    <div className="flex flex-col h-full">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 p-4 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900">
+          Elements ({filteredElements.length})
+        </h3>
+        <p className="text-sm text-gray-600">
+          Click any element to add it to your test
         </p>
-        
-        {/* Search and Filter */}
-        <div className="space-y-2">
-          <input
-            type="text"
-            placeholder="Search elements..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {elementTypes.map(type => (
-              <option key={type} value={type}>
-                {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
+      </div>
 
-          {/* URL Filter - Clickable Page Blocks */}
-          {uniqueUrls.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-700">Pages ({uniqueUrls.length}):</label>
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  onClick={() => setInternalSelectedUrl('all')}
-                  className={`p-3 rounded-lg border transition-colors text-left ${
-                    internalSelectedUrl === 'all'
-                      ? 'bg-blue-50 text-blue-900 border-blue-200 ring-2 ring-blue-300'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-sm">All Pages</div>
-                      <div className="text-xs text-gray-500">Show elements from all pages</div>
-                    </div>
-                    <div className="text-xs bg-gray-100 px-2 py-1 rounded">
-                      {elements.length} elements
-                    </div>
-                  </div>
-                </button>
-                
-                {uniqueUrls.map(url => {
-                  const urlElements = elements.filter(el => el.sourceUrl?.id === url.id);
-                  return (
-                    <button
-                      key={url.id}
-                      onClick={() => setInternalSelectedUrl(url.id)}
-                      className={`p-3 rounded-lg border transition-colors text-left ${
-                        internalSelectedUrl === url.id
-                          ? 'bg-blue-50 text-blue-900 border-blue-200 ring-2 ring-blue-300'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                      }`}
-                      title={`Click to show only elements from ${url.url}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm truncate">
-                            {url.description || getPageDisplayName(url.url) || url.title || 'Page'}
-                          </div>
-                          <div className="text-xs text-blue-600 truncate">
-                            {getShortUrl(url.url)}
-                          </div>
-                          {url.description && url.description !== url.title && (
-                            <div className="text-xs text-gray-500 truncate mt-1">
-                              {url.description}
-                            </div>
-                          )}
-                        </div>
-                        <div className="ml-2 flex-shrink-0">
-                          <div className={`text-xs px-2 py-1 rounded ${
-                            internalSelectedUrl === url.id 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {urlElements.length} elements
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+      {/* Compact Filters - Single Row */}
+      {(onElementTypeChange || onUrlChange) && elements.length > 0 && (
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 flex gap-2">
+          {onElementTypeChange && (
+            <select
+              value={selectedElementType}
+              onChange={(e) => onElementTypeChange(e.target.value)}
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {elementTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type === 'all' ? 'All Types' : `${type.charAt(0).toUpperCase()}${type.slice(1)}`}
+                </option>
+              ))}
+            </select>
           )}
 
-          {/* NEW: Discovery State Filter */}
-          <select
-            value={selectedDiscoveryState}
-            onChange={(e) => setSelectedDiscoveryState(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {discoveryStates.map(state => (
-              <option key={state} value={state}>
-                {state === 'all' ? 'All Discovery States' : 
-                 state === 'static' ? '📄 Static' :
-                 state === 'after_login' ? '🔐 After Login' :
-                 state === 'login_page' ? '🔑 Login Page' :
-                 state === 'after_interaction' ? '👆 Interactive' :
-                 state === 'modal' ? '🪟 Modal' :
-                 state === 'hover' ? '🎯 Hover' : state}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Elements List */}
-      <div className={`${previewMode ? 'max-h-96' : 'max-h-64'} overflow-y-auto`}>
-        {filteredElements.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 text-sm">
-            <div className="text-4xl mb-2">🔍</div>
-            <div>{elements.length === 0 ? 'No elements discovered yet' : 'No elements match your search'}</div>
-            <div className="text-xs mt-1">Try adjusting your filters or run project analysis</div>
-          </div>
-        ) : previewMode ? (
-          // VISUAL PREVIEW MODE: Show element cards with screenshots
-          <div className={`grid gap-3 ${
-            internalSelectedUrl === 'all' && uniqueUrls.length > 1 
-              ? 'grid-cols-1' 
-              : 'grid-cols-1 md:grid-cols-2'
-          }`}>
-            {internalSelectedUrl === 'all' && uniqueUrls.length > 1 ? (
-              // Group by URL in preview mode
-              Object.entries(elementsByUrl).map(([urlId, urlElements]) => {
-                const sourceUrl = uniqueUrls.find(url => url.id === urlId);
-                return (
-                  <div key={urlId} className="space-y-3">
-                    <div className="bg-gray-100 px-3 py-2 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {sourceUrl?.title || 'Unknown Page'}
-                      </h4>
-                      <p className="text-xs text-blue-600 truncate">{sourceUrl?.url || 'No URL'}</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {urlElements.map((element) => (
-                        <ElementPreviewCard
-                          key={element.id}
-                          element={element}
-                          onSelectElement={onSelectElement}
-                          onRequestScreenshot={requestElementScreenshot}
-                          isLiveMode={isLiveMode}
-                          onPerformAction={onPerformAction}
-                          previewMode={previewMode}
-                          showQuality={showQuality}
-                          compact={compact}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              // Show all elements in grid for specific URL
-              filteredElements.map((element) => (
-                <ElementPreviewCard
-                  key={element.id}
-                  element={element}
-                  onSelectElement={onSelectElement}
-                  onRequestScreenshot={requestElementScreenshot}
-                  isLiveMode={isLiveMode}
-                  onPerformAction={onPerformAction}
-                  previewMode={previewMode}
-                  showQuality={showQuality}
-                  compact={compact}
-                />
-              ))
-            )}
-          </div>
-        ) : internalSelectedUrl === 'all' && uniqueUrls.length > 1 ? (
-          // Show elements grouped by URL when no specific URL is selected
-          <div className="space-y-3">
-            {Object.entries(elementsByUrl).map(([urlId, urlElements]) => {
-              const sourceUrl = uniqueUrls.find(url => url.id === urlId);
-              return (
-                <div key={urlId} className="border rounded-lg overflow-hidden bg-white">
-                  <div className="bg-gray-50 px-3 py-2 border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-xs font-medium text-gray-900 truncate">
-                          {sourceUrl?.title || 'Unknown Page'}
-                        </h4>
-                        <p className="text-xs text-blue-600 truncate">
-                          {sourceUrl?.url || 'No URL'}
-                        </p>
-                      </div>
-                      <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded ml-2 whitespace-nowrap">
-                        {urlElements.length} element{urlElements.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-2 space-y-1">
-                    {urlElements.map((element) => (
-                      <div
-                        key={element.id}
-                        className="p-2 border rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span 
-                            className="text-xs font-medium truncate flex-1 cursor-pointer"
-                            onClick={() => onSelectElement(element)}
-                          >
-                            {element.description}
-                          </span>
-                          <div className="flex items-center space-x-1 ml-2">
-                            <span className={`px-1 py-0.5 text-xs rounded whitespace-nowrap ${
-                              element.elementType === 'button' ? 'bg-blue-100 text-blue-800' :
-                              element.elementType === 'input' ? 'bg-green-100 text-green-800' :
-                              element.elementType === 'link' ? 'bg-purple-100 text-purple-800' :
-                              element.elementType === 'form' ? 'bg-orange-100 text-orange-800' :
-                              element.elementType === 'navigation' ? 'bg-indigo-100 text-indigo-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {element.elementType}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {Math.round(element.confidence * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Discovery State Badge */}
-                        {(element.attributes as any)?.discoveryState && (
-                          <div className="mb-1">
-                            {getDiscoveryStateBadge((element.attributes as any).discoveryState)}
-                          </div>
-                        )}
-
-                        <div className="text-xs text-gray-600 font-mono truncate">
-                          {element.selector}
-                        </div>
-                        
-                        {element.attributes.text && (
-                          <div className="text-xs text-gray-500 mt-1 truncate">
-                            "{element.attributes.text}"
-                          </div>
-                        )}
-
-                        {/* CRITICAL FIX: Add general actions including preview button */}
-                        <div className="mt-2 flex space-x-1">
-                          <button
-                            onClick={() => onSelectElement(element)}
-                            className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                            title="Use this element in test"
-                          >
-                            Use in Test
-                          </button>
-                          {/* Preview button for list view */}
-                          <button
-                            onClick={() => requestElementScreenshot(element.id, element.selector, element.sourceUrl?.url || '')}
-                            className="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                            title="Capture element preview"
-                          >
-                            📸 Preview
-                          </button>
-                        </div>
-
-                        {/* Live Mode Actions */}
-                        {isLiveMode && onPerformAction && (
-                          <div className="mt-2 flex space-x-1">
-                            <button
-                              onClick={() => handleLiveAction('click', element)}
-                              className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                              title="Click this element in live browser"
-                            >
-                              Click
-                            </button>
-                            <button
-                              onClick={() => handleLiveAction('hover', element)}
-                              className="px-2 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
-                              title="Hover over this element in live browser"
-                            >
-                              Hover
-                            </button>
-                            {element.elementType === 'input' && (
-                              <button
-                                onClick={() => handleLiveAction('type', element)}
-                                className="px-2 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
-                                title="Type in this element in live browser"
-                              >
-                                Type
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          // Show elements in simple list when a specific URL is selected
-          filteredElements.map((element) => (
-            <div
-              key={element.id}
-              className="p-3 bg-white border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+          {onUrlChange && sourceUrls.length > 1 && (
+            <select
+              value={selectedUrl}
+              onChange={(e) => onUrlChange(e.target.value)}
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <div className="flex items-center justify-between mb-1">
-                <span 
-                  className="text-sm font-medium truncate flex-1 cursor-pointer"
-                  onClick={() => onSelectElement(element)}
-                >
-                  {element.description}
-                </span>
-                <div className="flex items-center space-x-2 ml-2">
-                  <span className={`px-2 py-1 text-xs rounded whitespace-nowrap ${
-                    element.elementType === 'button' ? 'bg-blue-100 text-blue-800' :
-                    element.elementType === 'input' ? 'bg-green-100 text-green-800' :
-                    element.elementType === 'link' ? 'bg-purple-100 text-purple-800' :
-                    element.elementType === 'form' ? 'bg-orange-100 text-orange-800' :
-                    element.elementType === 'navigation' ? 'bg-indigo-100 text-indigo-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {element.elementType}
-                  </span>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">
-                    {Math.round(element.confidence * 100)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Discovery State Badge */}
-              {(element.attributes as any)?.discoveryState && (
-                <div className="mb-2">
-                  {getDiscoveryStateBadge((element.attributes as any).discoveryState)}
-                </div>
-              )}
-
-              <div className="text-xs text-gray-600 font-mono truncate">
-                {element.selector}
-              </div>
-              {element.attributes.text && (
-                <div className="text-xs text-gray-500 mt-1 truncate">
-                  Text: "{element.attributes.text}"
-                </div>
-              )}
-              {element.sourceUrl && internalSelectedUrl !== 'all' && (
-                <div className="text-xs text-blue-600 mt-1 truncate">
-                  From: {element.sourceUrl.title || 'Page'}
-                </div>
-              )}
-
-              {/* CRITICAL FIX: Add general actions including preview button */}
-              <div className="mt-3 flex space-x-2">
-                <button
-                  onClick={() => onSelectElement(element)}
-                  className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                  title="Use this element in test"
-                >
-                  Use in Test
-                </button>
-                {/* Preview button for list view */}
-                <button
-                  onClick={() => requestElementScreenshot(element.id, element.selector, element.sourceUrl?.url || '')}
-                  className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                  title="Capture element preview"
-                >
-                  📸 Preview
-                </button>
-              </div>
-
-              {/* Live Mode Actions */}
-              {isLiveMode && onPerformAction && (
-                <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={() => handleLiveAction('click', element)}
-                    className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                    title="Click this element in live browser"
-                  >
-                    🖱️ Click
-                  </button>
-                  <button
-                    onClick={() => handleLiveAction('hover', element)}
-                    className="px-3 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
-                    title="Hover over this element in live browser"
-                  >
-                    🎯 Hover
-                  </button>
-                  {element.elementType === 'input' && (
-                    <button
-                      onClick={() => handleLiveAction('type', element)}
-                      className="px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
-                      title="Type in this element in live browser"
-                    >
-                      ⌨️ Type
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Analysis Info */}
-      {elements.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-200">
-          <div className="text-xs text-gray-500 text-center">
-            {elements.length} element{elements.length !== 1 ? 's' : ''} discovered
-            {filteredElements.length !== elements.length && (
-              <span> • {filteredElements.length} shown</span>
-            )}
-          </div>
+              {sourceUrls.map((urlId) => (
+                <option key={urlId} value={urlId}>
+                  {urlId === 'all' ? 'All URLs' :
+                    elements.find(e => e.sourceUrl?.id === urlId)?.sourceUrl?.url || 'Unknown URL'}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
+
+      {/* Scrollable Element Grid */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {filteredElements.map((element) => (
+            <EnhancedElementCard
+              key={element.id}
+              element={element}
+              onSelect={onSelectElement}
+              previewMode={previewMode}
+              showQuality={showQuality}
+              compact={compact}
+            />
+          ))}
+        </div>
+
+        {/* No Results Message */}
+        {filteredElements.length === 0 && elements.length > 0 && (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-4">🔍</div>
+            <p className="text-gray-500">No elements match the current filters</p>
+            <button
+              onClick={() => {
+                onElementTypeChange?.('all');
+                onUrlChange?.('all');
+              }}
+              className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

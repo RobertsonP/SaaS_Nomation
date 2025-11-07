@@ -21,22 +21,33 @@ interface SimplifiedAuthSetupProps {
   projectId: string;
   onComplete: () => void;
   onCancel: () => void;
+  authFlowId?: string; // For editing existing auth flows
+  initialData?: {
+    name: string;
+    loginUrl: string;
+    username: string;
+    password: string;
+    steps?: any[];
+  }; // Initial data for editing
 }
 
 export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
   projectId,
   onComplete,
-  onCancel
+  onCancel,
+  authFlowId,
+  initialData
 }) => {
   const [step, setStep] = useState<'credentials' | 'test' | 'review'>('credentials');
   const [, setTemplates] = useState<AuthTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<AuthTemplate | null>(null);
-  
+  const isEditMode = Boolean(authFlowId && initialData);
+
   const [credentials, setCredentials] = useState({
-    name: 'Main Authentication',
-    loginUrl: '',
-    username: '',
-    password: ''
+    name: initialData?.name || 'Main Authentication',
+    loginUrl: initialData?.loginUrl || '',
+    username: initialData?.username || '',
+    password: initialData?.password || ''
   });
   
   const [testResult, setTestResult] = useState<any>(null);
@@ -148,14 +159,22 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
     setSaving(true);
     try {
-      await authFlowsAPI.create(projectId, {
+      const authFlowData = {
         name: credentials.name,
         loginUrl: credentials.loginUrl,
         username: credentials.username,
         password: credentials.password,
         steps: selectedTemplate.steps
-      });
-      
+      };
+
+      if (isEditMode && authFlowId) {
+        // Update existing auth flow
+        await authFlowsAPI.update(authFlowId, authFlowData);
+      } else {
+        // Create new auth flow
+        await authFlowsAPI.create(projectId, authFlowData);
+      }
+
       onComplete();
     } catch (error) {
       console.error('Failed to save auth flow:', error);
@@ -168,7 +187,9 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">🔐 Simplified Authentication Setup</h2>
+          <h2 className="text-xl font-semibold">
+            🔐 {isEditMode ? 'Edit Authentication Flow' : 'Simplified Authentication Setup'}
+          </h2>
           <div className="flex items-center space-x-2 text-sm text-gray-500">
             <div className={`px-2 py-1 rounded ${step === 'credentials' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}>
               1. Credentials
@@ -400,7 +421,10 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
                 disabled={saving}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
               >
-                {saving ? 'Saving...' : 'Save Authentication Flow'}
+                {saving
+                  ? (isEditMode ? 'Updating...' : 'Saving...')
+                  : (isEditMode ? 'Update Authentication Flow' : 'Save Authentication Flow')
+                }
               </button>
               <button
                 onClick={() => setStep('test')}

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Project Elements</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-success: #48BB78;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-secondary); color: var(--text-primary); }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); }
+        .main-content { padding: 24px; flex-grow: 1; }
+
+        /* Breadcrumb */
+        .breadcrumb { font-size: 0.875rem; color: var(--text-secondary); }
+        .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+        .breadcrumb a:hover { color: var(--text-primary); }
+
+        /* Tabs */
+        .tabs { border-bottom: 1px solid var(--border-color); margin-bottom: 24px; }
+        .tabs nav { display: flex; gap: 20px; }
+        .tabs a { padding: 12px 4px; margin-bottom: -1px; border-bottom: 2px solid transparent; text-decoration: none; color: var(--text-secondary); font-weight: 500; }
+        .tabs a.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); font-weight: 600; }
+
+        /* Page Header */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
+
+        /* Buttons */
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+        .btn-primary:hover { background-color: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+        .btn-secondary { background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; }
+
+        /* Element Cards */
+        .elements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .element-card { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
+        .element-card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+        .element-card-title { font-weight: 600; margin-bottom: 4px; }
+        .element-card-selector { font-family: 'Fira Code', monospace; font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-secondary); padding: 8px; border-radius: 4px; overflow-x: auto; }
+        .element-card-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+        /* Form Input */
+        .form-input { width: 100%; box-sizing: border-box; background-color: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 10px 12px; font-size: 0.875rem; }
+
+        /* Status Badge */
+        .badge-success { background-color: rgba(72, 187, 120, 0.1); color: var(--accent-success); padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">
+            <div style="padding: 16px;"><h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Nomation</h1></div>
+        </aside>
+
+        <div class="page-container">
+            <header class="top-header">
+                <div class="breadcrumb">
+                    <a href="projects_list.html">Projects</a> /
+                    <a href="project_details.html">E-commerce Platform</a> /
+                    <span style="color: var(--text-primary);">Elements</span>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <nav>
+                        <a href="project_details.html">Overview</a>
+                        <a href="project_urls.html">URLs</a>
+                        <a href="project_elements.html" class="active">Elements</a>
+                        <a href="test_builder.html">Tests</a>
+                        <a href="project_settings.html">Settings</a>
+                    </nav>
+                </div>
+
+                <!-- Page Header -->
+                <div class="page-header">
+                    <h1>Project Elements</h1>
+                    <button class="btn-primary">
+                        <span style="font-size: 1.25rem;">+</span> Add Element
+                    </button>
+                </div>
+
+                <!-- Filters and Search -->
+                <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                    <select class="form-input" style="width: auto; min-width: 150px;">
+                        <option>All Types</option>
+                        <option>Buttons</option>
+                        <option>Inputs</option>
+                        <option>Links</option>
+                    </select>
+                    <input class="form-input" type="search" placeholder="Search elements..." style="flex-grow: 1;">
+                </div>
+
+                <!-- Elements Grid -->
+                <div class="elements-grid">
+                    <!-- Element Card Example -->
+                    <div class="element-card">
+                        <div class="element-card-header">
+                            <div>
+                                <div class="element-card-title">Login Button</div>
+                                <span class="badge-success">Button</span>
+                            </div>
+                            <button style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">⋮</button>
+                        </div>
+                        <div class="element-card-selector">
+                            button[type="submit"]:visible
+                        </div>
+                        <div class="element-card-actions">
+                            <button class="btn-secondary">Edit</button>
+                            <button class="btn-secondary">Use in Test</button>
+                        </div>
+                    </div>
+
+                    <div class="element-card">
+                        <div class="element-card-header">
+                            <div>
+                                <div class="element-card-title">Username Input</div>
+                                <span class="badge-success">Input</span>
+                            </div>
+                            <button style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">⋮</button>
+                        </div>
+                        <div class="element-card-selector">
+                            input[name="username"]
+                        </div>
+                        <div class="element-card-actions">
+                            <button class="btn-secondary">Edit</button>
+                            <button class="btn-secondary">Use in Test</button>
+                        </div>
+                    </div>
+
+                    <!-- Empty State for Elements -->
+                    <div class="element-card" style="grid-column: 1 / -1; text-align: center; padding: 48px; border: 2px dashed var(--border-color);">
+                        <div style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 16px;">✨</div>
+                        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">No Elements Yet</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 24px;">Add elements manually or analyze a URL to discover them automatically.</p>
+                        <button class="btn-primary">+ Add First Element</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

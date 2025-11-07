@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Project Settings</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-danger: #F56565;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-secondary); color: var(--text-primary); }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); }
+        .main-content { padding: 24px; flex-grow: 1; max-width: 800px; margin: 0 auto; width: 100%; }
+
+        /* Breadcrumb */
+        .breadcrumb { font-size: 0.875rem; color: var(--text-secondary); }
+        .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+        .breadcrumb a:hover { color: var(--text-primary); }
+
+        /* Tabs */
+        .tabs { border-bottom: 1px solid var(--border-color); margin-bottom: 24px; }
+        .tabs nav { display: flex; gap: 20px; }
+        .tabs a { padding: 12px 4px; margin-bottom: -1px; border-bottom: 2px solid transparent; text-decoration: none; color: var(--text-secondary); font-weight: 500; }
+        .tabs a.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); font-weight: 600; }
+
+        /* Page Header */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
+
+        /* Cards */
+        .card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 24px; }
+        .card-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .card-header h3 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+        .card-content { padding: 24px; }
+        .card-footer { padding: 20px 24px; border-top: 1px solid var(--border-color); text-align: right; }
+
+        /* Form Elements */
+        .form-group { margin-bottom: 20px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+        .form-input { width: 100%; box-sizing: border-box; background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 12px; font-size: 1rem; }
+        .form-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Buttons */
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-danger { background-color: var(--accent-danger); color: white; border: 1px solid var(--accent-danger); padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+
+        .danger-zone { border-color: var(--accent-danger); }
+        .danger-zone .card-header h3 { color: var(--accent-danger); }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">
+            <div style="padding: 16px;"><h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Nomation</h1></div>
+        </aside>
+
+        <div class="page-container">
+            <header class="top-header">
+                <div class="breadcrumb">
+                    <a href="projects_list.html">Projects</a> /
+                    <a href="project_details.html">E-commerce Platform</a> /
+                    <span style="color: var(--text-primary);">Settings</span>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <nav>
+                        <a href="project_details.html">Overview</a>
+                        <a href="project_urls.html">URLs</a>
+                        <a href="project_elements.html">Elements</a>
+                        <a href="test_builder.html">Tests</a>
+                        <a href="project_settings.html" class="active">Settings</a>
+                    </nav>
+                </div>
+
+                <h1>Project Settings</h1>
+
+                <!-- General Settings Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>General Information</h3>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <label class="form-label" for="project-name">Project Name</label>
+                            <input class="form-input" type="text" id="project-name" value="E-commerce Platform">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="project-description">Description</label>
+                            <textarea class="form-input" id="project-description" rows="3">Automated testing for our main e-commerce website.</textarea>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn-primary">Save Changes</button>
+                    </div>
+                </div>
+
+                <!-- Integrations Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Integrations</h3>
+                    </div>
+                    <div class="card-content">
+                        <p style="color: var(--text-secondary);">Connect with your favorite tools.</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>Slack Notifications</span>
+                            <button class="btn-primary">Connect</button>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+                            <span>GitHub Actions</span>
+                            <button class="btn-primary">Connect</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danger Zone Card -->
+                <div class="card danger-zone">
+                    <div class="card-header">
+                        <h3>🚨 Danger Zone</h3>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom: 16px;">
+                            <strong>Delete Project</strong>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 8px 0 0 0;">
+                                Deleting this project will permanently remove all associated data, tests, and results.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn-danger">Delete Project</button>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+</body>
+</html>

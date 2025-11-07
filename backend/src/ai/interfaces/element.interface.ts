@@ -1,6 +1,6 @@
 export interface DetectedElement {
   selector: string;
-  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text';
+  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image';
   description: string;
   confidence: number;
   
@@ -100,7 +100,51 @@ export interface DetectedElement {
       width: number;
       height: number;
     };
-    
+
+    // NEW: Structured visual data for efficient frontend rendering
+    visualData?: {
+      type: 'css' | 'image';
+
+      // For CSS-recreated elements
+      layout?: {
+        width: string;
+        height: string;
+      };
+      colors?: {
+        backgroundColor: string;
+        color: string;
+        borderColor: string;
+      };
+      typography?: {
+        fontSize: string;
+        fontWeight: string;
+        fontFamily: string;
+        textAlign: string;
+      };
+      spacing?: {
+        padding: string;
+        margin: string;
+      };
+      borders?: {
+        border: string;
+        borderRadius: string;
+      };
+      effects?: {
+        boxShadow: string;
+        opacity: string;
+      };
+      content?: {
+        innerText: string;
+      };
+
+      // For image elements (thumbnails)
+      thumbnailBase64?: string;
+      dimensions?: {
+        width: string;
+        height: string;
+      };
+    };
+
     [key: string]: any; // Allow additional attributes
   };
 }

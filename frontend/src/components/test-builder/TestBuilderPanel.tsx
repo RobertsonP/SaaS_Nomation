@@ -85,7 +85,6 @@ export function TestBuilderPanel({
   })
   const [activeStep, setActiveStep] = useState<TestStep | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [isHuntingElements, setIsHuntingElements] = useState(false)
   const [executingStepId, setExecutingStepId] = useState<string | null>(null)
   const [showExecutionModal, setShowExecutionModal] = useState(false)
   const [executionResult, setExecutionResult] = useState<any>(null)
@@ -457,61 +456,6 @@ export function TestBuilderPanel({
     }
   }
 
-  // Hunt New Elements function
-  const handleHuntNewElements = async () => {
-    if (steps.length === 0 || !projectId) {
-      alert('Please add some test steps first to hunt for new elements after interactions.')
-      return
-    }
-
-    setIsHuntingElements(true)
-    try {
-      // Execute the current test steps and discover new elements
-      const response = await projectsAPI.huntNewElements(projectId, {
-        steps: steps,
-        testId: testId || 'temp-hunt'
-      })
-
-      // Backend returns: { success: true, newElements: [...], message: "..." }
-      // response is already the data from backend (axios handles response.data)
-      console.log('Hunt elements response:', response);
-      
-      if (response && response.newElements) {
-        const newElementsCount = response.newElements.length
-        if (newElementsCount > 0) {
-          // Notify parent component about new elements
-          onHuntNewElements?.(response.newElements)
-          alert(`🎉 Found ${newElementsCount} new elements! They have been added to your element library.`)
-        } else {
-          alert('No new elements found after executing your test steps.')
-        }
-      } else {
-        console.warn('Unexpected response format:', response);
-        alert('Hunt completed but response format was unexpected. Check console for details.')
-      }
-    } catch (error: any) {
-      console.error('Failed to hunt new elements:', error)
-      
-      // Show specific error message based on error type
-      let errorMessage = 'Failed to hunt new elements. '
-      if (error?.response?.status === 500) {
-        errorMessage += 'Server error occurred during element analysis.'
-      } else if (error?.response?.status === 404) {
-        errorMessage += 'Project or analysis endpoint not found.'
-      } else if (error?.response?.data?.message) {
-        errorMessage += error.response.data.message
-      } else if (error?.message) {
-        errorMessage += error.message
-      } else {
-        errorMessage += 'Please check that your test steps are valid and try again.'
-      }
-      
-      alert(`❌ ${errorMessage}`)
-    } finally {
-      setIsHuntingElements(false)
-    }
-  }
-
   // NEW: Sequential execution of all steps (wrapped in useCallback to prevent re-renders)
   const handleExecuteAllSteps = useCallback(async () => {
     if (steps.length === 0 || !projectId) {
@@ -767,7 +711,7 @@ export function TestBuilderPanel({
               <div className="flex space-x-2">
                 <button
                   onClick={handleExecuteAllSteps}
-                  disabled={steps.length === 0 || isExecutingAllSteps || isHuntingElements}
+                  disabled={steps.length === 0 || isExecutingAllSteps}
                   className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   title="Execute all test steps sequentially from starting URL - perfect for flow validation"
                 >
@@ -781,24 +725,6 @@ export function TestBuilderPanel({
                     </span>
                   ) : (
                     '▶️ Execute All Steps'
-                  )}
-                </button>
-                <button
-                  onClick={handleHuntNewElements}
-                  disabled={steps.length === 0 || isHuntingElements || isExecutingAllSteps}
-                  className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Execute test steps and discover new elements that appear after interactions"
-                >
-                  {isHuntingElements ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Analyzing...
-                    </span>
-                  ) : (
-                    '🔍 Hunt New Elements'
                   )}
                 </button>
                 <button

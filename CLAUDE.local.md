@@ -136,6 +136,55 @@ Transform SaaS Nomation into a top-tier test automation platform through systema
 
 **COMPLETE DETAILED WORKFLOW**: See CLAUDE.WORKFLOW.md for comprehensive protocols
 
+### 📝 AUTOMATIC SESSION NOTES (MANDATORY - ACTIVATED WITH "PARTNER ACTIVATE")
+
+**When User Writes "PARTNER ACTIVATE":**
+After EVERY implementation (when code changes are made and tested), automatically create session notes.
+
+**Notes Structure:**
+- **Location**: `/notes/week-YYYY-MM-DD/YYYY-MM-DD_HH-MM_task-name.md`
+- **When**: Immediately after completing any implementation
+- **Never skip** - prevents context loss between sessions
+
+**Note Document Format:**
+```markdown
+# [Task Name]
+Date: YYYY-MM-DD HH:MM
+Status: [✅ Working / ⚠️ Partial / ❌ Not Working / 🔄 Needs Testing]
+
+## Problem
+[What was broken/needed - user's complaint in simple terms]
+
+## Investigation
+[What was discovered - root cause analysis]
+
+## Changes Made
+- File: [exact path]
+  - Line X: [what was changed]
+  - Line Y: [what was changed]
+
+## Implementation Details
+[Technical explanation of what was implemented]
+
+## Testing
+- Command: [what was run]
+- Result: [output/behavior observed]
+- Verification: [how we confirmed it works]
+
+## Result
+[Final status - working or needs more work]
+
+## Next Steps (if applicable)
+[What still needs to be done]
+```
+
+**Rules:**
+1. Create note IMMEDIATELY after implementation (not later)
+2. Include ALL file changes with exact line numbers
+3. Document test results honestly (working/not working)
+4. Use simple language - user is not a developer
+5. One note per implementation session
+
 ## =� SHARED GOAL
 Together, we are building something exceptional. Every line of code, every architectural decision, and every refactoring effort brings us closer to creating the best test automation platform in the market.
 

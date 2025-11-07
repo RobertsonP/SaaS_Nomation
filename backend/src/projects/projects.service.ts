@@ -681,7 +681,8 @@ export class ProjectsService {
         sourcePageTitle: `Source Code Analysis`,
         sourceUrlPath: element.attributes?.filePath || 'unknown',
         discoveryState: 'confirmed',
-        discoveryTrigger: element.source || 'project-upload'
+        discoveryTrigger: element.source || 'project-upload',
+        screenshot: element.screenshot || null // Support for screenshot storage
       }));
 
       // Batch create elements

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SaaS Nomation - Test Suites</title>
+    <style>
+        /* Same design system as other pages */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-success: #48BB78;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-secondary); color: var(--text-primary); }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; }
+        .main-content { padding: 24px; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-header h1 { font-size: 2rem; font-weight: 700; margin: 0; }
+
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; border: 1px solid var(--accent-primary); display: inline-flex; align-items: center; gap: 8px; }
+
+        .suites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+
+        .suite-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; transition: transform 0.2s, border-color 0.2s; cursor: pointer; }
+        .suite-card:hover { transform: translateY(-4px); border-color: var(--accent-primary); }
+
+        .suite-card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+        .suite-card-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+        .suite-card-description { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 16px; min-height: 40px; }
+
+        .suite-stats { display: flex; gap: 24px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+        .stat-item { }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+
+        .suite-actions { display: flex; gap: 12px; }
+        .btn-run { background-color: var(--accent-primary); color: #1A202C; padding: 10px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; flex-grow: 1; }
+        .btn-details { background-color: var(--bg-tertiary); color: var(--text-primary); padding: 10px 20px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; }
+
+        .create-suite-card { background-color: var(--bg-primary); border: 2px dashed var(--border-color); border-radius: 8px; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: border-color 0.2s; }
+        .create-suite-card:hover { border-color: var(--accent-primary); }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">
+            <div style="padding: 16px;"><h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Nomation</h1></div>
+        </aside>
+
+        <div class="page-container">
+            <main class="main-content">
+                <div class="page-header">
+                    <h1>Test Suites</h1>
+                    <button class="btn-primary">
+                        <span style="font-size: 1.25rem;">+</span> New Suite
+                    </button>
+                </div>
+
+                <div class="suites-grid">
+                    <!-- Suite Card 1 -->
+                    <div class="suite-card">
+                        <div class="suite-card-header">
+                            <h3 class="suite-card-title">Smoke Tests</h3>
+                            <button style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">⋮</button>
+                        </div>
+                        <p class="suite-card-description">Quick sanity checks for critical functionality</p>
+
+                        <div class="suite-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Tests</div>
+                                <div class="stat-value">12</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Success Rate</div>
+                                <div class="stat-value" style="color: var(--accent-success);">98%</div>
+                            </div>
+                        </div>
+
+                        <div class="suite-actions">
+                            <button class="btn-run">
+                                <span style="font-size: 1.25rem;">▶</span> Run
+                            </button>
+                            <button class="btn-details">Details</button>
+                        </div>
+
+                        <div style="margin-top: 12px; font-size: 0.75rem; color: var(--text-secondary);">
+                            Last run: 2 hours ago
+                        </div>
+                    </div>
+
+                    <!-- Suite Card 2 -->
+                    <div class="suite-card">
+                        <div class="suite-card-header">
+                            <h3 class="suite-card-title">Regression Tests</h3>
+                            <button style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">⋮</button>
+                        </div>
+                        <p class="suite-card-description">Comprehensive test coverage for all features</p>
+
+                        <div class="suite-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Tests</div>
+                                <div class="stat-value">45</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Success Rate</div>
+                                <div class="stat-value" style="color: var(--accent-success);">87%</div>
+                            </div>
+                        </div>
+
+                        <div class="suite-actions">
+                            <button class="btn-run">
+                                <span style="font-size: 1.25rem;">▶</span> Run
+                            </button>
+                            <button class="btn-details">Details</button>
+                        </div>
+
+                        <div style="margin-top: 12px; font-size: 0.75rem; color: var(--text-secondary);">
+                            Last run: 1 day ago
+                        </div>
+                    </div>
+
+                    <!-- Create Suite Card -->
+                    <div class="create-suite-card">
+                        <div style="font-size: 3rem; color: var(--accent-primary); margin-bottom: 12px;">+</div>
+                        <div style="font-weight: 600; color: var(--accent-primary);">Create New Suite</div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+</body>
+</html>

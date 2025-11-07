@@ -2,10 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { chromium } from 'playwright';
 import { AiService } from './ai.service';
 import { DetectedElement, PageAnalysisResult, SelectorValidationResult, QualityMetrics } from './interfaces/element.interface';
+import { AdvancedSelectorGeneratorService } from '../browser/advanced-selector-generator.service';
 
 @Injectable()
 export class ElementAnalyzerService {
-  constructor(private aiService: AiService) {}
+  // Feature flags for safe rollback
+  private readonly USE_ADVANCED_SELECTORS = true;
+  private readonly USE_ENHANCED_FILTERING = true;
+
+  constructor(
+    private aiService: AiService,
+    private advancedSelectorService: AdvancedSelectorGeneratorService
+  ) {}
 
   async analyzePage(url: string): Promise<PageAnalysisResult> {
     const browser = await this.setupBrowser();
@@ -56,8 +64,9 @@ export class ElementAnalyzerService {
    */
   private async extractAllPageElements(page: any): Promise<any[]> {
     console.log('🔄 Starting extractAllPageElements - entering page.evaluate()...');
-    
-    return await page.evaluate(() => {
+
+    // First, extract elements without screenshots in browser context
+    let extractedElements = await page.evaluate(() => {
       console.log('🔍 === INSIDE BROWSER CONTEXT - ELEMENT EXTRACTION ===');
       const extractedElements: any[] = [];
       
@@ -409,64 +418,96 @@ export class ElementAnalyzerService {
             const computedStyle = window.getComputedStyle(element);
             const tagName = element.tagName.toLowerCase();
             
-            // Determine if element is potentially interactive
+            // ENHANCED TESTABILITY FILTERING - Only include elements useful for testing
+
+            // Get text content and length for filtering
+            const textContent = element.textContent?.trim() || '';
+            const textLength = textContent.length;
+            const hasText = textLength > 0;
+
+            // Skip scripts, styles, metadata immediately
+            if (['script', 'style', 'meta', 'noscript', 'link', 'head'].includes(tagName)) {
+              return;
+            }
+
+            // PRIMARY: Core interactive elements (ALWAYS include)
             const isInteractiveElement = [
-              'input', 'textarea', 'select', 'button', 'a', 'label', 'option'
+              'input', 'textarea', 'select', 'button', 'a', 'label', 'option', 'form'
             ].includes(tagName);
-            
-            const hasInteractiveAttributes = element.hasAttribute('onclick') ||
-              element.hasAttribute('onchange') || element.hasAttribute('tabindex') ||
-              element.hasAttribute('role') || element.hasAttribute('aria-label') ||
-              element.hasAttribute('data-testid');
-              
-            const hasInteractiveRole = element.getAttribute('role') && [
-              'button', 'link', 'textbox', 'checkbox', 'radio', 'menuitem', 'tab', 'option'
-            ].includes(element.getAttribute('role'));
-            
-            const isClickable = element.hasAttribute('onclick') || 
+
+            // SECONDARY: Elements with explicit test attributes
+            const hasTestAttributes =
+              element.hasAttribute('data-testid') ||
+              element.hasAttribute('data-test') ||
+              element.hasAttribute('data-cy') ||
+              element.hasAttribute('data-test-id');
+
+            // TERTIARY: Elements with interactive attributes or roles
+            const hasInteractiveAttributes =
+              element.hasAttribute('onclick') ||
+              element.hasAttribute('onchange') ||
+              element.hasAttribute('tabindex') ||
+              element.hasAttribute('aria-label');
+
+            const interactiveRoles = ['button', 'link', 'textbox', 'checkbox', 'radio', 'menuitem', 'tab', 'option', 'combobox', 'searchbox'];
+            const elementRole = element.getAttribute('role');
+            const hasInteractiveRole = elementRole && interactiveRoles.includes(elementRole);
+
+            // QUATERNARY: Clickable elements (pointer cursor)
+            const isClickable =
+              element.hasAttribute('onclick') ||
               (element as HTMLElement).style?.cursor === 'pointer' ||
               computedStyle.cursor === 'pointer';
-              
-            const hasText = element.textContent && element.textContent.trim().length > 0;
-            
-            // Enhanced permissive filtering - include more element types for better discovery
-            const shouldInclude = 
+
+            // QUINARY: Images with alt text (for visual verification)
+            const isDescriptiveImage = tagName === 'img' &&
+              element.hasAttribute('alt') &&
+              element.getAttribute('alt').trim().length > 0;
+
+            // SENARY: Media elements (for interaction/verification)
+            const isMediaElement = ['video', 'audio', 'canvas', 'svg', 'iframe'].includes(tagName);
+
+            // SEPTENARY: Important verification text (headings, messages, alerts)
+            // Only include text < 300 chars that serves verification purpose
+            const className = element.className || '';
+            const isImportantText = hasText && textLength <= 300 && (
+              // Headings (important page structure)
+              ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName) ||
+              // Labels (help identify inputs)
+              tagName === 'label' ||
+              // Error/message/alert elements
+              className.includes('error') ||
+              className.includes('message') ||
+              className.includes('alert') ||
+              className.includes('notification') ||
+              className.includes('toast') ||
+              className.includes('status') ||
+              elementRole === 'alert' ||
+              elementRole === 'status'
+            );
+
+            // OCTENARY: Structural containers ONLY if they have interactive attributes
+            const isInteractiveContainer =
+              ['div', 'span', 'section', 'article', 'aside'].includes(tagName) &&
+              (hasTestAttributes || hasInteractiveAttributes || hasInteractiveRole || isClickable);
+
+            // DECIDE: Should this element be included?
+            const shouldInclude =
               isInteractiveElement ||
+              hasTestAttributes ||
               hasInteractiveAttributes ||
               hasInteractiveRole ||
               isClickable ||
-              (hasText && tagName !== 'script' && tagName !== 'style' && tagName !== 'noscript') ||
-              tagName === 'img' ||
-              tagName === 'iframe' ||
-              tagName === 'form' ||
-              tagName === 'video' ||
-              tagName === 'audio' ||
-              tagName === 'canvas' ||
-              tagName === 'svg' ||
-              // Include structural elements that might be clickable
-              (tagName === 'div' && (element.hasAttribute('onclick') || 
-                                     element.hasAttribute('data-testid') ||
-                                     element.hasAttribute('data-test') ||
-                                     element.hasAttribute('role') ||
-                                     element.className.includes('btn') ||
-                                     element.className.includes('button') ||
-                                     element.className.includes('click') ||
-                                     element.className.includes('link'))) ||
-              // Include navigation elements
-              (tagName === 'nav' || element.closest('nav') !== null) ||
-              // Include list items that might be clickable
-              (tagName === 'li' && (element.hasAttribute('onclick') || 
-                                   element.querySelector('a') !== null ||
-                                   element.className.includes('menu') ||
-                                   element.className.includes('item'))) ||
-              // Include headers if they have interactive properties
-              (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName) && 
-               (element.hasAttribute('onclick') || element.hasAttribute('data-testid'))) ||
-              // Include spans and divs with specific patterns (modern frameworks)
-              ((tagName === 'span' || tagName === 'div') && 
-               (element.hasAttribute('data-') || element.className.match(/\b(component|widget|control|action)\b/i)));
-            
+              isDescriptiveImage ||
+              isMediaElement ||
+              isImportantText ||
+              isInteractiveContainer;
+
             if (!shouldInclude) {
+              // LOG excluded elements occasionally for debugging
+              if (processedCount < 10 || processedCount % 50 === 0) {
+                console.log(`🚫 Excluded: ${tagName}${className ? '.' + className.split(' ')[0] : ''} - Text: "${textContent.substring(0, 30)}${textLength > 30 ? '...' : ''}"`);
+              }
               return;
             }
             
@@ -494,12 +535,17 @@ export class ElementAnalyzerService {
             
             // Generate highly accurate and unique selector with comprehensive strategy
             const generateSelector = (el: Element, allElements: Element[]): string => {
-              
+
+              // Helper function to escape strings for Playwright selectors
+              const escapePlaywrightString = (str: string): string => {
+                return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+              };
+
               // Helper function to escape CSS selectors
               const escapeCSSSelector = (str: string): string => {
                 return str.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
               };
-              
+
               // Helper function to test selector uniqueness
               const testUniqueness = (selector: string): boolean => {
                 try {
@@ -509,8 +555,25 @@ export class ElementAnalyzerService {
                   return false;
                 }
               };
-              
-              // 1. ID selector (highest priority)
+
+              // CSS SELECTORS ONLY - Playwright locators disabled
+              // Advanced selector service will enhance these after extraction
+
+              const tagName = el.tagName.toLowerCase();
+              const textContent = el.textContent?.trim() || '';
+              const ariaLabel = el.getAttribute('aria-label');
+              const role = el.getAttribute('role');
+              const placeholder = el.getAttribute('placeholder');
+              const type = el.getAttribute('type');
+              const testId = el.getAttribute('data-testid') || el.getAttribute('data-test');
+
+              // NOTE: Playwright locator generation (getByRole, getByTestId, etc.) has been
+              // moved to advanced-selector-generator.service.ts for better control and consistency.
+              // Browser context now only generates CSS selectors which are enhanced later.
+
+              // GENERATE CSS SELECTORS
+
+              // 6. ID selector (high priority CSS fallback)
               if (el.id && el.id.trim() !== '') {
                 const idSelector = `#${escapeCSSSelector(el.id)}`;
                 if (testUniqueness(idSelector)) {
@@ -518,8 +581,8 @@ export class ElementAnalyzerService {
                 }
               }
               
-              // 2. data-testid (testing-specific attributes)
-              const testId = el.getAttribute('data-testid');
+              // 7. data-testid CSS fallback (if Playwright selector wasn't generated above)
+              // testId already declared at top of function
               if (testId && testId.trim() !== '') {
                 const testIdSelector = `[data-testid="${escapeCSSSelector(testId)}"]`;
                 if (testUniqueness(testIdSelector)) {
@@ -541,8 +604,8 @@ export class ElementAnalyzerService {
                 }
               }
               
-              // 4. aria-label (accessibility attributes)
-              const ariaLabel = el.getAttribute('aria-label');
+              // 9. aria-label CSS fallback (accessibility attributes)
+              // ariaLabel already declared at top of function
               if (ariaLabel && ariaLabel.trim() !== '') {
                 const ariaSelector = `[aria-label="${escapeCSSSelector(ariaLabel)}"]`;
                 if (testUniqueness(ariaSelector)) {
@@ -550,10 +613,9 @@ export class ElementAnalyzerService {
                 }
               }
               
-              // 5. Combination of tag + type + specific attributes
-              const tagName = el.tagName.toLowerCase();
-              const type = el.getAttribute('type');
-              
+              // 10. Combination of tag + type + specific attributes
+              // tagName and type already declared at top of function
+
               if (type) {
                 const typeSelector = `${tagName}[type="${type}"]`;
                 if (testUniqueness(typeSelector)) {
@@ -618,8 +680,8 @@ export class ElementAnalyzerService {
                 }
               }
               
-              // 9. Text content-based selectors (for elements with unique text)
-              const textContent = el.textContent?.trim() || '';
+              // 12. Text content-based CSS selectors (for elements with unique text)
+              // textContent already declared at top of function
               if (textContent && textContent.length > 0 && textContent.length < 100) {
                 // Clean text for selector use
                 const cleanText = textContent.substring(0, 50).trim();
@@ -743,6 +805,9 @@ export class ElementAnalyzerService {
               // Navigation
               if (tagName === 'nav' || role === 'navigation') return 'navigation';
               
+              // Image elements
+              if (tagName === 'img' || tagName === 'svg' || tagName === 'canvas') return 'image';
+              
               // Text elements
               if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) return 'text';
               if (tagName === 'p' || tagName === 'span' || tagName === 'div' && el.textContent?.trim()) return 'text';
@@ -751,6 +816,83 @@ export class ElementAnalyzerService {
             };
             
             // Generate description - enhanced for form elements
+            // Get visual location context for element (helps distinguish similar elements)
+            const getVisualLocation = (el: Element): string => {
+              const locations: string[] = [];
+
+              // Check if inside semantic containers
+              const nav = el.closest('nav');
+              const header = el.closest('header');
+              const footer = el.closest('footer');
+              const aside = el.closest('aside');
+              const form = el.closest('form');
+              const main = el.closest('main');
+
+              if (nav) {
+                // Check if in top navigation or other nav
+                const navRect = nav.getBoundingClientRect();
+                if (navRect.top < 100) {
+                  locations.push('top navigation');
+                } else {
+                  locations.push('navigation');
+                }
+              } else if (header) {
+                locations.push('header');
+              } else if (footer) {
+                locations.push('footer');
+              } else if (aside) {
+                // Try to determine sidebar position
+                const asideRect = aside.getBoundingClientRect();
+                if (asideRect.left < window.innerWidth / 3) {
+                  locations.push('left sidebar');
+                } else if (asideRect.right > (window.innerWidth * 2) / 3) {
+                  locations.push('right sidebar');
+                } else {
+                  locations.push('sidebar');
+                }
+              } else if (form) {
+                // Identify form type if possible
+                const formClass = form.className.toLowerCase();
+                const formId = form.id.toLowerCase();
+                if (formClass.includes('login') || formId.includes('login')) {
+                  locations.push('login form');
+                } else if (formClass.includes('search') || formId.includes('search')) {
+                  locations.push('search form');
+                } else if (formClass.includes('signup') || formClass.includes('register') || formId.includes('signup') || formId.includes('register')) {
+                  locations.push('signup form');
+                } else {
+                  locations.push('form');
+                }
+              } else if (main) {
+                locations.push('main content');
+              }
+
+              // If no semantic container found, use position-based description
+              if (locations.length === 0) {
+                const rect = el.getBoundingClientRect();
+                const viewportHeight = window.innerHeight;
+                const viewportWidth = window.innerWidth;
+
+                // Vertical position
+                if (rect.top < viewportHeight / 3) {
+                  locations.push('top of page');
+                } else if (rect.top > (viewportHeight * 2) / 3) {
+                  locations.push('bottom of page');
+                }
+
+                // Horizontal position (only for non-full-width elements)
+                if (rect.width < viewportWidth * 0.8) {
+                  if (rect.left < viewportWidth / 3) {
+                    locations.push('left side');
+                  } else if (rect.right > (viewportWidth * 2) / 3) {
+                    locations.push('right side');
+                  }
+                }
+              }
+
+              return locations.length > 0 ? ` in ${locations.join(', ')}` : '';
+            };
+
             const getDescription = (el: Element): string => {
               const text = el.textContent?.trim() || '';
               const ariaLabel = el.getAttribute('aria-label') || '';
@@ -760,39 +902,50 @@ export class ElementAnalyzerService {
               const id = el.getAttribute('id') || '';
               const type = el.getAttribute('type') || '';
               const tagName = el.tagName.toLowerCase();
-              
+
+              // Get visual location to distinguish similar elements
+              const location = getVisualLocation(el);
+
               // For form elements, try to build a meaningful description
               if (['input', 'textarea', 'select'].includes(tagName)) {
-                if (ariaLabel) return ariaLabel;
-                if (placeholder) return `${placeholder} (${type || tagName})`;
-                if (name) return `${name} ${type || tagName}`;
-                if (id) return `${id} ${type || tagName}`;
-                if (type) return `${type} input`;
-                return `${tagName} field`;
+                if (ariaLabel) return `${ariaLabel}${location}`;
+                if (placeholder) return `${placeholder} (${type || tagName})${location}`;
+                if (name) return `${name} ${type || tagName}${location}`;
+                if (id) return `${id} ${type || tagName}${location}`;
+                if (type) return `${type} input${location}`;
+                return `${tagName} field${location}`;
               }
-              
+
               // For labels, try to find what they're labeling
               if (tagName === 'label') {
                 const forAttr = el.getAttribute('for');
-                if (forAttr) return `Label for ${forAttr}`;
-                if (text) return `Label: ${text.slice(0, 30)}`;
-                return 'Label';
+                if (forAttr) return `Label for ${forAttr}${location}`;
+                if (text) return `Label: ${text.slice(0, 30)}${location}`;
+                return `Label${location}`;
               }
-              
+
               // For buttons, use text or type
               if (tagName === 'button' || type === 'submit' || type === 'button') {
-                if (text) return `${text.slice(0, 30)} button`;
-                if (type === 'submit') return 'Submit button';
-                return 'Button';
+                if (text) return `${text.slice(0, 30)} button${location}`;
+                if (type === 'submit') return `Submit button${location}`;
+                return `Button${location}`;
               }
-              
+
               // Default logic for other elements
-              return ariaLabel || text.slice(0, 50) || placeholder || title || `${tagName} element`;
+              const baseDescription = ariaLabel || text.slice(0, 50) || placeholder || title || `${tagName} element`;
+              return `${baseDescription}${location}`;
             };
             
-            extractedElements.push({
-              selector: generateSelector(element, Array.from(allElements)),
-              elementType: getElementType(element),
+            const elementType = getElementType(element);
+            const selector = generateSelector(element, Array.from(allElements));
+            
+            // Extract CSS properties
+            const cssProps = extractValidatedCSSProperties(element, computedStyle);
+
+            // Create element object
+            const detectedElement: any = {
+              selector,
+              elementType,
               description: getDescription(element),
               confidence: 0.9, // High confidence for visible elements
               attributes: {
@@ -805,17 +958,70 @@ export class ElementAnalyzerService {
                 type: element.getAttribute('type') || '',
                 href: element.getAttribute('href') || '',
                 'data-testid': element.getAttribute('data-testid') || '',
+                // Add image-specific attributes
+                alt: element.getAttribute('alt') || '',
+                src: element.getAttribute('src') || '',
                 // CSS information - Enhanced Phase 2 with comprehensive validation
-                cssInfo: extractValidatedCSSProperties(element, computedStyle),
+                cssInfo: cssProps,
                 // Position and size
                 boundingRect: {
                   x: rect.x,
                   y: rect.y,
                   width: rect.width,
                   height: rect.height
+                },
+                // NEW: Structured visual data for efficient frontend rendering
+                visualData: {
+                  type: (elementType === 'image' || cssProps.backgroundImage !== 'none') ? 'image' : 'css',
+                  // Layout dimensions
+                  layout: {
+                    width: cssProps.width,
+                    height: cssProps.height
+                  },
+                  // Color information
+                  colors: {
+                    backgroundColor: cssProps.backgroundColor,
+                    color: cssProps.color,
+                    borderColor: cssProps.border && cssProps.border !== 'none'
+                      ? cssProps.border.split(' ').find(v => v.includes('rgb') || v.startsWith('#')) || 'transparent'
+                      : 'transparent'
+                  },
+                  // Typography
+                  typography: {
+                    fontSize: cssProps.fontSize,
+                    fontWeight: cssProps.fontWeight,
+                    fontFamily: cssProps.fontFamily,
+                    textAlign: cssProps.textAlign
+                  },
+                  // Spacing
+                  spacing: {
+                    padding: cssProps.padding,
+                    margin: cssProps.margin
+                  },
+                  // Borders and shape
+                  borders: {
+                    border: cssProps.border,
+                    borderRadius: cssProps.borderRadius
+                  },
+                  // Visual effects
+                  effects: {
+                    boxShadow: cssProps.boxShadow,
+                    opacity: cssProps.opacity
+                  },
+                  // Text content for rendering
+                  content: {
+                    innerText: element.textContent?.trim() || ''
+                  }
                 }
               }
-            });
+            };
+
+            // Mark image elements for later screenshot capture
+            if (elementType === 'image' || cssProps.backgroundImage !== 'none') {
+              detectedElement.needsScreenshot = true;
+            }
+
+            extractedElements.push(detectedElement);
           } catch (error) {
             console.error('Error processing element:', error);
           }
@@ -865,6 +1071,210 @@ export class ElementAnalyzerService {
         
         return finalElements;
       });
+
+    // ADVANCED SELECTOR GENERATION: Regenerate selectors using advanced service (Node context)
+    console.log('🎯 Regenerating selectors using Advanced Selector Service...');
+
+    // Re-evaluate in browser context to get element references for selector generation
+    const elementsWithAdvancedSelectors = await page.evaluate((elementsData) => {
+      const results = [];
+
+      for (const elementData of elementsData) {
+        try {
+          // Try to find the element using the old selector
+          let element: Element | null = null;
+
+          // Try multiple selector strategies to find the element
+          if (elementData.selector) {
+            // Handle Playwright-native selectors (getByRole, getByText, etc.)
+            if (elementData.selector.startsWith('getBy')) {
+              // For Playwright-native, fall back to basic selectors from attributes
+              if (elementData.attributes?.id) {
+                element = document.querySelector(`#${elementData.attributes.id}`);
+              } else if (elementData.attributes?.['data-testid']) {
+                element = document.querySelector(`[data-testid="${elementData.attributes['data-testid']}"]`);
+              }
+            } else {
+              // CSS selector - try directly
+              try {
+                const matches = document.querySelectorAll(elementData.selector);
+                if (matches.length === 1) {
+                  element = matches[0];
+                } else if (matches.length > 1) {
+                  // Multiple matches - try to find by position/text
+                  for (const match of Array.from(matches)) {
+                    if (match.textContent?.trim() === elementData.text) {
+                      element = match;
+                      break;
+                    }
+                  }
+                  if (!element) element = matches[0]; // Fallback to first
+                }
+              } catch (e) {
+                // Selector invalid
+              }
+            }
+          }
+
+          if (!element) {
+            // Fallback: try to find by attributes
+            if (elementData.attributes) {
+              const attrs = elementData.attributes;
+              if (attrs.id) {
+                element = document.getElementById(attrs.id);
+              } else if (attrs['data-testid']) {
+                element = document.querySelector(`[data-testid="${attrs['data-testid']}"]`);
+              } else if (attrs.name) {
+                element = document.querySelector(`[name="${attrs.name}"]`);
+              }
+            }
+          }
+
+          if (element) {
+            // Element found - extract comprehensive data for advanced selector generation
+            results.push({
+              ...elementData,
+              elementData: {
+                tagName: element.tagName.toLowerCase(),
+                id: element.id,
+                className: element.className,
+                textContent: element.textContent?.trim() || '',
+                innerHTML: element.innerHTML,
+                attributes: {
+                  'data-testid': element.getAttribute('data-testid'),
+                  'data-test': element.getAttribute('data-test'),
+                  'aria-label': element.getAttribute('aria-label'),
+                  'aria-checked': element.getAttribute('aria-checked'),
+                  'aria-selected': element.getAttribute('aria-selected'),
+                  'aria-expanded': element.getAttribute('aria-expanded'),
+                  'aria-pressed': element.getAttribute('aria-pressed'),
+                  'aria-disabled': element.getAttribute('aria-disabled'),
+                  'aria-hidden': element.getAttribute('aria-hidden'),
+                  'role': element.getAttribute('role'),
+                  'type': element.getAttribute('type'),
+                  'name': element.getAttribute('name'),
+                  'placeholder': element.getAttribute('placeholder'),
+                  'title': element.getAttribute('title'),
+                  'disabled': element.getAttribute('disabled'),
+                  'readonly': element.getAttribute('readonly'),
+                  'checked': element.getAttribute('checked'),
+                  'selected': element.getAttribute('selected'),
+                  'robotId': element.getAttribute('robotId'),
+                  'data-robotid': element.getAttribute('data-robotid'),
+                  'data-state': element.getAttribute('data-state'),
+                  'data-status': element.getAttribute('data-status')
+                },
+                computedStyle: {
+                  display: window.getComputedStyle(element).display,
+                  visibility: window.getComputedStyle(element).visibility,
+                  opacity: window.getComputedStyle(element).opacity
+                },
+                isVisible: (element as HTMLElement).offsetParent !== null,
+                parentId: element.parentElement?.id,
+                parentRole: element.parentElement?.getAttribute('role'),
+                parentTagName: element.parentElement?.tagName.toLowerCase(),
+                siblingCount: element.parentElement?.children.length || 0,
+                childrenCount: element.children.length,
+                firstChildTag: element.children[0]?.tagName.toLowerCase(),
+                hasClickHandler: !!((element as any).onclick || element.getAttribute('onclick'))
+              }
+            });
+          } else {
+            // Element not found - keep original
+            results.push(elementData);
+          }
+        } catch (error) {
+          // Error - keep original element
+          results.push(elementData);
+        }
+      }
+
+      return results;
+    }, extractedElements);
+
+    // Now generate advanced selectors in Node context
+    for (let i = 0; i < elementsWithAdvancedSelectors.length; i++) {
+      const element = elementsWithAdvancedSelectors[i];
+
+      if (element.elementData) {
+        try {
+          // Create mock element and document for advanced selector service
+          const mockElement = this.createMockElement(element.elementData);
+          const mockDocument = this.createMockDocument(elementsWithAdvancedSelectors);
+
+          // Generate selectors using advanced service
+          const generatedSelectors = this.advancedSelectorService.generateSelectors({
+            element: mockElement,
+            document: mockDocument,
+            prioritizeUniqueness: true,
+            includePlaywrightSpecific: false, // Use CSS selectors only (not Playwright locators)
+            testableElementsOnly: false, // We already filtered
+            allElements: elementsWithAdvancedSelectors // Enable layout-based selectors
+          });
+
+          if (generatedSelectors && generatedSelectors.length > 0) {
+            // Use best selector
+            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
+            element.selector = bestSelector.selector;
+
+            // Store fallback selectors
+            element.fallbackSelectors = generatedSelectors.slice(1, 6).map(s => s.selector);
+
+            // Store quality metrics
+            element.selectorQuality = {
+              confidence: bestSelector.confidence,
+              type: bestSelector.type,
+              isUnique: bestSelector.isUnique,
+              isPlaywrightOptimized: bestSelector.isPlaywrightOptimized,
+              description: bestSelector.description
+            };
+
+            console.log(`✅ Generated advanced selector for ${element.elementType}: ${bestSelector.selector} (confidence: ${bestSelector.confidence})`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to generate advanced selector for element, keeping original:`, error.message);
+        }
+      }
+    }
+
+    // Replace extractedElements with enhanced version
+    extractedElements = elementsWithAdvancedSelectors;
+
+    console.log(`✅ Advanced selector generation complete - ${extractedElements.length} elements enhanced`);
+
+    // Now capture thumbnails for image elements outside browser context
+    console.log('📸 Processing thumbnails for image elements...');
+    const currentUrl = await page.url();
+
+    for (let i = 0; i < extractedElements.length; i++) {
+      const element = extractedElements[i];
+      if (element.needsScreenshot) {
+        try {
+          console.log(`📸 Capturing thumbnail for element: ${element.selector}`);
+          const thumbnail = await this.captureElementScreenshotFromPage(page, element.selector, true);
+
+          if (thumbnail) {
+            // Add thumbnail to visualData
+            if (element.attributes?.visualData) {
+              element.attributes.visualData.thumbnailBase64 = thumbnail;
+              element.attributes.visualData.type = 'image';
+            }
+            // Also keep it in the old location for backward compatibility
+            element.screenshot = thumbnail;
+            console.log(`✅ Thumbnail captured: ${element.selector}`);
+          } else {
+            console.log(`⚠️ Failed to capture thumbnail: ${element.selector}`);
+          }
+        } catch (error) {
+          console.error(`❌ Thumbnail capture error for ${element.selector}:`, error.message);
+        }
+        // Remove the temporary flag
+        delete element.needsScreenshot;
+      }
+    }
+
+    console.log('✅ Thumbnail processing complete');
+    return extractedElements;
   }
 
   /**
@@ -1547,16 +1957,187 @@ export class ElementAnalyzerService {
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
       
-      const title = await page.title();
+      // Enhanced page title detection with multiple fallback strategies
+      const pageTitle = await this.extractIntelligentPageTitle(page, url);
       const description = await page.locator('meta[name="description"]').getAttribute('content');
       
       await this.closeBrowser(browser);
       
-      return { title, description };
+      return { title: pageTitle, description };
     } catch (error) {
       await this.closeBrowser(browser);
-      return { title: 'Page Title' };
+      
+      // Generate user-friendly fallback title from URL
+      const fallbackTitle = this.generateFallbackTitle(url);
+      return { title: fallbackTitle };
     }
+  }
+
+  // Enhanced intelligent page title extraction
+  private async extractIntelligentPageTitle(page: any, url: string): Promise<string> {
+    try {
+      // Strategy 1: Get document title
+      const documentTitle = await page.title();
+      console.log(`📄 Document title: "${documentTitle}"`);
+      
+      // Strategy 2: Try multiple title sources in order of preference
+      const titleSources = [
+        'meta[property="og:title"]',           // Open Graph title
+        'meta[name="twitter:title"]',         // Twitter Card title
+        'h1',                                 // Main heading
+        '.page-title, .title, .heading',     // Common title classes
+        'header h1, header h2',              // Header titles
+        'meta[name="title"]'                 // Meta title tag
+      ];
+      
+      let bestTitle = documentTitle;
+      
+      for (const selector of titleSources) {
+        try {
+          const element = await page.locator(selector).first();
+          const text = await element.textContent({ timeout: 1000 });
+          
+          if (text && text.trim() && text.trim().length > 0) {
+            const cleanText = text.trim();
+            console.log(`📋 Found title from ${selector}: "${cleanText}"`);
+            
+            // Prefer more specific titles over generic ones
+            if (this.isBetterTitle(cleanText, bestTitle)) {
+              bestTitle = cleanText;
+            }
+          }
+        } catch (e) {
+          // Continue to next strategy
+        }
+      }
+      
+      // Clean and improve the final title
+      const cleanedTitle = this.cleanPageTitle(bestTitle, url);
+      console.log(`✨ Final cleaned title: "${cleanedTitle}"`);
+      
+      return cleanedTitle;
+      
+    } catch (error) {
+      console.error('Error extracting intelligent page title:', error);
+      return this.generateFallbackTitle(url);
+    }
+  }
+  
+  // Determine if a new title is better than the current best title
+  private isBetterTitle(newTitle: string, currentTitle: string): boolean {
+    if (!currentTitle || currentTitle.trim().length === 0) return true;
+    if (!newTitle || newTitle.trim().length === 0) return false;
+    
+    const current = currentTitle.toLowerCase();
+    const candidate = newTitle.toLowerCase();
+    
+    // Prefer titles that are not too generic
+    const genericWords = ['page', 'home', 'welcome', 'untitled', 'document', 'index'];
+    const currentIsGeneric = genericWords.some(word => current.includes(word));
+    const candidateIsGeneric = genericWords.some(word => candidate.includes(word));
+    
+    if (currentIsGeneric && !candidateIsGeneric) return true;
+    if (!currentIsGeneric && candidateIsGeneric) return false;
+    
+    // Prefer shorter, more concise titles (but not too short)
+    if (candidate.length >= 5 && candidate.length < current.length && current.length > 50) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Clean and improve page title for better user experience
+  private cleanPageTitle(title: string, url: string): string {
+    if (!title || title.trim().length === 0) {
+      return this.generateFallbackTitle(url);
+    }
+    
+    let cleaned = title.trim();
+    
+    // Remove common site name patterns (e.g., "Page Title - Site Name" -> "Page Title")
+    const patterns = [
+      /\s*[-|–—]\s*[^-|–—]*$/,           // Remove " - Site Name" suffix
+      /\s*\|\s*[^|]*$/,                  // Remove " | Site Name" suffix
+      /\s*::\s*[^:]*$/,                  // Remove " :: Site Name" suffix
+      /\s*•\s*[^•]*$/,                   // Remove " • Site Name" suffix
+    ];
+    
+    for (const pattern of patterns) {
+      const shortened = cleaned.replace(pattern, '');
+      if (shortened.length >= 3 && shortened.length < cleaned.length) {
+        cleaned = shortened.trim();
+        break; // Only apply one pattern
+      }
+    }
+    
+    // Capitalize first letter if needed
+    if (cleaned.length > 0 && cleaned[0] === cleaned[0].toLowerCase()) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+    }
+    
+    // Limit length for UI purposes
+    if (cleaned.length > 60) {
+      cleaned = cleaned.substring(0, 57) + '...';
+    }
+    
+    return cleaned;
+  }
+  
+  // Generate user-friendly fallback title from URL
+  private generateFallbackTitle(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const hostname = urlObj.hostname;
+      const pathname = urlObj.pathname;
+      
+      // Extract page name from path
+      if (pathname && pathname !== '/') {
+        const pathParts = pathname.split('/').filter(part => part.length > 0);
+        if (pathParts.length > 0) {
+          const lastPart = pathParts[pathParts.length - 1];
+          
+          // Convert URL-friendly names to readable titles
+          const readable = lastPart
+            .replace(/[-_]/g, ' ')           // Replace hyphens/underscores with spaces
+            .replace(/\.(html?|php|jsp|asp)$/i, '') // Remove file extensions
+            .replace(/\b\w/g, l => l.toUpperCase()) // Capitalize words
+            .trim();
+          
+          if (readable.length > 2) {
+            return `${readable} - ${this.getReadableHostname(hostname)}`;
+          }
+        }
+      }
+      
+      // Default fallback based on hostname
+      return this.getReadableHostname(hostname);
+      
+    } catch (error) {
+      return 'Web Page';
+    }
+  }
+  
+  // Convert hostname to readable format
+  private getReadableHostname(hostname: string): string {
+    // Remove www prefix
+    const cleaned = hostname.replace(/^www\./, '');
+    
+    // Capitalize the domain name (before TLD)
+    const parts = cleaned.split('.');
+    if (parts.length >= 2) {
+      const domain = parts[0];
+      const tld = parts.slice(1).join('.');
+      
+      // Convert domain to readable format
+      const readable = domain
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+      
+      return `${readable} (${tld})`;
+    }
+    
+    return cleaned;
   }
 
   // Method for extracting elements from authenticated pages (used by authentication service)
@@ -1764,6 +2345,31 @@ export class ElementAnalyzerService {
     }
   }
 
+  /**
+   * Capture screenshot for an element using existing page instance
+   */
+  private async captureElementScreenshotFromPage(page: any, selector: string, thumbnail = false): Promise<string | null> {
+    try {
+      const element = page.locator(selector).first();
+
+      if (thumbnail) {
+        // Capture mini thumbnail with JPEG compression for small file size
+        const screenshot = await element.screenshot({
+          type: 'jpeg',
+          quality: 70  // 70% quality for good balance of size vs visual quality
+        });
+        return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
+      } else {
+        // Full screenshot
+        const screenshot = await element.screenshot({ type: 'png' });
+        return `data:image/png;base64,${screenshot.toString('base64')}`;
+      }
+    } catch (error) {
+      console.error(`❌ Failed to capture screenshot from page: ${error.message}`);
+      return null;
+    }
+  }
+
   async huntElementsAfterSteps(config: {
     startingUrl: string;
     steps: any[];
@@ -1882,5 +2488,126 @@ export class ElementAnalyzerService {
     
     // Wait for any potential page changes after the action
     await page.waitForTimeout(200);
+  }
+
+  /**
+   * Create a mock element object for advanced selector generation
+   */
+  private createMockElement(elementData: any): any {
+    return {
+      tagName: elementData.tagName?.toUpperCase(),
+      id: elementData.id || '',
+      className: elementData.className || '',
+      textContent: elementData.textContent || '',
+      innerHTML: elementData.innerHTML || '',
+      getAttribute: (name: string) => elementData.attributes?.[name] || null,
+      setAttribute: (name: string, value: string) => {}, // No-op for mock
+      parentElement: elementData.parentId || elementData.parentTagName ? {
+        id: elementData.parentId,
+        tagName: elementData.parentTagName?.toUpperCase(),
+        getAttribute: (name: string) => {
+          if (name === 'role') return elementData.parentRole;
+          return null;
+        },
+        children: { length: elementData.siblingCount || 0 },
+        className: ''
+      } : null,
+      children: { length: elementData.childrenCount || 0, 0: elementData.firstChildTag ? { tagName: elementData.firstChildTag.toUpperCase() } : null },
+      offsetParent: elementData.isVisible ? {} : null,
+      onclick: elementData.hasClickHandler ? () => {} : null,
+      style: {
+        cursor: elementData.hasClickHandler ? 'pointer' : 'auto',
+        display: elementData.computedStyle?.display || 'block',
+        visibility: elementData.computedStyle?.visibility || 'visible',
+        opacity: elementData.computedStyle?.opacity || '1'
+      },
+      getBoundingClientRect: () => ({
+        width: elementData.isVisible ? 100 : 0,
+        height: elementData.isVisible ? 30 : 0,
+        top: 0,
+        left: 0,
+        right: 100,
+        bottom: 30
+      }),
+      closest: (selector: string) => {
+        // Simple mock - check if parent matches
+        if (selector === 'nav' || selector === '[role="navigation"]') {
+          return elementData.parentRole === 'navigation' || elementData.parentTagName === 'nav' ? {} : null;
+        }
+        return null;
+      },
+      attributes: Object.keys(elementData.attributes || {}).map(name => ({
+        name,
+        value: elementData.attributes[name]
+      })),
+      previousElementSibling: null,
+      nextElementSibling: null
+    };
+  }
+
+  /**
+   * Create a mock document object for selector uniqueness testing
+   */
+  private createMockDocument(allElements: any[]): any {
+    const querySelectorAllImpl = (selector: string) => {
+      // Simple mock - try to match elements by basic selectors
+      const matches: any[] = [];
+
+      for (const el of allElements) {
+        if (!el.elementData) continue;
+
+        let isMatch = false;
+
+        // ID selector
+        if (selector.startsWith('#')) {
+          const id = selector.slice(1);
+          if (el.elementData.id === id) isMatch = true;
+        }
+        // Class selector
+        else if (selector.startsWith('.')) {
+          const className = selector.slice(1);
+          if (el.elementData.className?.includes(className)) isMatch = true;
+        }
+        // Attribute selector
+        else if (selector.includes('[')) {
+          const attrMatch = selector.match(/\[([^=\]]+)(?:="([^"]+)")?\]/);
+          if (attrMatch) {
+            const [, attrName, attrValue] = attrMatch;
+            const elAttrValue = el.elementData.attributes?.[attrName];
+            if (attrValue) {
+              if (elAttrValue === attrValue) isMatch = true;
+            } else {
+              if (elAttrValue !== null && elAttrValue !== undefined) isMatch = true;
+            }
+          }
+        }
+        // Tag selector
+        else if (selector.match(/^[a-z]+$/)) {
+          if (el.elementData.tagName === selector) isMatch = true;
+        }
+
+        if (isMatch) {
+          matches.push(this.createMockElement(el.elementData));
+        }
+      }
+
+      return matches;
+    };
+
+    return {
+      querySelectorAll: querySelectorAllImpl,
+      querySelector: (selector: string) => {
+        const matches = querySelectorAllImpl(selector);
+        return matches.length > 0 ? matches[0] : null;
+      },
+      getElementById: (id: string) => {
+        for (const el of allElements) {
+          if (el.elementData?.id === id) {
+            return this.createMockElement(el.elementData);
+          }
+        }
+        return null;
+      }
+    };
   }
 }

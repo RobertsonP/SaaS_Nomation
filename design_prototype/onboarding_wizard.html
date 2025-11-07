@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SaaS Nomation - Welcome</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .wizard-container { background-color: var(--bg-secondary); border-radius: 8px; padding: 48px; border: 1px solid var(--border-color); width: 100%; max-width: 600px; }
+        .wizard-header h1 { font-size: 2rem; font-weight: 700; text-align: center; margin: 0 0 16px 0; }
+        .wizard-header p { color: var(--text-secondary); text-align: center; margin: 0 0 32px 0; }
+        .wizard-steps { display: flex; justify-content: center; gap: 16px; margin-bottom: 32px; }
+        .step { padding: 4px 16px; border-radius: 99px; background-color: var(--bg-primary); color: var(--text-secondary); font-weight: 500; }
+        .step.active { background-color: var(--accent-primary); color: var(--bg-primary); }
+        .wizard-content { margin-bottom: 32px; }
+        .wizard-actions { display: flex; justify-content: space-between; align-items: center; }
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-secondary { background: none; border: none; color: var(--text-secondary); cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>Welcome to SaaS Nomation!</h1>
+            <p>Let's get you set up in a few simple steps.</p>
+        </div>
+        <div class="wizard-steps">
+            <div class="step active">1. Welcome</div>
+            <div class="step">2. Create Project</div>
+            <div class="step">3. Analyze URL</div>
+            <div class="step">4. Build Test</div>
+        </div>
+        <div class="wizard-content">
+            <h2 style="text-align: center;">Ready to automate your testing?</h2>
+            <p style="color: var(--text-secondary); text-align: center;">This quick setup wizard will guide you through creating your first project and running your first test.</p>
+        </div>
+        <div class="wizard-actions">
+            <button class="btn-secondary">Skip for now</button>
+            <button class="btn-primary">Let's Get Started →</button>
+        </div>
+    </div>
+</body>
+</html>

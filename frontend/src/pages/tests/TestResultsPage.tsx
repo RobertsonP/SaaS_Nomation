@@ -53,8 +53,15 @@ export function TestResultsPage() {
       ])
       setTest(testResponse.data)
       setExecutions(executionsResponse.data)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load test results:', error)
+
+      // Distinguish between API failures and execution failures
+      if (error.response?.status === 500) {
+        console.warn('🔄 API temporarily unavailable during execution - will retry')
+      } else {
+        console.error('❌ Failed to load test results:', error.response?.data || error.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -63,19 +70,38 @@ export function TestResultsPage() {
   const runTest = async () => {
     try {
       await executionAPI.run(testId!)
-      
-      // Poll for updates every 2 seconds for 30 seconds
+
+      // Improved polling with resilient error handling
       let pollCount = 0
+      let consecutiveErrors = 0
       const maxPolls = 15
+      const maxConsecutiveErrors = 5
+
       const pollInterval = setInterval(async () => {
-        await loadTestAndResults()
+        try {
+          await loadTestAndResults()
+          consecutiveErrors = 0 // Reset error counter on success
+        } catch (error: any) {
+          consecutiveErrors++
+
+          // For 500 errors during execution, don't stop polling immediately
+          if (error.response?.status === 500 && consecutiveErrors < maxConsecutiveErrors) {
+            console.warn(`🔄 API call ${pollCount + 1} failed (${consecutiveErrors}/${maxConsecutiveErrors}), continuing to poll...`)
+          } else {
+            console.error('❌ Polling failed too many times, stopping:', error)
+            clearInterval(pollInterval)
+            return
+          }
+        }
+
         pollCount++
-        
+
         if (pollCount >= maxPolls) {
           clearInterval(pollInterval)
+          console.log('✅ Polling completed after maximum attempts')
         }
       }, 2000)
-      
+
     } catch (error) {
       console.error('Failed to run test:', error)
       alert('Failed to start test execution')

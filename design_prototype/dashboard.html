@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Dashboard</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-success: #48BB78;
+            --accent-danger: #F56565;
+            --accent-warning: #ED8936;
+        }
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-secondary); 
+            color: var(--text-primary);
+        }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-primary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 16px 0;
+        }
+        .sidebar-header { padding: 0 16px; margin-bottom: 24px; }
+        .sidebar-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+        .nav-list { list-style: none; padding: 0; margin: 0; flex-grow: 1; }
+        .nav-item a { display: flex; align-items: center; padding: 12px 16px; margin: 0 16px 4px 16px; border-radius: 6px; text-decoration: none; color: var(--text-secondary); font-weight: 500; transition: background-color 0.2s ease, color 0.2s ease; }
+        .nav-item a:hover { background-color: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active a { background-color: var(--accent-primary); color: #1A202C; font-weight: 600; }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-primary); }
+        .main-content { padding: 24px; flex-grow: 1; }
+        h1 { font-size: 2rem; font-weight: 700; margin: 0 0 24px 0; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 32px; }
+        .metric-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; }
+        .metric-card .label { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 8px; }
+        .metric-card .value { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }
+        .activity-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; }
+        .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .activity-header h3 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+        .activity-header a { color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; font-weight: 500; }
+        .activity-item { display: flex; align-items: center; gap: 16px; padding: 12px; border-radius: 6px; transition: background-color 0.2s; }
+        .activity-item:hover { background-color: var(--bg-tertiary); }
+        .status-pass { color: var(--accent-success); }
+        .status-fail { color: var(--accent-danger); }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header"><h1>Nomation</h1></div>
+            <nav class="sidebar-nav">
+                <ul class="nav-list">
+                    <li class="nav-item active"><a href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a href="projects_list.html">Projects</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <div class="page-container">
+            <header class="top-header">
+                <input type="search" placeholder="Search..." style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 10px 12px; font-size: 0.875rem; width: 300px;">
+                <div>User Profile</div>
+            </header>
+            <main class="main-content">
+                <h1>Dashboard</h1>
+                <div class="metrics-grid">
+                    <div class="metric-card"><div class="label">Total Tests</div><div class="value">1,284</div></div>
+                    <div class="metric-card"><div class="label">Pass Rate</div><div class="value">94.5%</div></div>
+                    <div class="metric-card"><div class="label">Active Projects</div><div class="value">12</div></div>
+                    <div class="metric-card"><div class="label">Avg. Duration</div><div class="value">38s</div></div>
+                </div>
+                <div class="activity-card">
+                    <div class="activity-header"><h3>Recent Activity</h3><a href="#">View All</a></div>
+                    <div class="activity-item"><span class="status-pass">PASS</span> E-commerce Site: Full Regression</div>
+                    <div class="activity-item"><span class="status-fail">FAIL</span> Admin Dashboard: Login Flow</div>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UnifiedAuthService } from '../auth/unified-auth.service';
+import { AdvancedSelectorGeneratorService } from './advanced-selector-generator.service';
 import { chromium, Browser, Page } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
 import { LoginFlow, DetectedElement, BrowserSession } from '../ai/interfaces/element.interface';
@@ -11,7 +12,8 @@ export class LiveBrowserService {
 
   constructor(
     private prisma: PrismaService,
-    private unifiedAuthService: UnifiedAuthService
+    private unifiedAuthService: UnifiedAuthService,
+    private advancedSelectorGenerator: AdvancedSelectorGeneratorService
   ) {
     // Clean up sessions every 30 minutes
     setInterval(() => this.cleanupExpiredSessions(), 30 * 60 * 1000);
@@ -310,18 +312,23 @@ export class LiveBrowserService {
               return;
             }
 
-            // Generate unique selector
-            let selector = selectorType;
-            if (element.id) {
-              selector = `#${element.id}`;
-            } else if (element.getAttribute('data-testid')) {
-              selector = `[data-testid="${element.getAttribute('data-testid')}"]`;
-            } else if (element.className) {
-              const classes = element.className.split(' ').filter(c => c.trim());
-              if (classes.length > 0) {
-                selector = `${element.tagName.toLowerCase()}.${classes[0]}`;
-              }
-            }
+            // Generate advanced W3Schools CSS + Playwright selectors
+            const selectorOptions = {
+              element,
+              document,
+              prioritizeUniqueness: true,
+              includePlaywrightSpecific: true,
+              testableElementsOnly: true
+            };
+            
+            const generatedSelectors = this.advancedSelectorGenerator.generateSelectors(selectorOptions);
+            
+            // Use the best selector (highest confidence + uniqueness)
+            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
+            let selector = bestSelector?.selector || selectorType;
+            
+            // Store additional selectors as fallbacks
+            const fallbackSelectors = generatedSelectors.slice(1, 6).map(s => s.selector);
 
             // Determine element type
             let elementType = 'text';
@@ -356,7 +363,13 @@ export class LiveBrowserService {
               selector,
               elementType,
               description,
-              confidence: 0.9,
+              confidence: bestSelector?.confidence || 0.9,
+              
+              // Enhanced selector data
+              fallbackSelectors: fallbackSelectors,
+              selectorType: bestSelector?.type || 'css',
+              isUniqueSelector: bestSelector?.isUnique || false,
+              isPlaywrightOptimized: bestSelector?.isPlaywrightOptimized || false,
               attributes: {
                 tag: tagName,
                 id: element.id || undefined,
@@ -627,35 +640,25 @@ export class LiveBrowserService {
           
           // Include elements within detection radius
           if (distance <= DETECTION_RADIUS) {
-            // Generate optimized selector
-            let selector = '';
+            // Generate advanced W3Schools CSS + Playwright selectors
+            const selectorOptions = {
+              element,
+              document,
+              prioritizeUniqueness: true,
+              includePlaywrightSpecific: true,
+              testableElementsOnly: true
+            };
             
-            // Prioritize unique identifiers
-            if (element.id) {
-              selector = '#' + element.id;
-            } else if (element.hasAttribute('data-testid')) {
-              selector = `[data-testid="${element.getAttribute('data-testid')}"]`;
-            } else if (element.hasAttribute('data-test')) {
-              selector = `[data-test="${element.getAttribute('data-test')}"]`;
-            } else if (element.className && typeof element.className === 'string') {
-              const classes = element.className.trim().split(/\\s+/).filter(c => c && c.length < 30);
-              if (classes.length > 0) {
-                selector = '.' + classes.slice(0, 3).join('.');
-              }
+            const generatedSelectors = this.advancedSelectorGenerator.generateSelectors(selectorOptions);
+            
+            // Skip non-testable elements
+            if (generatedSelectors.length === 0) {
+              return;
             }
             
-            // Fallback to element path
-            if (!selector) {
-              const tagName = element.tagName.toLowerCase();
-              const parent = element.parentElement;
-              if (parent) {
-                const siblings = Array.from(parent.children).filter(el => el.tagName === element.tagName);
-                const siblingIndex = siblings.indexOf(element);
-                selector = `${tagName}:nth-of-type(${siblingIndex + 1})`;
-              } else {
-                selector = tagName;
-              }
-            }
+            // Use the best selector (highest confidence + uniqueness)
+            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
+            const selector = bestSelector?.selector || element.tagName.toLowerCase();
             
             foundElements.push({
               tagName: element.tagName.toLowerCase(),

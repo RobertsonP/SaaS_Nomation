@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Project Details</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-success: #48BB78;
+            --accent-danger: #F56565;
+            --accent-warning: #ED8936;
+        }
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-secondary); 
+            color: var(--text-primary);
+        }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); }
+        .main-content { padding: 24px; flex-grow: 1; }
+        .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 16px 0; color: var(--text-secondary); }
+        .page-header h1 strong { color: var(--text-primary); }
+        .tabs { border-bottom: 1px solid var(--border-color); margin-bottom: 24px; }
+        .tabs nav { display: flex; gap: 20px; }
+        .tabs a { padding: 12px 4px; margin-bottom: -1px; border-bottom: 2px solid transparent; text-decoration: none; color: var(--text-secondary); font-weight: 500; }
+        .tabs a.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); font-weight: 600; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-bottom: 24px; }
+        .metric-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; }
+        .metric-card .label { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+        .metric-card .value { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+        .card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; }
+        .card-header { padding: 16px; border-bottom: 1px solid var(--border-color); }
+        .card-header h3 { font-size: 1.125rem; font-weight: 600; margin: 0; }
+        .card-content { padding: 16px; }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">...</aside>
+        <div class="page-container">
+            <header class="top-header">...</header>
+            <main class="main-content">
+                <div class="page-header">
+                    <h1><a href="projects_list.html" style="text-decoration: none; color: var(--text-secondary);">Projects</a> / <strong>E-commerce Platform</strong></h1>
+                </div>
+                <div class="tabs">
+                    <nav>
+                        <a href="project_details.html" class="active">Overview</a>
+                        <a href="#">URLs</a>
+                        <a href="project_elements.html">Elements</a>
+                        <a href="test_builder.html">Tests</a>
+                        <a href="project_settings.html">Settings</a>
+                    </nav>
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric-card"><span class="label">Total Tests</span><div class="value">86</div></div>
+                    <div class="metric-card"><span class="label">Success Rate</span><div class="value">98%</div></div>
+                    <div class="metric-card"><span class="label">Test Suites</span><div class="value">5</div></div>
+                    <div class="metric-card"><span class="label">Elements</span><div class="value">142</div></div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3>Recent Test Runs</h3></div>
+                    <div class="card-content"><p style="color: var(--text-secondary); text-align: center;">No recent test runs.</p></div>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SaaS Nomation - Network Error</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-warning: #ED8936;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; }
+        .error-container h1 { font-size: 6rem; font-weight: 700; margin: 0; color: var(--accent-warning); }
+        .error-container h2 { font-size: 1.5rem; font-weight: 600; margin: 16px 0; }
+        .error-container p { color: var(--text-secondary); max-width: 400px; margin: 0 auto 32px auto; }
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 12px 24px; border-radius: 6px; font-weight: 600; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1>Uh Oh!</h1>
+        <h2>Connection Error</h2>
+        <p>It seems you're offline. Please check your internet connection and try again.</p>
+        <a href="#" onclick="window.location.reload();" class="btn-primary">Retry</a>
+    </div>
+</body>
+</html>

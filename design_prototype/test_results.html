@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Test Results</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-success: #48BB78;
+            --accent-danger: #F56565;
+            --accent-warning: #ED8936;
+        }
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-secondary); 
+            color: var(--text-primary);
+        }
+        .global-layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
+        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); }
+        .main-content { padding: 24px; flex-grow: 1; }
+        .summary-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        .summary-item { padding: 20px; border-right: 1px solid var(--border-color); }
+        .badge-danger { background-color: rgba(245, 101, 101, 0.1); color: var(--accent-danger); }
+        .results-card { background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; }
+        .results-log { padding: 16px; font-family: 'Fira Code', monospace; font-size: 0.875rem; }
+        .log-item { border-left: 2px solid var(--border-color); }
+        .log-item.fail > .log-line { border-color: var(--accent-danger); }
+        .log-item.pass > .log-line { border-color: var(--accent-success); }
+        .log-line:hover { background-color: var(--bg-tertiary); }
+        .log-details { padding: 12px; background-color: var(--bg-tertiary); margin-left: 12px; border-left: 2px solid var(--accent-danger); }
+        .screenshot img { max-width: 100%; border-radius: 4px; border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+    <div class="global-layout">
+        <aside class="sidebar">...</aside>
+        <div class="page-container">
+            <header class="top-header">...</header>
+            <main class="main-content">
+                <div class="page-header" style="margin-bottom: 16px;">
+                    <div>
+                        <h1 style="font-size: 1.75rem;">Test Result: <span style="color: var(--accent-danger);">FAIL</span></h1>
+                        <p style="color: var(--text-secondary); margin: 4px 0 0 0;">Executed on: 2025-01-15 at 14:32 UTC</p>
+                    </div>
+                    <div>
+                        <button class="btn-secondary">Export</button>
+                        <button class="btn-primary">Share</button>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-item">Status: <span class="badge-danger">FAIL</span></div>
+                    <div class="summary-item">Duration: 8.7s</div>
+                    <div class="summary-item">Steps Passed: 2/4</div>
+                    <div class="summary-item">Browser: Chrome</div>
+                </div>
+
+                <div class="results-layout" style="display: grid; grid-template-columns: 1fr 450px; gap: 24px; align-items: start;">
+                    <div class="results-card">
+                        <div class="results-log">
+                            <div class="log-item pass">
+                                <div class="log-line"><strong>PASS:</strong> Navigate to /login</div>
+                            </div>
+                            <div class="log-item pass">
+                                <div class="log-line"><strong>PASS:</strong> Type 'test@user.com' into #email</div>
+                            </div>
+                            <div class="log-item fail active">
+                                <div class="log-line"><strong>FAIL:</strong> Click #submit-button</div>
+                                <div class="log-details">
+                                    <p><strong>Error:</strong> Element not found after 5000ms timeout.</p>
+                                    <code>Selector: #submit-button</code>
+                                </div>
+                            </div>
+                             <div class="log-item skipped">
+                                <div class="log-line"><strong>SKIPPED:</strong> Assert URL is /dashboard</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="details-panel">
+                        <div class="tabs">
+                            <button class="tab-button active">Screenshot</button>
+                            <button class="tab-button">Comparison</button>
+                        </div>
+                        <div class="screenshot">
+                            <img src="https://placehold.co/600x400/2D3748/E2E8F0?text=Failed+Step+Screenshot" alt="Screenshot of failed step">
+                            <div class="screenshot-toolbar"><button>Highlight Diffs</button></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

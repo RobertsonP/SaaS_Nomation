@@ -39,20 +39,15 @@ export function ProjectsPage() {
     description: '',
     urls: ['']
   });
-  
-  // NEW: Authentication setup state
-  const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null); // projectId
+  const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
   const [authFormData, setAuthFormData] = useState({
     name: '',
     loginUrl: '',
     username: '',
     password: '',
-    steps: [
-      { type: 'type', selector: '#username', value: '${username}', description: 'Enter username' },
-      { type: 'type', selector: '#password', value: '${password}', description: 'Enter password' },
-      { type: 'click', selector: '#login-button', description: 'Click login button' }
-    ]
+    steps: [] as Array<{ type: string; selector: string; description: string; value?: string }>
   });
+
 
   useEffect(() => {
     loadProjects();
@@ -241,7 +236,6 @@ export function ProjectsPage() {
     });
   };
 
-  // NEW: Authentication setup functions
   const handleShowAuthSetup = async (projectId: string) => {
     setShowAuthSetup(projectId);
     
@@ -471,13 +465,6 @@ export function ProjectsPage() {
                     ✏️ Edit
                   </button>
                   <button
-                    onClick={() => handleShowAuthSetup(project.id)}
-                    className="px-3 py-1 text-xs rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
-                    title="Setup authentication for protected pages"
-                  >
-                    🔐 Auth
-                  </button>
-                  <button
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent double-click navigation
                       handleDeleteProject(project.id, project.name);
@@ -581,8 +568,7 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* NEW: Authentication Setup Modal */}
-      {showAuthSetup && (
+      {false && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">🔐 Setup Authentication Flow</h2>

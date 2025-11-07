@@ -25,16 +25,16 @@ export function SessionBrowserPreview({
     setIsLoading(true);
     setError(null);
 
-    // Fetch both session info and live view
+    // Fetch both session info and live screenshot
     const fetchSessionData = async () => {
       try {
-        const [infoResponse, viewResponse] = await Promise.all([
+        const [infoResponse, screenshotResponse] = await Promise.all([
           browserAPI.getSessionInfo(sessionToken),
-          browserAPI.getSessionView(sessionToken)
+          browserAPI.getSessionScreenshot(sessionToken)
         ]);
-        
+
         setSessionInfo(infoResponse.session);
-        setSessionView(viewResponse);
+        setSessionView(screenshotResponse);
         setIsLoading(false);
       } catch (err) {
         console.error('Failed to fetch session data:', err);
@@ -91,12 +91,12 @@ export function SessionBrowserPreview({
     );
   }
 
-  if (!sessionView?.currentUrl) {
+  if (!sessionView?.screenshot) {
     return (
       <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
         <div className="text-center text-gray-500">
           <div className="text-4xl mb-2">🔄</div>
-          <p>Waiting for navigation...</p>
+          <p>Waiting for screenshot...</p>
         </div>
       </div>
     );
@@ -113,26 +113,22 @@ export function SessionBrowserPreview({
       </div>
 
       {/* Authentication status */}
-      {sessionInfo.isAuthenticated && (
+      {sessionInfo?.isAuthenticated && (
         <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded text-xs z-20">
           🔐 Authenticated
         </div>
       )}
 
-      {/* Main iframe showing live session view */}
-      <iframe
-        src={sessionView.viewUrl}
-        className="w-full h-full border-0"
-        title="Live Browser Session"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
+      {/* Main screenshot showing live session view */}
+      <img
+        src={sessionView.screenshot}
+        alt="Live Browser Session"
+        className="w-full h-full border-0 object-contain"
         style={{
           background: 'white',
           minHeight: '600px',
           width: '100%',
-          height: '100%',
-          transform: 'scale(0.75)', // Zoom out to show desktop view in smaller iframe
-          transformOrigin: 'top left',
-          border: 'none'
+          height: '100%'
         }}
       />
     </div>

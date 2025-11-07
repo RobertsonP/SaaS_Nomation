@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SaaS Nomation - Create Account</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-primary-hover: #4FD1C5;
+            --accent-success: #48BB78;
+            --accent-warning: #ED8936;
+            --accent-danger: #F56565;
+        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-card { background-color: var(--bg-secondary); border-radius: 8px; padding: 40px; border: 1px solid var(--border-color); width: 100%; max-width: 420px; }
+        .login-card h3 { font-size: 1.75rem; font-weight: 600; margin: 0 0 32px 0; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+        .form-input { width: 100%; box-sizing: border-box; background-color: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 12px; font-size: 1rem; }
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); width: 100%; padding: 14px; border-radius: 6px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s ease; }
+        .btn-primary:hover { background-color: var(--accent-primary-hover); }
+        .password-strength { margin-bottom: 20px; }
+        .strength-bar { height: 4px; background: var(--bg-primary); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+        .strength-fill { height: 100%; transition: all 0.3s; }
+        .strength-weak { width: 33%; background: var(--accent-danger); }
+        .strength-medium { width: 66%; background: var(--accent-warning); }
+        .strength-strong { width: 100%; background: var(--accent-success); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h3>Create Your Account</h3>
+
+        <div class="form-group">
+            <label class="form-label" for="name">Full Name</label>
+            <input class="form-input" type="text" id="name" placeholder="John Doe">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input class="form-input" type="email" id="email" placeholder="you@example.com">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" type="password" id="password" placeholder="••••••••">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="confirm">Confirm Password</label>
+            <input class="form-input" type="password" id="confirm" placeholder="••••••••">
+        </div>
+
+        <!-- Password Strength -->
+        <div class="password-strength">
+            <div class="strength-bar">
+                <div class="strength-fill strength-medium"></div>
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                Password strength: <span style="color: var(--accent-warning); font-weight: 600;">Medium</span>
+            </div>
+        </div>
+
+        <!-- Terms Checkbox -->
+        <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">
+            <input type="checkbox" id="terms" style="width: auto;">
+            <label for="terms" style="font-size: 0.875rem; color: var(--text-secondary); margin: 0;">
+                I agree to the <a href="#" style="color: var(--accent-primary); text-decoration: none;">Terms of Service</a>
+            </label>
+        </div>
+
+        <button class="btn-primary">Create Account</button>
+
+        <!-- Sign In Link -->
+        <div style="text-align: center; margin-top: 20px;">
+            <span style="color: var(--text-secondary); font-size: 0.875rem;">Already have an account?</span>
+            <a href="login.html" style="color: var(--accent-primary); font-weight: 600; text-decoration: none; margin-left: 4px;">Sign In</a>
+        </div>
+    </div>
+</body>
+</html>

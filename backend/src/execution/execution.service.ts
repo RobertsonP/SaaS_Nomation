@@ -211,36 +211,70 @@ export class ExecutionService {
   private async executeStep(page: Page, step: TestStep) {
     const timeout = 10000; // 10 seconds timeout
 
-    switch (step.type) {
-      case 'click':
-        await page.click(step.selector, { timeout });
-        break;
+    try {
+      // Modern Playwright API: Use page.locator() for all selector types
+      // This properly handles:
+      // - CSS selectors: #id, .class, [attribute]
+      // - Playwright CSS extensions: :has-text(), :visible, :enabled
+      // - Deep combinators: >> for shadow DOM piercing
+      // - XPath selectors: //button[@type="submit"]
+      const locator = page.locator(step.selector).first();
 
-      case 'type':
-        await page.fill(step.selector, step.value || '', { timeout });
-        break;
+      switch (step.type) {
+        case 'click':
+          // MODERNIZED: Use locator.click() instead of deprecated page.click()
+          await locator.click({ timeout });
+          console.log(`✓ Clicked element: ${step.selector}`);
+          break;
 
-      case 'wait':
-        const waitTime = parseInt(step.value || '1000', 10);
-        await page.waitForTimeout(waitTime);
-        break;
+        case 'type':
+          // MODERNIZED: Use locator.fill() instead of deprecated page.fill()
+          await locator.fill(step.value || '', { timeout });
+          console.log(`✓ Filled element: ${step.selector} with "${step.value}"`);
+          break;
 
-      case 'assert':
-        const element = await page.locator(step.selector).first();
-        const textContent = await element.textContent();
-        if (!textContent || !textContent.includes(step.value || '')) {
-          throw new Error(
-            `Assertion failed: Expected "${step.value}" but found "${textContent}"`
-          );
-        }
-        break;
+        case 'wait':
+          const waitTime = parseInt(step.value || '1000', 10);
+          await page.waitForTimeout(waitTime);
+          console.log(`✓ Waited for ${waitTime}ms`);
+          break;
 
-      default:
-        throw new Error(`Unknown step type: ${step.type}`);
+        case 'assert':
+          const textContent = await locator.textContent({ timeout });
+          if (!textContent || !textContent.includes(step.value || '')) {
+            throw new Error(
+              `Assertion failed: Expected "${step.value}" but found "${textContent}"`
+            );
+          }
+          console.log(`✓ Assertion passed: "${step.value}" found in "${textContent}"`);
+          break;
+
+        default:
+          throw new Error(`Unknown step type: ${step.type}`);
+      }
+
+      // Wait a bit between steps for stability
+      await page.waitForTimeout(500);
+
+    } catch (error) {
+      // Enhanced error handling with selector information
+      console.error(`✗ Step execution failed:`, {
+        type: step.type,
+        selector: step.selector,
+        value: step.value,
+        error: error.message
+      });
+
+      // Check if it's a selector error
+      if (error.message.includes('selector') || error.message.includes('locator')) {
+        throw new Error(
+          `Invalid selector "${step.selector}": ${error.message}\n` +
+          `Hint: Ensure the selector is valid CSS or Playwright syntax.`
+        );
+      }
+
+      throw error;
     }
-
-    // Wait a bit between steps for stability
-    await page.waitForTimeout(500);
   }
 
   // NOTE: performAuthentication method removed - now using UnifiedAuthService

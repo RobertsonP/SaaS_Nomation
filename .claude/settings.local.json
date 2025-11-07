@@ -80,7 +80,11 @@
       "Bash(sudo fuser:*)",
       "Bash(npm run dev:*)",
       "Bash(node:*)",
-      "WebFetch(domain:www.lambdatest.com)"
+      "WebFetch(domain:www.lambdatest.com)",
+      "WebSearch",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:playwright.bootcss.com)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

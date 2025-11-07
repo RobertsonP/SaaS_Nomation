@@ -289,8 +289,19 @@ export function LiveElementPicker({
   }, [selectedElements, previewUrl, projectId, onElementsSelected]);
 
   const togglePickingMode = useCallback(() => {
-    setIsPickingMode(prev => !prev);
-  }, []);
+    setIsPickingMode(prev => {
+      const newMode = !prev;
+      console.log(`🎯 Live Element Picker: Toggling picking mode from ${prev} to ${newMode}`);
+
+      if (newMode && !previewUrl) {
+        console.warn('⚠️ Live Element Picker: Cannot enable picking mode - no preview URL loaded');
+        setError('Please load a website first before enabling picking mode');
+        return prev; // Don't change mode if no URL is loaded
+      }
+
+      return newMode;
+    });
+  }, [previewUrl]);
 
   // Handle ESC key and prevent background scrolling
   useEffect(() => {
