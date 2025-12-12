@@ -69,4 +69,10 @@ export class TestsService {
     });
   }
 
+  async delete(testId: string) {
+    return this.prisma.test.delete({
+      where: { id: testId },
+    });
+  }
+
 }

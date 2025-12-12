@@ -117,19 +117,37 @@ export class ProjectsService {
       data: updateData,
     });
 
-    // Update URLs if provided
+    // Update URLs if provided - use intelligent diffing to preserve elements
     if (data.urls !== undefined) {
-      // Delete existing URLs
-      await this.prisma.projectUrl.deleteMany({
+      // Get current URLs
+      const currentUrls = await this.prisma.projectUrl.findMany({
         where: { projectId },
+        select: { id: true, url: true }
       });
 
-      // Create new URLs
-      if (data.urls.length > 0) {
+      // Determine URLs to keep, add, and remove
+      const currentUrlMap = new Map(currentUrls.map(u => [u.url, u.id]));
+      const newUrlSet = new Set(data.urls.map(u => u.url));
+
+      // URLs to delete (in current but not in new)
+      const urlsToDelete = currentUrls.filter(u => !newUrlSet.has(u.url));
+
+      // URLs to add (in new but not in current)
+      const urlsToAdd = data.urls.filter(u => !currentUrlMap.has(u.url));
+
+      // Delete removed URLs (cascade will delete their elements automatically)
+      if (urlsToDelete.length > 0) {
+        await this.prisma.projectUrl.deleteMany({
+          where: { id: { in: urlsToDelete.map(u => u.id) } }
+        });
+        console.log(`🗑️ Deleted ${urlsToDelete.length} URLs and their elements`);
+      }
+
+      // Add new URLs
+      if (urlsToAdd.length > 0) {
         const urlsWithTitles = [];
-        
-        for (const urlData of data.urls) {
-          // Use immediate fallback for fast project updates
+
+        for (const urlData of urlsToAdd) {
           urlsWithTitles.push({
             url: urlData.url,
             title: urlData.title || this.generateTitleFromUrl(urlData.url),
@@ -141,22 +159,21 @@ export class ProjectsService {
         await this.prisma.projectUrl.createMany({
           data: urlsWithTitles,
         });
+        console.log(`✅ Added ${urlsToAdd.length} new URLs`);
       }
 
-      // Clear analysis data since URLs changed
-      await this.prisma.projectElement.deleteMany({
-        where: { projectId },
-      });
+      // Note: Elements from kept URLs are preserved automatically!
+      console.log(`🔄 URL update complete: ${urlsToDelete.length} removed, ${urlsToAdd.length} added, ${currentUrls.length - urlsToDelete.length} preserved`);
     }
 
     return this.findById(userId, projectId);
   }
 
-  async analyzeProjectPages(userId: string, projectId: string) {
+  async analyzeProjectPages(userId: string, projectId: string, selectedUrlIds?: string[]) {
     // Send initial progress update
     this.progressGateway.sendStarted(
-      projectId, 
-      'initialization', 
+      projectId,
+      'initialization',
       'Starting project analysis...',
       { userId, projectId }
     );
@@ -176,13 +193,25 @@ export class ProjectsService {
       throw new Error('No URLs found for this project');
     }
 
+    // Filter URLs if selection provided
+    const urlsToAnalyze = selectedUrlIds && selectedUrlIds.length > 0
+      ? project.urls.filter(url => selectedUrlIds.includes(url.id))
+      : project.urls; // Analyze all if no selection
+
+    console.log(`🎯 Analyzing ${urlsToAnalyze.length} of ${project.urls.length} URLs`);
+
+    if (urlsToAnalyze.length === 0) {
+      this.progressGateway.sendError(projectId, 'initialization', 'No URLs selected for analysis', new Error('No URLs selected'));
+      throw new Error('No URLs selected for analysis');
+    }
+
     this.progressGateway.sendProgress(
       projectId,
       'initialization',
-      `Found ${project.urls.length} URL(s) to analyze`,
+      `Found ${urlsToAnalyze.length} of ${project.urls.length} URL(s) to analyze`,
       1,
       4,
-      { urls: project.urls.map(u => u.url) }
+      { urls: urlsToAnalyze.map(u => u.url) }
     );
 
     // Check for authentication flows
@@ -224,13 +253,13 @@ export class ProjectsService {
           projectId,
           'authenticated_analysis',
           `Starting authenticated analysis using ${authFlow.name}`,
-          { authFlow: authFlow.name, totalUrls: project.urls.length }
+          { authFlow: authFlow.name, totalUrls: urlsToAnalyze.length }
         );
 
-        // Authenticate FIRST, then scrape ALL URLs in the authenticated session
+        // Authenticate FIRST, then scrape selected URLs in the authenticated session
         console.log(`🔥 CALLING CORRECT AUTHENTICATION SERVICE - AuthenticationAnalyzerService`);
         const authenticatedAnalysisResult = await this.authenticationAnalyzer.analyzeAllUrlsWithAuth(
-          project.urls.map(url => url.url), // All URLs to analyze
+          urlsToAnalyze.map(url => url.url), // Selected URLs to analyze
           {
             id: authFlow.id,
             name: authFlow.name,
@@ -319,7 +348,7 @@ export class ProjectsService {
             'authenticated_analysis',
             `✅ Analysis completed! Found ${totalElementsStored} elements across ${authenticatedAnalysisResult.urlResults.length} pages`,
             {
-              totalUrls: project.urls.length,
+              totalUrls: urlsToAnalyze.length,
               successfulUrls: authenticatedAnalysisResult.urlResults.length,
               totalElementsStored,
               authenticationUsed: true
@@ -331,7 +360,7 @@ export class ProjectsService {
             elements: authenticatedAnalysisResult.urlResults.flatMap(result => result.elements),
             analysisDate: new Date(),
             success: true,
-            totalUrls: project.urls.length,
+            totalUrls: urlsToAnalyze.length,
             successfulUrls: authenticatedAnalysisResult.urlResults.length,
             authenticationUsed: true,
             totalElementsStored,
@@ -371,21 +400,21 @@ export class ProjectsService {
         projectId,
         'standard_analysis',
         'Starting standard analysis (no authentication)',
-        { totalUrls: project.urls.length }
+        { totalUrls: urlsToAnalyze.length }
       );
 
       let urlIndex = 0;
       let totalElements = 0;
-      
-      for (const projectUrl of project.urls) {
+
+      for (const projectUrl of urlsToAnalyze) {
         urlIndex++;
-        
+
         this.progressGateway.sendProgress(
           projectId,
           'standard_analysis',
-          `Analyzing URL ${urlIndex}/${project.urls.length}: ${projectUrl.url}`,
+          `Analyzing URL ${urlIndex}/${urlsToAnalyze.length}: ${projectUrl.url}`,
           urlIndex,
-          project.urls.length,
+          urlsToAnalyze.length,
           { currentUrl: projectUrl.url }
         );
         
@@ -411,8 +440,8 @@ export class ProjectsService {
               'standard_analysis',
               `${projectUrl.url} completed after ${retryResult.totalRetries} retries (${Math.round(retryResult.totalDuration/1000)}s)`,
               urlIndex,
-              project.urls.length,
-              { 
+              urlsToAnalyze.length,
+              {
                 url: projectUrl.url,
                 retryCount: retryResult.totalRetries,
                 totalDuration: retryResult.totalDuration,
@@ -439,11 +468,11 @@ export class ProjectsService {
               'element_storage',
               `✅ Stored ${analysisResult.elements.length} elements from ${projectUrl.url}`,
               urlIndex,
-              project.urls.length,
-              { 
-                url: projectUrl.url, 
+              urlsToAnalyze.length,
+              {
+                url: projectUrl.url,
                 elementCount: analysisResult.elements.length,
-                totalElements 
+                totalElements
               }
             );
             
@@ -479,7 +508,7 @@ export class ProjectsService {
                 'element_storage',
                 `⚠️ No elements found for URL: ${projectUrl.url}`,
                 urlIndex,
-                project.urls.length,
+                urlsToAnalyze.length,
                 { url: projectUrl.url, elementCount: 0 }
               );
             }
@@ -534,9 +563,9 @@ export class ProjectsService {
       this.progressGateway.sendCompleted(
         projectId,
         'standard_analysis',
-        `✅ Standard analysis completed! Found ${totalElementsFound} elements across ${successfulResults.length}/${project.urls.length} pages`,
+        `✅ Standard analysis completed! Found ${totalElementsFound} elements across ${successfulResults.length}/${urlsToAnalyze.length} pages`,
         {
-          totalUrls: project.urls.length,
+          totalUrls: urlsToAnalyze.length,
           successfulUrls: successfulResults.length,
           totalElements: totalElementsFound,
           authenticationUsed: false
@@ -544,11 +573,11 @@ export class ProjectsService {
       );
 
       return {
-        url: `${project.urls.length} URLs analyzed`,
+        url: `${urlsToAnalyze.length} URLs analyzed`,
         elements: allResults.flatMap(result => result.elements),
         analysisDate: new Date(),
         success: allResults.some(result => result.success),
-        totalUrls: project.urls.length,
+        totalUrls: urlsToAnalyze.length,
         successfulUrls: successfulResults.length,
         authenticationUsed: false,
         totalElementsStored: totalElementsFound,

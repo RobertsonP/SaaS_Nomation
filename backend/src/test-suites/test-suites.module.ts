@@ -1,15 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TestSuitesController } from './test-suites.controller';
 import { TestSuitesService } from './test-suites.service';
-import { ExecutionService } from '../execution/execution.service';
+import { ExecutionModule } from '../execution/execution.module';
 import { PrismaModule } from '../prisma/prisma.module';
-import { AuthFlowsModule } from '../auth-flows/auth-flows.module';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, AuthFlowsModule, AuthModule],
+  imports: [PrismaModule, ExecutionModule],
   controllers: [TestSuitesController],
-  providers: [TestSuitesService, ExecutionService],
+  providers: [TestSuitesService],
   exports: [TestSuitesService],
 })
 export class TestSuitesModule {}

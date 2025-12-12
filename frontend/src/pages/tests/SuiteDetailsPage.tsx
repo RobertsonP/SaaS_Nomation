@@ -96,32 +96,43 @@ export function SuiteDetailsPage() {
 
   const handleCreateNewTest = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!projectId || !testSuite) {
+      showError('Error', 'Project or test suite not found')
+      return
+    }
+
     try {
-      // Create new test and add to suite
+      // Step 1: Create the test
       const createdTest = await testsAPI.create({
         ...newTest,
-        projectId: projectId!,
+        projectId: projectId,
         steps: []
       })
-      
-      if (testSuite) {
-        const updatedSuite = {
-          ...testSuite,
-          tests: [...testSuite.tests, createdTest.data]
-        }
-        setTestSuite(updatedSuite)
-      }
-      
-      setNewTest({ name: '', description: '', startingUrl: '' })
+
+      console.log('✅ Test created:', createdTest.data.id)
+
+      // Step 2: Add test to suite (THIS WAS MISSING!)
+      await testSuitesAPI.addTests(testSuite.id, [createdTest.data.id])
+
+      console.log('✅ Test added to suite')
+
+      // Step 3: Reload suite data (will now include the new test)
+      await loadData()
+
+      // Step 4: Close modal and reset form
       setShowCreateTestModal(false)
-      showSuccess('Test Created', `Test "${newTest.name}" created and added to suite`)
-      
-      // Refresh available tests
-      loadData()
-      
-    } catch (error) {
-      console.error('Failed to create test:', error)
-      showError('Creation Failed', 'Failed to create test')
+      setNewTest({
+        name: '',
+        description: '',
+        startingUrl: ''
+      })
+
+      showSuccess('Test Created', `Test "${newTest.name}" created and added to suite successfully`)
+
+    } catch (error: any) {
+      console.error('❌ Failed to create test:', error)
+      showError('Failed to Create Test', error.response?.data?.message || 'An error occurred')
     }
   }
 

@@ -28,6 +28,8 @@ interface SimplifiedAuthSetupProps {
     username: string;
     password: string;
     steps?: any[];
+    useAutoDetection?: boolean;
+    manualSelectors?: { usernameSelector: string; passwordSelector: string; submitSelector: string } | null;
   }; // Initial data for editing
 }
 
@@ -49,7 +51,42 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
     username: initialData?.username || '',
     password: initialData?.password || ''
   });
-  
+
+  // Update credentials when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      setCredentials({
+        name: initialData.name || 'Main Authentication',
+        loginUrl: initialData.loginUrl || '',
+        username: initialData.username || '',
+        password: initialData.password || ''
+      });
+    }
+  }, [initialData]);
+
+  const [useAutoDetection, setUseAutoDetection] = useState(
+    initialData?.useAutoDetection !== undefined ? initialData.useAutoDetection : true
+  );
+  const [manualSelectors, setManualSelectors] = useState({
+    usernameSelector: initialData?.manualSelectors?.usernameSelector || '',
+    passwordSelector: initialData?.manualSelectors?.passwordSelector || '',
+    submitSelector: initialData?.manualSelectors?.submitSelector || ''
+  });
+
+  // Update useAutoDetection and manualSelectors when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      setUseAutoDetection(initialData.useAutoDetection !== undefined ? initialData.useAutoDetection : true);
+      if (initialData.manualSelectors) {
+        setManualSelectors({
+          usernameSelector: initialData.manualSelectors.usernameSelector || '',
+          passwordSelector: initialData.manualSelectors.passwordSelector || '',
+          submitSelector: initialData.manualSelectors.submitSelector || ''
+        });
+      }
+    }
+  }, [initialData]);
+
   const [testResult, setTestResult] = useState<any>(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -158,26 +195,64 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
     if (!selectedTemplate) return;
 
     setSaving(true);
+    setTestResult(null); // Clear any previous messages
+
     try {
       const authFlowData = {
         name: credentials.name,
         loginUrl: credentials.loginUrl,
         username: credentials.username,
         password: credentials.password,
-        steps: selectedTemplate.steps
+        steps: selectedTemplate.steps,
+        useAutoDetection: useAutoDetection,
+        manualSelectors: !useAutoDetection ? manualSelectors : null
       };
 
       if (isEditMode && authFlowId) {
         // Update existing auth flow
         await authFlowsAPI.update(authFlowId, authFlowData);
+        console.log('✅ Auth flow updated successfully');
+        console.log(`   Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
+        if (!useAutoDetection) {
+          console.log(`   Manual selectors:`, manualSelectors);
+        }
       } else {
         // Create new auth flow
         await authFlowsAPI.create(projectId, authFlowData);
+        console.log('✅ Auth flow created successfully');
+        console.log(`   Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
+        if (!useAutoDetection) {
+          console.log(`   Manual selectors:`, manualSelectors);
+        }
       }
 
-      onComplete();
-    } catch (error) {
+      // Show success message before closing
+      setTestResult({
+        success: true,
+        message: isEditMode ? 'Authentication flow updated successfully!' : 'Authentication flow created successfully!',
+        suggestions: []
+      });
+
+      // Close modal after short delay to show success message
+      setTimeout(() => {
+        onComplete();
+      }, 800);
+
+    } catch (error: any) {
       console.error('Failed to save auth flow:', error);
+
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+
+      // Show error to user
+      setTestResult({
+        success: false,
+        message: `Failed to ${isEditMode ? 'update' : 'save'} authentication flow: ${errorMessage}`,
+        suggestions: [
+          'Check your internet connection',
+          'Verify all required fields are filled',
+          'Try again in a few moments'
+        ]
+      });
     } finally {
       setSaving(false);
     }
@@ -269,6 +344,80 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
               </div>
             </div>
 
+            {/* Auto Detection Mode Toggle */}
+            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="useAutoDetection"
+                  checked={useAutoDetection}
+                  onChange={(e) => setUseAutoDetection(e.target.checked)}
+                  className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div className="flex-1">
+                  <label htmlFor="useAutoDetection" className="font-medium text-blue-900 cursor-pointer">
+                    🤖 Use Automatic Field Detection (Recommended)
+                  </label>
+                  <p className="text-sm text-blue-800 mt-1">
+                    Our smart system will automatically find username, password, and submit button fields using 30+ detection strategies.
+                    Works with most websites including custom implementations, frameworks (React/Vue/Angular), and multi-language sites.
+                  </p>
+                  {!useAutoDetection && (
+                    <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-900">
+                      ⚠️ Manual mode requires you to provide exact CSS selectors. Only use this if automatic detection fails.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Manual Selectors (Only shown when auto detection is OFF) */}
+            {!useAutoDetection && (
+              <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 space-y-4">
+                <h4 className="font-medium text-gray-900 mb-2">Manual Field Selectors</h4>
+                <p className="text-sm text-gray-600 mb-3">Provide exact CSS selectors for each field:</p>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username/Email Field Selector <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSelectors.usernameSelector}
+                    onChange={(e) => setManualSelectors({...manualSelectors, usernameSelector: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    placeholder='e.g., input[name="email"], #username'
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password Field Selector <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSelectors.passwordSelector}
+                    onChange={(e) => setManualSelectors({...manualSelectors, passwordSelector: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    placeholder='e.g., input[type="password"], #pass'
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Submit Button Selector <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSelectors.submitSelector}
+                    onChange={(e) => setManualSelectors({...manualSelectors, submitSelector: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    placeholder='e.g., button[type="submit"], #loginBtn'
+                  />
+                </div>
+              </div>
+            )}
+
             {selectedTemplate && (
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-medium text-gray-900 mb-2">Selected Template: {selectedTemplate.name}</h4>
@@ -279,20 +428,32 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
               </div>
             )}
 
-            <div className="flex space-x-4">
+            <div className="flex flex-col space-y-3">
+              {/* Primary Action: Save Directly */}
               <button
-                onClick={() => setStep('test')}
-                disabled={!credentials.loginUrl || !credentials.username || !credentials.password}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={handleSaveAuthFlow}
+                disabled={!credentials.loginUrl || !credentials.username || !credentials.password || saving}
+                className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
               >
-                Test Authentication
+                {saving ? 'Saving...' : (isEditMode ? 'Update Auth Flow' : 'Save Auth Flow')}
               </button>
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
+
+              {/* Secondary Actions */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setStep('test')}
+                  disabled={!credentials.loginUrl || !credentials.username || !credentials.password}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Test First (Optional)
+                </button>
+                <button
+                  onClick={onCancel}
+                  className="px-6 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}

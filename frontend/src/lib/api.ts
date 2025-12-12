@@ -89,8 +89,8 @@ export const projectsAPI = {
     api.put(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
   // AI Enhancement methods
-  analyze: async (projectId: string): Promise<PageAnalysisResult> => {
-    const response = await api.post(`/projects/${projectId}/analyze`);
+  analyze: async (projectId: string, urlIds?: string[]): Promise<PageAnalysisResult> => {
+    const response = await api.post(`/projects/${projectId}/analyze`, { urlIds });
     return response.data;
   },
   getElements: async (projectId: string): Promise<ProjectElement[]> => {
@@ -226,6 +226,7 @@ export const testsAPI = {
   updateSteps: (testId: string, steps: any[]) =>
     api.put(`/api/tests/${testId}/steps`, { steps }),
   execute: (testId: string) => api.post(`/api/tests/${testId}/execute`),
+  delete: (testId: string) => api.delete(`/api/tests/${testId}`),
 };
 
 // Execution API
@@ -241,6 +242,7 @@ export const executionAPI = {
 export const authFlowsAPI = {
   create: (projectId: string, authFlow: any) => api.post('/api/auth-flows', { projectId, ...authFlow }),
   getByProject: (projectId: string) => api.get(`/api/auth-flows/project/${projectId}`),
+  getById: (id: string) => api.get(`/api/auth-flows/${id}`),
   update: (id: string, authFlow: any) => api.put(`/api/auth-flows/${id}`, authFlow),
   delete: (id: string) => api.delete(`/api/auth-flows/${id}`),
   // NEW: Fixed API methods for templates and testing
@@ -270,7 +272,7 @@ export const testSuitesAPI = {
 };
 
 // Convenience functions for AI features
-export const analyzeProjectPages = (projectId: string) => projectsAPI.analyze(projectId);
+export const analyzeProjectPages = (projectId: string, urlIds?: string[]) => projectsAPI.analyze(projectId, urlIds);
 export const getProjectElements = (projectId: string) => projectsAPI.getElements(projectId);
 export const validateSelector = (projectId: string, selector: string) => 
   projectsAPI.validateSelector(projectId, selector);

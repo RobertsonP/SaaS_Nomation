@@ -77,36 +77,92 @@ export class AuthenticationAnalyzerService {
       let authSession = null;
       
       try {
-        console.log(`📄 Processing PROJECT URL: ${projectUrl}`);
-        
+        console.log(`\n${'='.repeat(80)}`);
+        console.log(`📄 PROCESSING URL ${i + 1} OF ${urls.length}`);
+        console.log(`🎯 Target: ${projectUrl}`);
+        console.log(`${'='.repeat(80)}\n`);
+
         // IMPLEMENTATION OF YOUR 2-LOGIC FLOW:
-        
+
         // STEP 1: Open the URL provided in project
-        console.log(`🎯 LOGIC STEP 1: Opening provided URL: ${projectUrl}`);
+        console.log(`🌐 STEP 1: Opening URL: ${projectUrl}`);
         if (progressCallback) {
-          console.log(`📊 CALLING PROGRESS CALLBACK: loading - Loading ${projectUrl}...`);
-          progressCallback('loading', `Loading ${projectUrl}...`, i + 1, urls.length);
+          progressCallback('loading', `Opening ${projectUrl} (${i + 1}/${urls.length})`, i + 1, urls.length);
         }
         
         // Use UnifiedAuthService to handle authentication logic
         authSession = await this.unifiedAuthService.authenticateForUrl(projectUrl, authFlow);
         const { browser, page, result } = authSession;
-        
+
         // STEP 2: Wait for some amount of time (10-15 seconds) - handled by UnifiedAuthService
         console.log(`⏳ LOGIC STEP 2: Waiting for page stabilization (handled by UnifiedAuthService)`);
-        
-        // STEP 3: Check if current URL matches with provided URL - handled by UnifiedAuthService
+
+        // STEP 3: Additional wait after auth for page redirects/loading
+        console.log(`⏳ Waiting additional 3 seconds for page redirect/loading...`);
+        await page.waitForTimeout(3000);
+
+        // Wait for page to be ready
+        try {
+          await page.waitForLoadState('networkidle', { timeout: 10000 });
+          console.log(`✅ Page reached networkidle state`);
+        } catch (waitError) {
+          console.log(`⚠️ Page did not reach networkidle, proceeding anyway`);
+        }
+
+        // STEP 4: Check if current URL matches with provided URL - handled by UnifiedAuthService
         const currentUrl = page.url();
-        console.log(`🔍 LOGIC STEP 3: URL Check - Target: ${projectUrl}, Current: ${currentUrl}, Success: ${result.success}`);
-        
+        console.log(`🔍 LOGIC STEP 4: URL Check - Target: ${projectUrl}, Current: ${currentUrl}, Success: ${result.success}`);
+
         // Take screenshot after authentication/navigation
         const afterAuthScreenshot = await page.screenshot({ type: 'png', fullPage: true });
         await this.saveScreenshot(afterAuthScreenshot, `auth_complete_${i}_${Date.now()}`);
         console.log(`📸 SCREENSHOT AFTER AUTH - Base64 length: ${afterAuthScreenshot.toString('base64').length}`);
-        
+
         if (!result.success) {
           console.error(`❌ Authentication/navigation failed: ${result.errorMessage}`);
           throw new Error(result.errorMessage || 'Authentication failed');
+        }
+
+        // STEP 5: Navigate to target URL (explicit navigation for reliability)
+        console.log(`\n🎯 === NAVIGATION TO TARGET PAGE ===`);
+        console.log(`   Target URL: ${projectUrl}`);
+        console.log(`   Current URL: ${currentUrl}`);
+        console.log(`   Auth was needed: ${result.authenticated ? 'YES' : 'NO'}`);
+
+        // Check if we're already on target page
+        const onTargetPage = this.unifiedAuthService.urlsMatch(projectUrl, currentUrl);
+
+        if (onTargetPage) {
+          console.log(`✅ Already on target page - ready to analyze`);
+        } else {
+          console.log(`🔄 Not on target page - navigating now...`);
+
+          // Navigate to target URL (whether it's login page or protected page)
+          try {
+            console.log(`📍 Navigating to: ${projectUrl}`);
+            await page.goto(projectUrl, {
+              waitUntil: 'networkidle',
+              timeout: 30000
+            });
+
+            // Wait for page to stabilize
+            await page.waitForTimeout(2000);
+
+            // Verify we reached the target
+            const finalUrl = page.url();
+            console.log(`📍 Final URL after navigation: ${finalUrl}`);
+
+            if (!this.unifiedAuthService.urlsMatch(projectUrl, finalUrl)) {
+              console.error(`❌ Navigation did not reach target. Expected: ${projectUrl}, Got: ${finalUrl}`);
+              throw new Error(`Failed to navigate to target page ${projectUrl}. Final URL: ${finalUrl}`);
+            }
+
+            console.log(`✅ Successfully navigated to target page`);
+
+          } catch (navError) {
+            console.error(`❌ Navigation error: ${navError.message}`);
+            throw new Error(`Failed to navigate to ${projectUrl}: ${navError.message}`);
+          }
         }
         
         if (result.authenticated) {
@@ -121,10 +177,11 @@ export class AuthenticationAnalyzerService {
           }
         }
         
-        // STEP 4: Start scraping (element extraction)
-        console.log(`🔍 LOGIC FINAL STEP: Starting element extraction from ${projectUrl}`);
+        // STEP 6: Start element extraction
+        console.log(`\n🔍 === ELEMENT EXTRACTION ===`);
+        console.log(`   Analyzing page: ${projectUrl}`);
         if (progressCallback) {
-          progressCallback('extracting', `Extracting elements from ${projectUrl}...`, i + 1, urls.length);
+          progressCallback('extracting', `Analyzing ${projectUrl} (${i + 1}/${urls.length})`, i + 1, urls.length);
         }
         
         // Take screenshot before element extraction
@@ -230,10 +287,14 @@ export class AuthenticationAnalyzerService {
           }
         });
         
-        console.log(`✅ Successfully extracted ${elements.length} elements from ${projectUrl}`);
-        
+        console.log(`\n✅ === ANALYSIS COMPLETE ===`);
+        console.log(`   URL: ${projectUrl}`);
+        console.log(`   Elements found: ${elements.length}`);
+        console.log(`   Status: SUCCESS`);
+        console.log(`${'='.repeat(80)}\n`);
+
         if (progressCallback) {
-          progressCallback('completed', `Found ${elements.length} elements from ${projectUrl}`, i + 1, urls.length);
+          progressCallback('completed', `✓ ${projectUrl}: ${elements.length} elements (${i + 1}/${urls.length})`, i + 1, urls.length);
         }
         
       } catch (urlError) {

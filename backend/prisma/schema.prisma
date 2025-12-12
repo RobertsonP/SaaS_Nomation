@@ -138,19 +138,21 @@ model ProjectElement {
 }
 
 model AuthFlow {
-  id              String           @id @default(cuid())
-  name            String
-  loginUrl        String
-  steps           Json
-  credentials     Json
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  projectId       String
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  browserSessions BrowserSession[]
-  pageStates      PageState[]
-  elements        ProjectElement[]
-  tests           Test[]
+  id                String           @id @default(cuid())
+  name              String
+  loginUrl          String
+  steps             Json
+  credentials       Json
+  useAutoDetection  Boolean          @default(true)
+  manualSelectors   Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  browserSessions   BrowserSession[]
+  pageStates        PageState[]
+  elements          ProjectElement[]
+  tests             Test[]
 
   @@map("auth_flows")
 }

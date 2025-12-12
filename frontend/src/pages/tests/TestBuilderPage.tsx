@@ -330,6 +330,7 @@ export function TestBuilderPage() {
               initialSteps={test?.steps || []}
               projectId={projectId}
               testId={testId}
+              startingUrl={selectedStartingUrl}
             />
           </div>
         </div>

@@ -24,6 +24,7 @@ interface LiveExecutionData {
   currentStepIndex: number;
   totalSteps: number;
   startedAt: string;
+  completedAt?: string;
   duration?: number;
   steps: LiveExecutionStep[];
   currentScreenshot?: string;
@@ -69,32 +70,49 @@ export function LiveExecutionViewer({
     try {
       setIsExecuting(true);
       setError(null);
-      
-      // Initialize WebSocket connection for real-time updates
-      setupWebSocket();
-      
-      // Start the execution using the API
+
+      // Initialize WebSocket connection for real-time updates (optional)
+      // setupWebSocket();
+
+      // Start the execution using the API - this now returns complete results
       const response = await api.post(`/api/execution/test/${testId}/run-live`);
-      const data = response.data;
-      
+      const execution = response.data;
+
+      // Map the execution results to our live execution format
+      const executionResults = execution.results || [];
+
       setExecutionData({
-        executionId: data.executionId,
+        executionId: execution.id,
         testId: testId,
         testName: testName,
-        status: 'initializing',
-        currentStepIndex: 0,
-        totalSteps: data.totalSteps || 0,
-        startedAt: new Date().toISOString(),
-        steps: data.steps?.map((step: any, index: number) => ({
-          id: step.id,
+        status: execution.status === 'passed' ? 'passed' : execution.status === 'failed' ? 'failed' : 'running',
+        currentStepIndex: executionResults.length,
+        totalSteps: executionResults.length,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt,
+        duration: execution.duration,
+        steps: executionResults.map((result: any, index: number) => ({
+          id: result.step || `step-${index}`,
           stepIndex: index,
-          type: step.type,
-          selector: step.selector,
-          value: step.value,
-          description: step.description,
-          status: 'pending'
-        })) || []
+          type: result.step,
+          selector: result.selector,
+          value: result.value,
+          description: result.description,
+          status: result.status === 'passed' ? 'passed' : result.status === 'failed' ? 'failed' : 'pending',
+          screenshot: result.screenshot,
+          error: result.error,
+          duration: result.duration,
+          startedAt: result.timestamp,
+          completedAt: result.timestamp
+        }))
       });
+
+      setIsExecuting(false);
+
+      // Call completion callback if provided
+      if (onExecutionComplete) {
+        onExecutionComplete(execution);
+      }
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';

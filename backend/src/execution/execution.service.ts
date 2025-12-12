@@ -4,11 +4,13 @@ import { chromium, Browser, Page } from 'playwright';
 import { AuthFlowsService } from '../auth-flows/auth-flows.service';
 import { UnifiedAuthService } from '../auth/unified-auth.service';
 import { LoginFlow } from '../ai/interfaces/element.interface';
+import { ExecutionProgressGateway } from './execution.gateway';
 
 interface TestStep {
   id: string;
   type: 'click' | 'type' | 'wait' | 'assert';
   selector: string;
+  fallbackSelectors?: string[]; // NEW: Fallback selectors for robustness
   value?: string;
   description: string;
 }
@@ -18,7 +20,8 @@ export class ExecutionService {
   constructor(
     private prisma: PrismaService,
     private authFlowsService: AuthFlowsService,
-    private unifiedAuthService: UnifiedAuthService
+    private unifiedAuthService: UnifiedAuthService,
+    private progressGateway: ExecutionProgressGateway
   ) {}
 
   async executeTest(testId: string) {
@@ -44,6 +47,9 @@ export class ExecutionService {
           startedAt: new Date(),
         },
       });
+
+      // Send WebSocket event: Test started
+      this.progressGateway.sendTestStarted(execution.id, testId, test.name);
 
       const results: any[] = [];
       const screenshots: string[] = [];
@@ -140,34 +146,44 @@ export class ExecutionService {
 
         // Execute test steps
         const steps = test.steps as unknown as TestStep[];
-        for (const step of steps) {
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+
           try {
-            await this.executeStep(page, step);
-            
+            // Send WebSocket event: Step started
+            this.progressGateway.sendStepStarted(execution.id, i, steps.length, step.description);
+
+            const result = await this.executeStep(page, step);
+
             // Capture screenshot after each step
             const stepScreenshot = await this.capturePageScreenshot(page);
             if (stepScreenshot) {
               screenshots.push(stepScreenshot);
             }
-            
+
             results.push({
               step: step.type,
               description: step.description,
               selector: step.selector,
               value: step.value,
               status: 'passed',
+              result,
               timestamp: new Date(),
             });
+
+            // Send WebSocket event: Step completed
+            this.progressGateway.sendStepCompleted(execution.id, i, steps.length, step.description);
+
           } catch (error) {
             success = false;
             errorMsg = `Step "${step.description}" failed: ${error.message}`;
-            
+
             // Capture screenshot of error state
             const errorScreenshot = await this.capturePageScreenshot(page);
             if (errorScreenshot) {
               screenshots.push(errorScreenshot);
             }
-            
+
             results.push({
               step: step.type,
               description: step.description,
@@ -177,6 +193,10 @@ export class ExecutionService {
               error: error.message,
               timestamp: new Date(),
             });
+
+            // Send WebSocket event: Step failed
+            this.progressGateway.sendStepFailed(execution.id, i, steps.length, step.description, error.message);
+
             break;
           }
         }
@@ -189,55 +209,107 @@ export class ExecutionService {
       }
 
       // Update execution record
+      const duration = Date.now() - execution.startedAt.getTime();
       await this.prisma.testExecution.update({
         where: { id: execution.id },
         data: {
           status: success ? 'passed' : 'failed',
           completedAt: new Date(),
-          duration: Date.now() - execution.startedAt.getTime(),
+          duration,
           errorMsg,
           results,
           screenshots,
         },
       });
 
-      return execution;
+      // Send WebSocket event: Test completed or failed
+      if (success) {
+        this.progressGateway.sendTestCompleted(execution.id, testId, test.name, duration);
+      } else {
+        this.progressGateway.sendTestFailed(execution.id, testId, test.name, errorMsg || 'Unknown error');
+      }
+
+      // Return fresh execution object with updated results from database
+      return this.prisma.testExecution.findUnique({
+        where: { id: execution.id },
+        include: { test: true },
+      });
     } catch (error) {
       console.error('Test execution failed:', error);
       throw error;
     }
   }
 
+  /**
+   * NEW: Get reliable locator with fallback selector support
+   * Tries primary selector first, then fallback selectors until one works
+   */
+  private async getReliableLocator(page: Page, step: TestStep) {
+    const selectors = [
+      step.selector,
+      ...(step.fallbackSelectors || [])
+    ];
+
+    console.log(`🎯 Attempting ${selectors.length} selector(s) for "${step.description || step.type}"`);
+
+    for (let i = 0; i < selectors.length; i++) {
+      const selector = selectors[i];
+      try {
+        const locator = page.locator(selector);
+
+        // Check if locator actually finds element(s)
+        const count = await locator.count();
+
+        if (count > 0) {
+          if (i === 0) {
+            console.log(`✅ Primary selector works: ${selector}`);
+          } else {
+            console.log(`⚠️ Primary failed, using fallback #${i}: ${selector}`);
+          }
+          return locator.first();
+        } else {
+          console.log(`❌ Selector ${i + 1}/${selectors.length} found 0 elements: ${selector}`);
+        }
+      } catch (error) {
+        console.warn(`❌ Selector ${i + 1}/${selectors.length} failed: ${selector} - ${error.message}`);
+      }
+    }
+
+    // All selectors failed
+    throw new Error(
+      `Element not found. Tried ${selectors.length} selector(s):\n` +
+      selectors.map((s, i) => `  ${i + 1}. ${s}`).join('\n') +
+      `\n\nHint: Element may have changed or not be visible on this page.`
+    );
+  }
+
   private async executeStep(page: Page, step: TestStep) {
     const timeout = 10000; // 10 seconds timeout
 
+    console.log(`[DEBUG] Executing step: ${step.type} - ${step.description}`);
+
     try {
-      // Modern Playwright API: Use page.locator() for all selector types
-      // This properly handles:
-      // - CSS selectors: #id, .class, [attribute]
-      // - Playwright CSS extensions: :has-text(), :visible, :enabled
-      // - Deep combinators: >> for shadow DOM piercing
-      // - XPath selectors: //button[@type="submit"]
-      const locator = page.locator(step.selector).first();
+      // Use reliable locator with fallback support
+      const locator = await this.getReliableLocator(page, step);
 
       switch (step.type) {
         case 'click':
           // MODERNIZED: Use locator.click() instead of deprecated page.click()
           await locator.click({ timeout });
           console.log(`✓ Clicked element: ${step.selector}`);
-          break;
+          return { success: true, action: 'click', selector: step.selector };
 
         case 'type':
           // MODERNIZED: Use locator.fill() instead of deprecated page.fill()
           await locator.fill(step.value || '', { timeout });
           console.log(`✓ Filled element: ${step.selector} with "${step.value}"`);
-          break;
+          return { success: true, action: 'type', selector: step.selector, value: step.value };
 
         case 'wait':
           const waitTime = parseInt(step.value || '1000', 10);
           await page.waitForTimeout(waitTime);
           console.log(`✓ Waited for ${waitTime}ms`);
-          break;
+          return { success: true, action: 'wait', value: waitTime };
 
         case 'assert':
           const textContent = await locator.textContent({ timeout });
@@ -247,7 +319,7 @@ export class ExecutionService {
             );
           }
           console.log(`✓ Assertion passed: "${step.value}" found in "${textContent}"`);
-          break;
+          return { success: true, action: 'assert', value: step.value, actual: textContent };
 
         default:
           throw new Error(`Unknown step type: ${step.type}`);

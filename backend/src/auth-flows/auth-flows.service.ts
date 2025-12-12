@@ -10,6 +10,8 @@ export class AuthFlowsService {
     loginUrl: string;
     steps: any[];
     credentials: { username: string; password: string };
+    useAutoDetection?: boolean;
+    manualSelectors?: any;
   }) {
     return this.prisma.authFlow.create({
       data: {
@@ -18,6 +20,30 @@ export class AuthFlowsService {
         loginUrl: authFlowData.loginUrl,
         steps: authFlowData.steps,
         credentials: authFlowData.credentials,
+        useAutoDetection: authFlowData.useAutoDetection !== undefined ? authFlowData.useAutoDetection : true,
+        manualSelectors: authFlowData.manualSelectors || null,
+      },
+    });
+  }
+
+  async update(id: string, authFlowData: {
+    name: string;
+    loginUrl: string;
+    steps: any[];
+    credentials: { username: string; password: string };
+    useAutoDetection?: boolean;
+    manualSelectors?: any;
+  }) {
+    return this.prisma.authFlow.update({
+      where: { id },
+      data: {
+        name: authFlowData.name,
+        loginUrl: authFlowData.loginUrl,
+        steps: authFlowData.steps,
+        credentials: authFlowData.credentials,
+        useAutoDetection: authFlowData.useAutoDetection !== undefined ? authFlowData.useAutoDetection : true,
+        manualSelectors: authFlowData.manualSelectors || null,
+        updatedAt: new Date(),
       },
     });
   }

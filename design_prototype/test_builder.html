@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaaS Nomation - Test Builder</title>
+    <title>SaaS Nomation - Test Builder (Live Picker)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+        
         :root {
             --bg-primary: #1A202C;
             --bg-secondary: #2D3748;
@@ -16,104 +18,232 @@
             --accent-primary: #38B2AC;
             --accent-primary-hover: #4FD1C5;
             --accent-success: #48BB78;
+            --accent-warning: #ED8936;
         }
         body { 
             margin: 0; 
             font-family: 'Inter', sans-serif; 
             background-color: var(--bg-primary); 
             color: var(--text-primary);
-            overflow: hidden; /* Prevent scrolling of the whole page */
+            overflow: hidden; 
         }
         .global-layout { display: flex; min-height: 100vh; }
         .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
         .page-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; }
         .top-header { padding: 12px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .main-content { flex-grow: 1; overflow: hidden; }
+        .main-content { flex-grow: 1; overflow: hidden; position: relative; } /* Added relative for overlay */
+        
         .builder-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100%; }
         .panel { border-right: 1px solid var(--border-color); display: flex; flex-direction: column; height: 100%; background-color: var(--bg-primary); }
         .panel:last-child { border-right: none; }
-        .panel-header { padding: 16px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .panel-header { padding: 16px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
         .panel-content { overflow-y: auto; flex-grow: 1; padding: 16px; }
-        .step-action { font-weight: 600; color: var(--accent-primary); }
-        .visual-picker { background-color: var(--bg-secondary); padding: 16px; position: relative; }
-        .selection-box { position: absolute; border: 2px solid var(--accent-primary); background-color: rgba(56, 178, 172, 0.2); }
-        .element-details .snapshot { background-color: var(--bg-secondary); border-radius: 4px; margin-bottom: 16px; }
+        
         .form-input { width: 100%; box-sizing: border-box; background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 10px 12px; font-size: 0.875rem; }
-        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border-color: var(--accent-primary); }
+        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-secondary { background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+
+        /* --- LIVE ELEMENT PICKER OVERLAY --- */
+        .picker-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(26, 32, 44, 0.95);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .picker-header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .url-bar {
+            flex-grow: 1;
+            display: flex;
+            gap: 12px;
+        }
+
+        .browser-frame {
+            flex-grow: 1;
+            background: white; /* Simulating browser content */
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Simulated Website Content */
+        .website-mockup {
+            width: 100%;
+            height: 100%;
+            background: #f0f0f0;
+            position: relative;
+        }
+        
+        .mock-nav { height: 60px; background: #333; display: flex; align-items: center; padding: 0 40px; }
+        .mock-hero { height: 300px; background: #ddd; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .mock-btn { padding: 12px 24px; background: #007bff; color: white; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; }
+
+        /* The Selection Highlight */
+        .selection-highlight {
+            position: absolute;
+            border: 2px solid var(--accent-primary);
+            background: rgba(56, 178, 172, 0.2);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .selection-label {
+            position: absolute;
+            top: -28px;
+            left: -2px;
+            background: var(--accent-primary);
+            color: #1A202C;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px 4px 0 0;
+            font-family: 'Fira Code', monospace;
+            white-space: nowrap;
+        }
+
+        /* Inspector Panel */
+        .picker-inspector {
+            width: 350px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inspector-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .code-block {
+            background: #111;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-warning);
+            margin-bottom: 12px;
+            overflow-x: auto;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
     </style>
 </head>
 <body>
     <div class="global-layout">
-        <aside class="sidebar">...</aside>
+        <aside class="sidebar">
+            <div style="padding: 16px; color: var(--text-secondary);">[Sidebar Content]</div>
+        </aside>
+        
         <div class="page-container">
-            <header class="top-header">...</header>
+            <header class="top-header">
+                <div style="font-weight: 600;">Test Builder / E-commerce Checkout</div>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn-secondary">Cancel</button>
+                    <button class="btn-primary">Save Test</button>
+                </div>
+            </header>
+            
             <main class="main-content">
-                <div class="builder-layout">
-                    <!-- Left Panel: Element Library -->
-                    <div class="panel">
-                        <div class="panel-header"><h3>Element Library</h3></div>
-                        <div class="panel-content">
-                            <div style="padding-bottom: 16px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-                                <input class="form-input" placeholder="Search elements...">
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 12px;">
-                                <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: grab;">
-                                    <div style="font-weight: 600;">Login Button</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: 'Fira Code', monospace;">button[type="submit"]</div>
-                                </div>
-                                <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: grab;">
-                                    <div style="font-weight: 600;">Username Input</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: 'Fira Code', monospace;">input[name="username"]</div>
-                                </div>
-                            </div>
+                <!-- Standard Builder Layout (Behind Overlay) -->
+                <div class="builder-layout" style="filter: blur(2px); opacity: 0.5;">
+                    <!-- ... (Same as original test_builder.html content) ... -->
+                    <div class="panel"><div class="panel-header"><h3>Library</h3></div></div>
+                    <div class="panel"><div class="panel-header"><h3>Steps</h3></div></div>
+                    <div class="panel"><div class="panel-header"><h3>Details</h3></div></div>
+                </div>
+
+                <!-- LIVE ELEMENT PICKER OVERLAY -->
+                <div class="picker-overlay">
+                    <!-- Picker Header -->
+                    <div class="picker-header">
+                        <div style="font-weight: 600; color: var(--accent-primary);">⚡ Live Element Picker</div>
+                        <div class="url-bar">
+                            <input class="form-input" type="url" value="https://shop.example.com" style="background: var(--bg-primary);">
+                            <button class="btn-primary" style="padding: 10px;">Go</button>
                         </div>
+                        <button class="btn-secondary" style="padding: 10px;">✕ Close Picker</button>
                     </div>
 
-                    <!-- Center Panel: Test Steps -->
-                    <div class="panel" style="background-color: var(--bg-secondary);">
-                        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3>Test Steps: User Login</h3>
-                            <button class="btn-primary" style="padding: 8px 16px;">▶ Run Test</button>
-                        </div>
-                        <div class="panel-content" style="padding: 0;">
-                            <div class="drop-zone" style="padding: 24px; text-align: center; border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
-                                Drag elements here to build your test
-                            </div>
-                            <!-- Test Step Example -->
-                            <div class="test-step" style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 12px;">
-                                <span style="color: var(--text-secondary); cursor: move;">☰</span>
-                                <div style="flex-grow: 1;">
-                                    <div><span class="step-action">CLICK</span> on <strong>Login Button</strong></div>
-                                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Waits for button to be visible</div>
+                    <div style="flex-grow: 1; display: flex; overflow: hidden;">
+                        <!-- Browser Frame -->
+                        <div class="browser-frame">
+                            <div class="website-mockup">
+                                <div class="mock-nav">
+                                    <span style="color: white; font-weight: bold; font-size: 1.2rem;">ShopLogo</span>
                                 </div>
-                                <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;">Edit</button>
-                            </div>
-                            <!-- Inline Editing View -->
-                            <div class="test-step" style="padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-primary);">
-                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                                    <span style="color: var(--text-secondary); cursor: move;">☰</span>
-                                    <div style="flex-grow: 1; font-weight: 600;"><span class="step-action">TYPE TEXT</span></div>
-                                    <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;">Save</button>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Target Element</label>
-                                    <input class="form-input" value="Username Input" disabled>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Text to Type</label>
-                                    <input class="form-input" value="testuser@example.com">
+                                <div class="mock-hero">
+                                    <h1 style="color: #333; margin-bottom: 20px;">Summer Sale</h1>
+                                    <!-- Target Element -->
+                                    <button class="mock-btn" style="position: relative;">Shop Now</button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- Right Panel: Test Details (Simplified) -->
-                    <div class="panel">
-                        <div class="panel-header"><h3>Test Details</h3></div>
-                        <div class="panel-content">
-                            <p style="color: var(--text-secondary);">Select a step to view or edit its details, variables, and assertions.</p>
-                            <button class="btn-secondary" style="width: 100%; margin-top: 12px;">+ Add Variable</button>
-                            <button class="btn-secondary" style="width: 100%; margin-top: 12px;">+ Add Assertion</button>
+                            <!-- Visual Selection Highlight -->
+                            <div class="selection-highlight" style="top: 180px; left: 50%; transform: translateX(-50%); width: 120px; height: 44px;">
+                                <div class="selection-label">button.shop-now</div>
+                            </div>
                         </div>
+
+                        <!-- Inspector Panel -->
+                        <aside class="picker-inspector">
+                            <h3 style="margin-top: 0;">Selected Element</h3>
+                            
+                            <div class="inspector-card">
+                                <div style="margin-bottom: 8px; font-weight: 600;">Shop Now Button</div>
+                                <div class="code-block">
+                                    &lt;button class="shop-now"&gt;<br>
+                                    &nbsp;&nbsp;Shop Now<br>
+                                    &lt;/button&gt;
+                                </div>
+
+                                <div style="margin-bottom: 8px; font-size: 0.875rem; color: var(--text-secondary);">Suggested Selector:</div>
+                                <div class="code-block" style="color: var(--accent-primary);">
+                                    button:has-text("Shop Now")
+                                </div>
+
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <button class="btn-primary" style="width: 100%;">+ Add to Library</button>
+                                    <button class="btn-secondary" style="width: 100%;">Test Selector</button>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 24px;">
+                                <h4 style="margin-bottom: 12px;">Attributes</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem;">
+                                    <div style="color: var(--text-secondary);">Tag</div>
+                                    <div>button</div>
+                                    <div style="color: var(--text-secondary);">Class</div>
+                                    <div>shop-now</div>
+                                    <div style="color: var(--text-secondary);">Text</div>
+                                    <div>Shop Now</div>
+                                    <div style="color: var(--text-secondary);">Visible</div>
+                                    <div style="color: var(--accent-success);">Yes</div>
+                                </div>
+                            </div>
+                        </aside>
                     </div>
                 </div>
+
+            </main>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Nomation - Modal System</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+        
+        :root {
+            --bg-primary: #1A202C;
+            --bg-secondary: #2D3748;
+            --bg-tertiary: #4A5568;
+            --border-color: #4A5568;
+            --text-primary: #E2E8F0;
+            --text-secondary: #A0AEC0;
+            --accent-primary: #38B2AC;
+            --accent-success: #48BB78;
+            --accent-warning: #ED8936;
+            --accent-danger: #F56565;
+            --accent-info: #4299E1;
+        }
+
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-primary); 
+            color: var(--text-primary);
+            padding: 40px;
+        }
+
+        h1, h2 { margin-top: 0; }
+        h2 { margin-top: 40px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+
+        .modal-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 40px;
+        }
+
+        /* --- MODAL STYLES (Copy-paste ready for React) --- */
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            border-radius: 8px; /* For preview only */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            min-height: 200px;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 480px;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-body {
+            padding: 24px;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .modal-footer {
+            padding: 20px 24px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+        .btn-primary { background: var(--accent-primary); color: #1A202C; }
+        .btn-primary:hover { filter: brightness(1.1); }
+
+        .btn-danger { background: var(--accent-danger); color: white; }
+        .btn-danger:hover { filter: brightness(1.1); }
+
+        /* Icons */
+        .icon-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .variant-success .icon-circle { background: rgba(72, 187, 120, 0.15); color: var(--accent-success); }
+        .variant-error .icon-circle { background: rgba(245, 101, 101, 0.15); color: var(--accent-danger); }
+        .variant-warning .icon-circle { background: rgba(237, 137, 54, 0.15); color: var(--accent-warning); }
+        .variant-info .icon-circle { background: rgba(66, 153, 225, 0.15); color: var(--accent-info); }
+
+        /* Execution Modal Specifics */
+        .execution-modal { max-width: 800px; }
+        
+        .progress-section {
+            padding: 24px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent-primary);
+            width: 45%;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Shimmer effect for active progress */
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background-image: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, 0.2) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.2) 50%,
+                rgba(255, 255, 255, 0.2) 75%,
+                transparent 75%,
+                transparent
+            );
+            background-size: 20px 20px;
+            animation: move 1s linear infinite;
+        }
+
+        @keyframes move {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 20px; }
+        }
+
+        .step-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .step-item {
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .step-item.active { background: rgba(56, 178, 172, 0.05); border-left: 3px solid var(--accent-primary); }
+        .step-item.completed { opacity: 0.7; }
+
+        .step-status { font-family: 'Fira Code', monospace; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; }
+        .status-pending { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .status-running { background: rgba(66, 153, 225, 0.15); color: var(--accent-info); }
+        .status-success { background: rgba(72, 187, 120, 0.15); color: var(--accent-success); }
+        
+        .console-output {
+            background: #000;
+            color: #48BB78;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            padding: 16px;
+            margin: 24px;
+            border-radius: 6px;
+            height: 100px;
+            overflow-y: auto;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>SaaS Nomation - Modal System</h1>
+    <p>Reference designs for the new React modal components.</p>
+
+    <h2>1. Confirmation Modal (Destructive)</h2>
+    <div class="modal-preview-grid">
+        <div class="modal-overlay">
+            <div class="modal-content variant-error">
+                <div class="modal-header">
+                    <div class="icon-circle">🗑️</div>
+                    <h3 style="margin:0; font-weight:600;">Delete Test Suite?</h3>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete <strong>"Smoke Tests"</strong>? This action cannot be undone and will remove all 12 associated tests.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-ghost">Cancel</button>
+                    <button class="btn btn-danger">Delete Suite</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>2. Info Modal (Success)</h2>
+    <div class="modal-preview-grid">
+        <div class="modal-overlay">
+            <div class="modal-content variant-success">
+                <div class="modal-header">
+                    <div class="icon-circle">✓</div>
+                    <h3 style="margin:0; font-weight:600;">Execution Complete</h3>
+                </div>
+                <div class="modal-body">
+                    Test suite executed successfully! All 45 tests passed in 2m 13s.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary">View Results</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>3. Test Execution Modal (WebSocket Live)</h2>
+    <div class="modal-preview-grid">
+        <div class="modal-overlay">
+            <div class="modal-content execution-modal">
+                <div class="modal-header" style="justify-content: space-between;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="icon-circle variant-info">▶</div>
+                        <div>
+                            <h3 style="margin:0; font-weight:600;">Running: Checkout Flow</h3>
+                            <div style="font-size:0.875rem; color:var(--text-secondary);">Execution ID: #EXEC-2025-8821</div>
+                        </div>
+                    </div>
+                    <div style="font-family:'Fira Code'; color:var(--accent-primary);">00:45</div>
+                </div>
+                
+                <div class="progress-section">
+                    <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:8px;">
+                        <span>Step 3 of 5</span>
+                        <span>60%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: 60%;"></div>
+                    </div>
+                    <div style="color:var(--text-secondary); font-size:0.875rem; text-align:center;">
+                        Wait for element "Submit Button" to be visible...
+                    </div>
+                </div>
+
+                <div class="step-list">
+                    <div class="step-item completed">
+                        <span class="step-status status-success">PASS</span>
+                        <span>Navigate to https://example.com/cart</span>
+                    </div>
+                    <div class="step-item completed">
+                        <span class="step-status status-success">PASS</span>
+                        <span>Click "Checkout" button</span>
+                    </div>
+                    <div class="step-item active">
+                        <span class="step-status status-running">RUNNING</span>
+                        <span>Fill "Shipping Address" form</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="step-status status-pending">PENDING</span>
+                        <span>Click "Submit Order"</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="step-status status-pending">PENDING</span>
+                        <span>Verify "Order Success" message</span>
+                    </div>
+                </div>
+
+                <div class="console-output">
+                    > [INFO] Browser started<br>
+                    > [INFO] Navigating to target URL...<br>
+                    > [SUCCESS] Page loaded (200 OK)<br>
+                    > [INFO] Locating element #checkout-btn...
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-ghost">Run in Background</button>
+                    <button class="btn btn-danger" style="background:transparent; border:1px solid var(--accent-danger); color:var(--accent-danger);">Abort Execution</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -37,7 +37,8 @@ export function ProjectDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedElementType, setSelectedElementType] = useState<string>('all');
   const [selectedUrl, setSelectedUrl] = useState<string>('all');
-  
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]); // URL IDs for selective analysis
+
   // NEW: URL Management State
   const [showUrlManager, setShowUrlManager] = useState(false);
   const [newUrl, setNewUrl] = useState('');
@@ -307,20 +308,45 @@ export function ProjectDetailsPage() {
     }
   };
 
-  // ENHANCED: Add analysis functionality with real-time progress
+  // ENHANCED: Selective URL analysis with real-time progress
+  const handleAnalyzeSelected = async () => {
+    if (!projectId || selectedUrls.length === 0) return;
+
+    setAnalyzing(true);
+    try {
+      // Call API with selected URL IDs
+      const result = await analyzeProjectPages(projectId, selectedUrls);
+
+      showSuccess('Analysis Complete', `Analyzed ${selectedUrls.length} URL(s)`);
+
+      // Reload project data
+      setTimeout(() => {
+        loadProject();
+        setSelectedUrls([]); // Clear selection
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      showError('Analysis Failed', error.response?.data?.message || 'Failed to analyze URLs');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // Legacy handler for backward compatibility
   const handleAnalyzeProject = async () => {
     if (!projectId) return;
-    
+
     try {
       // Start the analysis - the progress will be tracked via WebSocket
       // Modal only opens on progress bar double-click
       const result = await analyzeProjectPages(projectId);
-      
+
       // Reload project to show updated elements after analysis
       setTimeout(() => {
         loadProject();
       }, 2000);
-      
+
     } catch (error) {
       console.error('Analysis error:', error);
       
@@ -439,18 +465,31 @@ export function ProjectDetailsPage() {
     setShowAuthModal(true);
   };
 
-  const handleEditAuthentication = (authFlow: any) => {
-    setEditingAuthFlow({
-      id: authFlow.id,
-      data: {
-        name: authFlow.name,
-        loginUrl: authFlow.loginUrl,
-        username: authFlow.credentials?.username || '',
-        password: authFlow.credentials?.password || '',
-        steps: authFlow.steps
-      }
-    });
-    setShowAuthModal(true);
+  const handleEditAuthentication = async (authFlow: any) => {
+    try {
+      // Fetch fresh auth flow data from database to ensure we have latest values
+      console.log('📥 Fetching latest auth flow data for edit...');
+      const response = await authFlowsAPI.getById(authFlow.id);
+      const freshAuthFlow = response.data;
+      console.log('✅ Loaded fresh auth flow data:', freshAuthFlow);
+
+      setEditingAuthFlow({
+        id: freshAuthFlow.id,
+        data: {
+          name: freshAuthFlow.name,
+          loginUrl: freshAuthFlow.loginUrl,
+          username: freshAuthFlow.credentials?.username || '',
+          password: freshAuthFlow.credentials?.password || '',
+          steps: freshAuthFlow.steps,
+          useAutoDetection: freshAuthFlow.useAutoDetection !== undefined ? freshAuthFlow.useAutoDetection : true,
+          manualSelectors: freshAuthFlow.manualSelectors || null
+        }
+      });
+      setShowAuthModal(true);
+    } catch (error) {
+      console.error('Failed to load auth flow for editing:', error);
+      showError('Load Failed', 'Failed to load authentication flow. Please try again.');
+    }
   };
 
   const handleDeleteAuthentication = async (authFlowId: string, authFlowName: string) => {
@@ -719,27 +758,63 @@ export function ProjectDetailsPage() {
                     </div>
                   </div>
                 ) : (
-                  project.urls.map((url, index) => (
-                    <div key={url.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
+                  <>
+                    {/* Select All/None Buttons */}
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => setSelectedUrls(project.urls.map(u => u.id))}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedUrls([])}
+                        className="text-sm text-gray-700 hover:text-gray-800 font-medium"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+
+                    {/* URL List with Checkboxes */}
+                    {project.urls.map((url, index) => (
+                      <div key={url.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-3 flex-1">
+                          {/* Checkbox for selection */}
+                          <input
+                            type="checkbox"
+                            checked={selectedUrls.includes(url.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUrls([...selectedUrls, url.id])
+                              } else {
+                                setSelectedUrls(selectedUrls.filter(id => id !== url.id))
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+
+                          {/* Analysis status indicator */}
                           <div className={`w-3 h-3 rounded-full ${url.analyzed ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                          <div>
+
+                          {/* URL display */}
+                          <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900 break-all">{url.url}</p>
                             <p className="text-xs text-gray-500">
                               {url.analyzed ? `Analyzed ${url.analysisDate ? new Date(url.analysisDate).toLocaleDateString() : 'recently'}` : 'Not analyzed yet'}
                             </p>
                           </div>
                         </div>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={() => handleRemoveUrl(url.url)}
+                          className="px-3 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                        >
+                          Remove
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleRemoveUrl(url.url)}
-                        className="px-3 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))
+                    ))}
+                  </>
                 )}
               </div>
 
@@ -750,11 +825,11 @@ export function ProjectDetailsPage() {
                       {project.urls.length} URL{project.urls.length !== 1 ? 's' : ''} • {project.urls.filter(url => url.analyzed).length} analyzed
                     </div>
                     <button
-                      onClick={handleAnalyzeProject}
-                      disabled={analyzing || project.urls.length === 0}
+                      onClick={handleAnalyzeSelected}
+                      disabled={selectedUrls.length === 0 || analyzing}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                     >
-                      {analyzing ? 'Analyzing...' : 'Analyze All URLs'}
+                      {analyzing ? 'Analyzing...' : `Analyze Selected (${selectedUrls.length})`}
                     </button>
                   </div>
                 </div>
@@ -1030,6 +1105,7 @@ export function ProjectDetailsPage() {
       {/* Authentication Setup Modal */}
       {showAuthModal && (
         <SimplifiedAuthSetup
+          key={editingAuthFlow?.id || 'new'}
           projectId={projectId!}
           onComplete={handleAuthModalComplete}
           onCancel={handleAuthModalCancel}

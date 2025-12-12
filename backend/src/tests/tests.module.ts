@@ -1,14 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TestsController } from './tests.controller';
 import { TestsService } from './tests.service';
-import { ExecutionService } from '../execution/execution.service';
+import { ExecutionModule } from '../execution/execution.module';
 import { PrismaModule } from '../prisma/prisma.module';
-import { AuthFlowsModule } from '../auth-flows/auth-flows.module';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, AuthFlowsModule, AuthModule],
+  imports: [PrismaModule, ExecutionModule],
   controllers: [TestsController],
-  providers: [TestsService, ExecutionService],
+  providers: [TestsService],
 })
 export class TestsModule {}

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Param, Body, UseGuards, Req, SetMetadata } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards, Req, SetMetadata } from '@nestjs/common';
 import { AuthFlowsService } from './auth-flows.service';
 import { AuthFlowTemplatesService } from './auth-flow-templates.service';
 import { SimplifiedAuthService } from './simplified-auth.service';
@@ -18,14 +18,32 @@ export class AuthFlowsController {
 
   @Post()
   async createAuthFlow(
-    @Body() body: { projectId: string; name: string; loginUrl: string; username: string; password: string; steps: any[] },
+    @Body() body: { projectId: string; name: string; loginUrl: string; username: string; password: string; steps: any[]; useAutoDetection?: boolean; manualSelectors?: any },
     @Req() req: any
   ) {
     return this.authFlowsService.create(body.projectId, {
       name: body.name,
       loginUrl: body.loginUrl,
       steps: body.steps,
-      credentials: { username: body.username, password: body.password }
+      credentials: { username: body.username, password: body.password },
+      useAutoDetection: body.useAutoDetection !== undefined ? body.useAutoDetection : true,
+      manualSelectors: body.manualSelectors || null
+    });
+  }
+
+  @Put(':id')
+  async updateAuthFlow(
+    @Param('id') id: string,
+    @Body() body: { name: string; loginUrl: string; username: string; password: string; steps: any[]; useAutoDetection?: boolean; manualSelectors?: any },
+    @Req() req: any
+  ) {
+    return this.authFlowsService.update(id, {
+      name: body.name,
+      loginUrl: body.loginUrl,
+      steps: body.steps,
+      credentials: { username: body.username, password: body.password },
+      useAutoDetection: body.useAutoDetection !== undefined ? body.useAutoDetection : true,
+      manualSelectors: body.manualSelectors || null
     });
   }
 
@@ -38,6 +56,11 @@ export class AuthFlowsController {
   @SkipAuth()
   async getAuthTemplates() {
     return this.templatesService.getCommonTemplates();
+  }
+
+  @Get(':id')
+  async getAuthFlowById(@Param('id') id: string) {
+    return this.authFlowsService.getById(id);
   }
 
   @Post('test')

@@ -41,12 +41,13 @@ interface TestBuilderPanelProps {
   testId?: string // For localStorage key identification
   projectId?: string // For element hunting
   onHuntNewElements?: (newElements: ProjectElement[]) => void // Callback for new elements
+  startingUrl?: string // Test's configured starting URL
   // NEW: Auto-add to test steps integration
   _onAutoAddToTestSteps?: (element: ProjectElement, action?: string) => void
 }
 
-export function TestBuilderPanel({ 
-  selectedElement, 
+export function TestBuilderPanel({
+  selectedElement,
   onClearSelection,
   className = '',
   onSave,
@@ -55,6 +56,7 @@ export function TestBuilderPanel({
   testId,
   projectId,
   onHuntNewElements,
+  startingUrl,
   _onAutoAddToTestSteps
 }: TestBuilderPanelProps) {
   // Initialize steps with localStorage persistence
@@ -376,16 +378,16 @@ export function TestBuilderPanel({
       if (!sessionToken) {
         console.log(`🌐 Creating browser session for single step execution...`)
         const project = await projectsAPI.getById(projectId)
-        const startingUrl = project.data.urls?.[0]?.url || 'https://example.com'
-        
+        const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com'
+
         const sessionResponse = await browserAPI.createSession(projectId)
         sessionToken = sessionResponse.sessionToken
         setBrowserSessionToken(sessionToken)
-        
+
         // Navigate to starting URL
-        await browserAPI.navigateSession(sessionToken!, startingUrl)
-        setCurrentBrowserUrl(startingUrl)
-        console.log(`✅ Browser session created and navigated to: ${startingUrl}`)
+        await browserAPI.navigateSession(sessionToken!, url)
+        setCurrentBrowserUrl(url)
+        console.log(`✅ Browser session created and navigated to: ${url}`)
       }
 
       // Convert test step to browser action format
@@ -470,18 +472,18 @@ export function TestBuilderPanel({
 
     try {
       console.log(`🚀 Starting sequential execution of ${steps.length} steps`)
-      
+
       // Get project data to extract starting URL
       const project = await projectsAPI.getById(projectId)
       console.log('🔍 DEBUG URLs array:', project.data.urls?.[0])
-      const startingUrl = project.data.urls?.[0]?.url || 'https://example.com'
-      console.log('🔍 DEBUG startingUrl type:', typeof startingUrl, 'value:', startingUrl)
-      
-      console.log(`📍 Starting URL: ${startingUrl}`)
-      
+      const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com'
+      console.log('🔍 DEBUG startingUrl type:', typeof url, 'value:', url)
+
+      console.log(`📍 Starting URL: ${url}`)
+
       // Set URL for browser execution view
-      setExecutionStartingUrl(startingUrl)
-      setCurrentBrowserUrl(startingUrl)
+      setExecutionStartingUrl(url)
+      setCurrentBrowserUrl(url)
 
       // Create shared browser session for live execution
       console.log(`🌐 Creating shared browser session...`)
@@ -491,8 +493,8 @@ export function TestBuilderPanel({
       console.log(`✅ Browser session created: ${sessionToken}`)
 
       // Navigate to starting URL in the session
-      console.log(`🌍 Navigating session to: ${startingUrl}`)
-      await browserAPI.navigateSession(sessionToken, startingUrl)
+      console.log(`🌍 Navigating session to: ${url}`)
+      await browserAPI.navigateSession(sessionToken, url)
       console.log(`✅ Navigation completed`)
 
       const results: Array<{step: TestStep, result: any, success: boolean}> = []

@@ -217,6 +217,12 @@ export interface LoginFlow {
     username: string;
     password: string;
   };
+  useAutoDetection?: boolean;
+  manualSelectors?: {
+    usernameSelector: string;
+    passwordSelector: string;
+    submitSelector: string;
+  } | null;
 }
 
 // NEW: State-based analysis interfaces

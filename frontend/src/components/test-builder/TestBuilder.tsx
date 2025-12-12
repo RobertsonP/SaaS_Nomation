@@ -19,9 +19,10 @@ interface TestBuilderProps {
   projectId?: string // AI Enhancement: Pass project ID for element library
   testId?: string // For localStorage persistence
   onElementsUpdated?: () => void // Callback when new elements are discovered
+  startingUrl?: string // Test's configured starting URL
 }
 
-export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated }: TestBuilderProps) {
+export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated, startingUrl }: TestBuilderProps) {
   // Simplified state for layout component
   const [elementLibrary, setElementLibrary] = useState<ProjectElement[]>([])
   const [loadingElements, setLoadingElements] = useState(false)
@@ -104,6 +105,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             testId={testId}
             projectId={projectId}
             onHuntNewElements={handleHuntNewElements}
+            startingUrl={startingUrl}
             className="h-full"
           />
         </div>

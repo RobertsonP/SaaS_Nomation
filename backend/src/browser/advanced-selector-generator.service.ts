@@ -49,50 +49,42 @@ export class AdvancedSelectorGeneratorService {
     // 4. ADVANCED CSS: Semantic selectors (ARIA, etc.)
     this.addSemanticSelectors(element, selectors, document);
     
-    // 5. W3SCHOOLS ADVANCED: Structural pseudo-classes
-    this.addStructuralSelectors(element, selectors, document);
-    
-    // 6. W3SCHOOLS ADVANCED: Attribute selectors
-    this.addAttributeSelectors(element, selectors, document);
-    
-    // 7. COMPLEX CSS: Descendant and sibling selectors
-    this.addRelationalSelectors(element, selectors, document);
-    
-    // 8. W3SCHOOLS ADVANCED: Functional pseudo-classes (:has, :not, :is)
-    this.addFunctionalSelectors(element, selectors, document);
+    // 5. STABLE ATTRIBUTE SELECTORS: Only stable, meaningful attributes
+    this.addStableAttributeSelectors(element, selectors, document);
 
-    // NEW: PLAYWRIGHT CSS EXTENSIONS - Visibility, state, and text matching
+    // 6. COMPLEX CSS: Stable parent-child relationships
+    this.addStableRelationalSelectors(element, selectors, document);
+
+    // 7. PLAYWRIGHT CSS EXTENSIONS: Visibility, state, and text matching
     this.addVisibilitySelectors(element, selectors, document);
     this.addStateAttributeSelectors(element, selectors, document);
     this.addEnhancedTextSelectors(element, selectors, document);
     this.addDeepCombinatorSelectors(element, selectors, document);
 
-    // REMOVED: Layout-based selectors (:near, :right-of, :left-of, :above, :below)
-    // Playwright documentation states these are DEPRECATED as of 2024:
-    // - "Matching based on layout may produce unexpected results"
-    // - "These queries are based on the rendered viewport and may change with viewport size"
-    // - "If you use them exclusively, resulting selector may match elements not visible to users"
-    // See: https://playwright.dev/docs/other-locators#css-matching-by-layout
-    // Replaced with role + text + visibility combinations which are more reliable
-    // if (allElements && allElements.length > 0) {
-    //   this.addLayoutBasedSelectors(element, selectors, document, allElements);
-    // }
+    // 8. COMPREHENSIVE COMBINED SELECTORS: Multiple attributes for maximum uniqueness
+    this.addComprehensiveCombinedSelectors(element, selectors, document);
 
-    // 9. FALLBACK: Class-based selectors (filtered for stability)
-    this.addClassSelectors(element, selectors, document);
+    // 9. ULTIMATE FALLBACK: XPath for complex cases (only if needed)
+    if (selectors.length < 3) {
+      this.addXPathSelectors(element, selectors, document);
+    }
+
+    // REMOVED FRAGILE SELECTORS:
+    // - Structural selectors (nth-child, nth-of-type) - break when DOM structure changes
+    // - Class selectors - CSS classes change with styling frameworks and updates
+    // - Layout-based selectors - deprecated by Playwright, viewport-dependent
+    // - Functional pseudo-classes (:has, :not, :is) - low confidence, non-standard support
     
-    // 10. ULTIMATE FALLBACK: XPath for complex cases
-    this.addXPathSelectors(element, selectors, document);
-    
-    // Sort by confidence and uniqueness
+    // Sort by confidence and uniqueness, filter for high-confidence only
     return selectors
+      .filter(s => s.confidence >= 0.75) // STRICT: Only robust selectors (user requirement)
       .sort((a, b) => {
         if (prioritizeUniqueness) {
           if (a.isUnique !== b.isUnique) return a.isUnique ? -1 : 1;
         }
         return b.confidence - a.confidence;
       })
-      .slice(0, 10); // Return top 10 selectors
+      .slice(0, 10); // Return top 10 robust selectors
   }
   
   private isTestableElement(element: any): boolean {
@@ -307,234 +299,201 @@ export class AdvancedSelectorGeneratorService {
     }
   }
   
-  private addStructuralSelectors(element: any, selectors: GeneratedSelector[], document: any) {
-    const parent = element.parentElement;
-    if (!parent) return;
-    
-    const tag = element.tagName.toLowerCase();
-    const allSiblings = Array.from(parent.children) as Element[];
-    const sameTags = allSiblings.filter((el: Element) => el.tagName.toLowerCase() === tag);
-    const index = sameTags.indexOf(element);
-    
-    if (sameTags.length > 1) {
-      // nth-of-type selector
-      const nthSelector = `${tag}:nth-of-type(${index + 1})`;
-      selectors.push({
-        selector: nthSelector,
-        confidence: 0.65,
-        type: 'css',
-        description: `Nth-of-type structural selector`,
-        isUnique: this.isUniqueSelector(nthSelector, document),
-        isPlaywrightOptimized: false
-      });
-      
-      // nth-child selector  
-      const childIndex = allSiblings.indexOf(element) + 1;
-      const nthChildSelector = `${tag}:nth-child(${childIndex})`;
-      selectors.push({
-        selector: nthChildSelector,
-        confidence: 0.63,
-        type: 'css',
-        description: `Nth-child structural selector`,
-        isUnique: this.isUniqueSelector(nthChildSelector, document),
-        isPlaywrightOptimized: false
-      });
-      
-      // First/last child if applicable
-      if (index === 0) {
-        selectors.push({
-          selector: `${tag}:first-of-type`,
-          confidence: 0.68,
-          type: 'css',
-          description: `First-of-type selector`,
-          isUnique: this.isUniqueSelector(`${tag}:first-of-type`, document),
-          isPlaywrightOptimized: false
-        });
-      }
-      
-      if (index === sameTags.length - 1) {
-        selectors.push({
-          selector: `${tag}:last-of-type`,
-          confidence: 0.68,
-          type: 'css',
-          description: `Last-of-type selector`,
-          isUnique: this.isUniqueSelector(`${tag}:last-of-type`, document),
-          isPlaywrightOptimized: false
-        });
-      }
-    }
-  }
+  // REMOVED: addStructuralSelectors - nth-child/nth-of-type are fragile and break on DOM changes
   
-  private addAttributeSelectors(element: any, selectors: GeneratedSelector[], document: any) {
+  /**
+   * NEW: Add stable attribute selectors (only meaningful, stable attributes)
+   * Filters out temporary/generated values and focuses on semantic attributes
+   */
+  private addStableAttributeSelectors(element: any, selectors: GeneratedSelector[], document: any) {
     const attributes = Array.from(element.attributes) as Attr[];
     const tag = element.tagName.toLowerCase();
-    
+
+    // List of stable attribute names (semantic, unlikely to change)
+    const stableAttributes = [
+      'name', 'type', 'href', 'src', 'alt',
+      'value', 'for', 'action', 'method',
+      'rel', 'target', 'autocomplete', 'inputmode'
+    ];
+
     for (const attr of attributes) {
+      // Skip already-handled attributes
       if (['id', 'class', 'data-testid', 'data-test', 'aria-label', 'role'].includes(attr.name)) {
-        continue; // Already handled
+        continue;
       }
-      
+
+      // Only process stable attributes
+      if (!stableAttributes.includes(attr.name)) {
+        continue;
+      }
+
       const value = attr.value;
-      if (value && value.length > 0 && value.length < 100) {
-        // Exact match
-        const exactSelector = `${tag}[${attr.name}="${value}"]`;
+
+      // Validate value stability
+      if (!this.isStableValue(value)) {
+        continue;
+      }
+
+      // Exact match with stable attribute
+      const exactSelector = `${tag}[${attr.name}="${value}"]`;
+      selectors.push({
+        selector: exactSelector,
+        confidence: 0.85, // Raised: Stable attributes are reliable
+        type: 'css',
+        description: `Stable ${attr.name} attribute selector`,
+        isUnique: this.isUniqueSelector(exactSelector, document),
+        isPlaywrightOptimized: true
+      });
+
+      // Combined with visibility for interactive elements
+      if (['button', 'input', 'a', 'select', 'textarea'].includes(tag)) {
         selectors.push({
-          selector: exactSelector,
-          confidence: 0.72,
-          type: 'css',
-          description: `Attribute exact match selector`,
+          selector: `${tag}[${attr.name}="${value}"]:visible`,
+          confidence: 0.87,
+          type: 'playwright',
+          description: `Stable ${attr.name} with visibility`,
           isUnique: this.isUniqueSelector(exactSelector, document),
-          isPlaywrightOptimized: false
+          isPlaywrightOptimized: true
         });
-        
-        // Prefix match (W3Schools ^= operator)
-        if (value.length > 5) {
-          const prefixSelector = `${tag}[${attr.name}^="${value.substring(0, 5)}"]`;
-          selectors.push({
-            selector: prefixSelector,
-            confidence: 0.60,
-            type: 'css',
-            description: `Attribute prefix match selector`,
-            isUnique: this.isUniqueSelector(prefixSelector, document),
-            isPlaywrightOptimized: false
-          });
-        }
-        
-        // Suffix match (W3Schools $= operator)
-        if (value.length > 5) {
-          const suffixSelector = `${tag}[${attr.name}$="${value.slice(-5)}"]`;
-          selectors.push({
-            selector: suffixSelector,
-            confidence: 0.58,
-            type: 'css',
-            description: `Attribute suffix match selector`,
-            isUnique: this.isUniqueSelector(suffixSelector, document),
-            isPlaywrightOptimized: false
-          });
-        }
-        
-        // Contains match (W3Schools *= operator)
-        if (value.length > 3) {
-          const containsSelector = `${tag}[${attr.name}*="${value.substring(1, value.length-1)}"]`;
-          selectors.push({
-            selector: containsSelector,
-            confidence: 0.55,
-            type: 'css',
-            description: `Attribute contains match selector`,
-            isUnique: this.isUniqueSelector(containsSelector, document),
-            isPlaywrightOptimized: false
-          });
-        }
       }
     }
   }
+
+  /**
+   * Helper: Check if attribute value is stable (not generated/temporary)
+   */
+  private isStableValue(value: string): boolean {
+    if (!value || value.length === 0) return false;
+    if (value.length > 100) return false; // Too long, likely generated
+
+    // Reject pure UUID/hash patterns
+    if (/^[a-f0-9]{8,}$/i.test(value)) return false;
+
+    // Reject pure numbers
+    if (/^\d+$/.test(value)) return false;
+
+    // Reject timestamp patterns
+    if (/\d{13}/.test(value)) return false;
+
+    // Accept meaningful values
+    return value.length >= 2;
+  }
   
-  private addRelationalSelectors(element: any, selectors: GeneratedSelector[], document: any) {
+  /**
+   * NEW: Add stable relational selectors (parent-child with stable anchors only)
+   * Only uses ID-based or role-based parent relationships
+   */
+  private addStableRelationalSelectors(element: any, selectors: GeneratedSelector[], document: any) {
     const parent = element.parentElement;
     if (!parent) return;
-    
+
     const tag = element.tagName.toLowerCase();
-    
-    // Parent-child relationships
-    if (parent.id) {
+    const text = element.textContent?.trim();
+    const role = element.getAttribute('role');
+
+    // Parent ID > child (very stable)
+    if (parent.id && !this.isGeneratedId(parent.id)) {
       const childSelector = `#${parent.id} > ${tag}`;
       selectors.push({
         selector: childSelector,
-        confidence: 0.75,
+        confidence: 0.88,
         type: 'css',
-        description: `Direct child selector`,
+        description: `Parent ID child selector`,
         isUnique: this.isUniqueSelector(childSelector, document),
-        isPlaywrightOptimized: false
+        isPlaywrightOptimized: true
       });
-    }
-    
-    if (parent.className) {
-      const classes = parent.className.trim().split(/\s+/).filter(c => this.isStableClass(c));
-      if (classes.length > 0) {
-        const descendantSelector = `.${classes[0]} ${tag}`;
+
+      // Parent ID > child with text
+      if (text && text.length > 0 && text.length < 40) {
         selectors.push({
-          selector: descendantSelector,
-          confidence: 0.65,
-          type: 'css',
-          description: `Descendant selector`,
-          isUnique: this.isUniqueSelector(descendantSelector, document),
-          isPlaywrightOptimized: false
+          selector: `#${parent.id} > ${tag}:has-text("${this.escapeText(text)}")`,
+          confidence: 0.92,
+          type: 'playwright',
+          description: `Parent ID child with text`,
+          isUnique: false,
+          isPlaywrightOptimized: true
+        });
+      }
+
+      // Parent ID > child with role
+      if (role) {
+        selectors.push({
+          selector: `#${parent.id} > [role="${role}"]`,
+          confidence: 0.91,
+          type: 'playwright',
+          description: `Parent ID child with role`,
+          isUnique: this.isUniqueSelector(`#${parent.id} > [role="${role}"]`, document),
+          isPlaywrightOptimized: true
         });
       }
     }
-    
-    // Sibling selectors
-    const prevSibling = element.previousElementSibling;
-    const nextSibling = element.nextElementSibling;
-    
-    if (prevSibling && prevSibling.id) {
-      const siblingSelector = `#${prevSibling.id} + ${tag}`;
+
+    // Parent role > child (semantic hierarchy)
+    const parentRole = parent.getAttribute('role');
+    if (parentRole) {
       selectors.push({
-        selector: siblingSelector,
-        confidence: 0.70,
-        type: 'css',
-        description: `Adjacent sibling selector`,
-        isUnique: this.isUniqueSelector(siblingSelector, document),
-        isPlaywrightOptimized: false
+        selector: `[role="${parentRole}"] > ${tag}`,
+        confidence: 0.82,
+        type: 'playwright',
+        description: `Parent role child selector`,
+        isUnique: false,
+        isPlaywrightOptimized: true
       });
+
+      // Parent role > child with role (semantic hierarchy)
+      if (role) {
+        selectors.push({
+          selector: `[role="${parentRole}"] > [role="${role}"]`,
+          confidence: 0.86,
+          type: 'playwright',
+          description: `Semantic role hierarchy`,
+          isUnique: false,
+          isPlaywrightOptimized: true
+        });
+      }
+    }
+
+    // Semantic containers > interactive elements
+    const semanticContainers = ['nav', 'header', 'footer', 'main', 'aside', 'form'];
+    let container = element.parentElement;
+    let depth = 0;
+
+    while (container && depth < 3) {
+      const containerTag = container.tagName.toLowerCase();
+
+      if (semanticContainers.includes(containerTag)) {
+        // Semantic container >> child
+        if (['button', 'a', 'input', 'select', 'textarea'].includes(tag)) {
+          selectors.push({
+            selector: `${containerTag} >> ${tag}:visible`,
+            confidence: 0.78,
+            type: 'playwright',
+            description: `${containerTag} container child`,
+            isUnique: false,
+            isPlaywrightOptimized: true
+          });
+
+          // With text for specificity
+          if (text && text.length > 0 && text.length < 30) {
+            selectors.push({
+              selector: `${containerTag} >> ${tag}:has-text("${this.escapeText(text)}"):visible`,
+              confidence: 0.83,
+              type: 'playwright',
+              description: `${containerTag} container child with text`,
+              isUnique: false,
+              isPlaywrightOptimized: true
+            });
+          }
+        }
+        break;
+      }
+
+      container = container.parentElement;
+      depth++;
     }
   }
   
-  private addFunctionalSelectors(element: any, selectors: GeneratedSelector[], document: any) {
-    const tag = element.tagName.toLowerCase();
-    const text = element.textContent?.trim();
-    
-    // :has() pseudo-class (modern browsers)
-    if (element.children.length > 0) {
-      const firstChildTag = element.children[0].tagName.toLowerCase();
-      const hasSelector = `${tag}:has(${firstChildTag})`;
-      selectors.push({
-        selector: hasSelector,
-        confidence: 0.60,
-        type: 'css',
-        description: `:has() functional selector`,
-        isUnique: this.isUniqueSelector(hasSelector, document),
-        isPlaywrightOptimized: false
-      });
-    }
-    
-    // :not() pseudo-class
-    const parent = element.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children).filter((el: Element) => el.tagName.toLowerCase() === tag);
-      if (siblings.length > 1) {
-        // Find unique attribute to exclude others
-        for (const sibling of siblings) {
-          if (sibling !== element && (sibling as Element).className) {
-            const excludeClass = (sibling as Element).className.split(' ')[0];
-            const notSelector = `${tag}:not(.${excludeClass})`;
-            selectors.push({
-              selector: notSelector,
-              confidence: 0.58,
-              type: 'css',
-              description: `:not() exclusion selector`,
-              isUnique: this.isUniqueSelector(notSelector, document),
-              isPlaywrightOptimized: false
-            });
-            break;
-          }
-        }
-      }
-    }
-    
-    // :is() pseudo-class for multiple tag matching
-    if (text && text.length > 0) {
-      const isSelector = `:is(${tag}, [aria-label*="${text.substring(0, 10)}"])`;
-      selectors.push({
-        selector: isSelector,
-        confidence: 0.55,
-        type: 'css',
-        description: `:is() multiple match selector`,
-        isUnique: this.isUniqueSelector(isSelector, document),
-        isPlaywrightOptimized: false
-      });
-    }
-  }
+  // REMOVED: addFunctionalSelectors - :has/:not/:is have low confidence and browser support issues
 
   /**
    * NEW: Add Playwright :visible pseudo-class selectors
@@ -1041,48 +1000,208 @@ export class AdvancedSelectorGeneratorService {
     }
   }
 
-  private addClassSelectors(element: any, selectors: GeneratedSelector[], document: any) {
-    const className = element.className;
-    if (!className) return;
-    
-    const classes = className.trim().split(/\s+/).filter(c => this.isStableClass(c));
+  // REMOVED: addClassSelectors - CSS classes are fragile and change with styling updates
+
+  /**
+   * NEW: Add comprehensive combined selectors (multiple attributes for maximum uniqueness)
+   * User requirement: "use all possible ways to describe selector as detailed as possible"
+   */
+  private addComprehensiveCombinedSelectors(element: any, selectors: GeneratedSelector[], document: any) {
     const tag = element.tagName.toLowerCase();
-    
-    if (classes.length > 0) {
-      // Single class
-      const singleClassSelector = `${tag}.${classes[0]}`;
+    const text = element.textContent?.trim();
+    const role = element.getAttribute('role');
+    const ariaLabel = element.getAttribute('aria-label');
+    const name = element.getAttribute('name');
+    const type = element.getAttribute('type');
+    const id = element.id;
+    const placeholder = element.getAttribute('placeholder');
+    const href = element.getAttribute('href');
+    const parent = element.parentElement;
+
+    // Strategy: Build LONG but UNIQUE selectors combining multiple stable attributes
+    const parts: string[] = [];
+    let confidence = 0.75; // Base confidence
+
+    // Start with tag
+    parts.push(tag);
+
+    // Add stable attributes (each adds confidence)
+    if (role) {
+      parts.push(`[role="${role}"]`);
+      confidence += 0.05;
+    }
+
+    if (ariaLabel) {
+      parts.push(`[aria-label="${ariaLabel}"]`);
+      confidence += 0.08; // ARIA labels are very stable
+    }
+
+    if (name && ['input', 'select', 'textarea'].includes(tag)) {
+      parts.push(`[name="${name}"]`);
+      confidence += 0.04;
+    }
+
+    if (type && this.isStableValue(type)) {
+      parts.push(`[type="${type}"]`);
+      confidence += 0.03;
+    }
+
+    if (placeholder && this.isStableValue(placeholder)) {
+      parts.push(`[placeholder="${placeholder}"]`);
+      confidence += 0.03;
+    }
+
+    // Add visibility for interactive elements
+    if (['button', 'a', 'input', 'select', 'textarea'].includes(tag)) {
+      parts.push(':visible');
+      confidence += 0.02;
+    }
+
+    // Add text matching for short, meaningful text
+    if (text && text.length > 0 && text.length <= 30) {
+      parts.push(`:has-text("${this.escapeText(text)}")`);
+      confidence += 0.06; // Text is user-facing
+    }
+
+    // Only add if we have multiple attributes (comprehensive)
+    if (parts.length >= 3) {
       selectors.push({
-        selector: singleClassSelector,
-        confidence: 0.50,
-        type: 'css',
-        description: `Single class selector`,
-        isUnique: this.isUniqueSelector(singleClassSelector, document),
-        isPlaywrightOptimized: false
+        selector: parts.join(''),
+        confidence: Math.min(confidence, 0.95), // Cap at 0.95
+        type: 'playwright',
+        description: `Comprehensive multi-attribute selector`,
+        isUnique: false, // Assume non-unique for safety
+        isPlaywrightOptimized: true
       });
-      
-      // Multiple classes (up to 3 for stability)
-      if (classes.length > 1) {
-        const multiClassSelector = `${tag}.${classes.slice(0, 3).join('.')}`;
+    }
+
+    // Parent context + comprehensive child (for even more uniqueness)
+    if (parent && (parent.id || parent.getAttribute('role'))) {
+      const parentParts: string[] = [];
+
+      if (parent.id && !this.isGeneratedId(parent.id)) {
+        parentParts.push(`#${parent.id}`);
+        confidence = 0.88;
+      } else if (parent.getAttribute('role')) {
+        parentParts.push(`[role="${parent.getAttribute('role')}"]`);
+        confidence = 0.82;
+      }
+
+      if (parentParts.length > 0 && parts.length >= 2) {
         selectors.push({
-          selector: multiClassSelector,
-          confidence: 0.55,
-          type: 'css',
-          description: `Multiple class selector`,
-          isUnique: this.isUniqueSelector(multiClassSelector, document),
-          isPlaywrightOptimized: false
+          selector: `${parentParts.join('')} >> ${parts.join('')}`,
+          confidence: Math.min(confidence + 0.05, 0.95),
+          type: 'playwright',
+          description: `Parent-child comprehensive selector`,
+          isUnique: false,
+          isPlaywrightOptimized: true
         });
       }
-      
-      // Just classes without tag (more flexible)
-      const classOnlySelector = `.${classes[0]}`;
+    }
+
+    // Form inputs: Combine multiple form-specific attributes
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      const formParts: string[] = [tag];
+      let formConfidence = 0.80;
+
+      if (name) {
+        formParts.push(`[name="${name}"]`);
+        formConfidence += 0.04;
+      }
+
+      if (type && this.isStableValue(type)) {
+        formParts.push(`[type="${type}"]`);
+        formConfidence += 0.03;
+      }
+
+      if (placeholder && this.isStableValue(placeholder)) {
+        formParts.push(`[placeholder="${placeholder}"]`);
+        formConfidence += 0.03;
+      }
+
+      if (ariaLabel) {
+        formParts.push(`[aria-label="${ariaLabel}"]`);
+        formConfidence += 0.05;
+      }
+
+      formParts.push(':visible');
+
+      if (formParts.length >= 3) {
+        selectors.push({
+          selector: formParts.join(''),
+          confidence: Math.min(formConfidence, 0.95),
+          type: 'playwright',
+          description: `Comprehensive form input selector`,
+          isUnique: false,
+          isPlaywrightOptimized: true
+        });
+      }
+    }
+
+    // Links: Combine href + text + role
+    if (tag === 'a' && href && this.isStableValue(href)) {
+      const linkParts: string[] = ['a', `[href="${href}"]`];
+      let linkConfidence = 0.82;
+
+      if (text && text.length > 0 && text.length <= 40) {
+        linkParts.push(`:has-text("${this.escapeText(text)}")`);
+        linkConfidence += 0.08;
+      }
+
+      if (role) {
+        linkParts.push(`[role="${role}"]`);
+        linkConfidence += 0.03;
+      }
+
+      linkParts.push(':visible');
+
       selectors.push({
-        selector: classOnlySelector,
-        confidence: 0.45,
-        type: 'css',
-        description: `Class-only selector`,
-        isUnique: this.isUniqueSelector(classOnlySelector, document),
-        isPlaywrightOptimized: false
+        selector: linkParts.join(''),
+        confidence: Math.min(linkConfidence, 0.95),
+        type: 'playwright',
+        description: `Comprehensive link selector`,
+        isUnique: false,
+        isPlaywrightOptimized: true
       });
+    }
+
+    // Buttons: Combine type + text + role + aria
+    if (tag === 'button') {
+      const buttonParts: string[] = ['button'];
+      let buttonConfidence = 0.80;
+
+      if (type && this.isStableValue(type)) {
+        buttonParts.push(`[type="${type}"]`);
+        buttonConfidence += 0.02;
+      }
+
+      if (role) {
+        buttonParts.push(`[role="${role}"]`);
+        buttonConfidence += 0.03;
+      }
+
+      if (ariaLabel) {
+        buttonParts.push(`[aria-label="${ariaLabel}"]`);
+        buttonConfidence += 0.08;
+      }
+
+      if (text && text.length > 0 && text.length <= 40) {
+        buttonParts.push(`:has-text("${this.escapeText(text)}")`);
+        buttonConfidence += 0.07;
+      }
+
+      buttonParts.push(':visible');
+
+      if (buttonParts.length >= 3) {
+        selectors.push({
+          selector: buttonParts.join(''),
+          confidence: Math.min(buttonConfidence, 0.95),
+          type: 'playwright',
+          description: `Comprehensive button selector`,
+          isUnique: false,
+          isPlaywrightOptimized: true
+        });
+      }
     }
   }
   
@@ -1121,9 +1240,9 @@ export class AdvancedSelectorGeneratorService {
     
     selectors.push({
       selector: xpath,
-      confidence: 0.40,
+      confidence: 0.75, // Raised: Only used as fallback when other selectors fail
       type: 'xpath',
-      description: `XPath selector`,
+      description: `XPath fallback selector`,
       isUnique: true, // XPath is generally unique
       isPlaywrightOptimized: true // Playwright supports XPath
     });
@@ -1157,18 +1276,5 @@ export class AdvancedSelectorGeneratorService {
     return generatedPatterns.some(pattern => pattern.test(id));
   }
   
-  private isStableClass(className: string): boolean {
-    // Filter out utility classes that might change
-    const unstablePatterns = [
-      /^(p|m|pt|pb|pl|pr|mt|mb|ml|mr)-/,  // Spacing utilities
-      /^(text|bg|border|w|h|flex|grid)-/, // Style utilities
-      /^(block|inline|hidden|visible)$/,   // Display utilities
-      /^(sm|md|lg|xl):/,                   // Responsive prefixes
-      /^\w{1,2}$/,                         // Very short classes (likely utilities)
-      /^\d/,                               // Starting with numbers
-    ];
-    
-    const isUnstable = unstablePatterns.some(pattern => pattern.test(className));
-    return !isUnstable && className.length > 2 && className.length < 50;
-  }
+  // REMOVED: isStableClass - no longer needed since class selectors are removed
 }

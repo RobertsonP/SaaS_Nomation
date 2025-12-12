@@ -40,8 +40,8 @@ export class ProjectsController {
   }
 
   @Post(':id/analyze')
-  async analyzeProject(@Request() req, @Param('id') id: string) {
-    return this.projectsService.analyzeProjectPages(req.user.id, id);
+  async analyzeProject(@Request() req, @Param('id') id: string, @Body() body: { urlIds?: string[] }) {
+    return this.projectsService.analyzeProjectPages(req.user.id, id, body.urlIds);
   }
 
   @Get(':id/elements')

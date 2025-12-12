@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExecutionService } from '../execution/execution.service';
+import { ExecutionProgressGateway } from '../execution/execution.gateway';
 
 export interface CreateTestSuiteDto {
   name: string;
@@ -22,7 +23,8 @@ export interface AddTestsToSuiteDto {
 export class TestSuitesService {
   constructor(
     private prisma: PrismaService,
-    private executionService: ExecutionService
+    private executionService: ExecutionService,
+    private progressGateway: ExecutionProgressGateway
   ) {}
 
   // Core CRUD operations
@@ -228,6 +230,9 @@ export class TestSuitesService {
 
     console.log(`🚀 Starting execution of test suite "${suite.name}" with ${suite.tests.length} tests`);
 
+    // Send WebSocket event: Suite started
+    this.progressGateway.sendSuiteStarted(execution.id, suiteId, suite.name, suite.tests.length);
+
     const results = [];
     let passedCount = 0;
     let failedCount = 0;
@@ -235,16 +240,46 @@ export class TestSuitesService {
 
     try {
       // Execute each test in the suite in order
-      for (const suiteTest of suite.tests) {
+      for (let i = 0; i < suite.tests.length; i++) {
+        const suiteTest = suite.tests[i];
+
         try {
-          console.log(`▶️  Executing test: ${suiteTest.test.name}`);
+          console.log(`▶️  Executing test ${i + 1}/${suite.tests.length}: ${suiteTest.test.name}`);
+
+          // Send WebSocket event: Suite progress (test starting)
+          this.progressGateway.sendSuiteProgress(
+            execution.id,
+            suiteId,
+            i + 1,
+            suite.tests.length,
+            suiteTest.test.name
+          );
+
           const testExecution = await this.executionService.executeTest(suiteTest.test.id);
-          
+
           if (testExecution.status === 'passed') {
             passedCount++;
           } else {
             failedCount++;
           }
+
+          // Fetch full execution details for detailed results display
+          const fullExecution = await this.prisma.testExecution.findUnique({
+            where: { id: testExecution.id },
+            include: {
+              test: true
+            }
+          });
+
+          // Count steps and find failed step if any (steps are stored as JSON)
+          const steps = (fullExecution?.test?.steps as any[]) || [];
+          const stepCount = Array.isArray(steps) ? steps.length : 0;
+          const failedStepIndex = testExecution.errorMsg
+            ? testExecution.errorMsg.match(/Step (\d+)/)
+            : null;
+          const failedStepDescription = failedStepIndex && Array.isArray(steps)
+            ? steps[parseInt(failedStepIndex[1]) - 1]?.description
+            : null;
 
           results.push({
             testId: suiteTest.test.id,
@@ -253,24 +288,40 @@ export class TestSuitesService {
             status: testExecution.status,
             duration: testExecution.duration,
             errorMsg: testExecution.errorMsg,
+            stepCount: stepCount,
+            failedStep: failedStepDescription,
+            execution: fullExecution // Include full execution for detailed view
           });
 
           console.log(`${testExecution.status === 'passed' ? '✅' : '❌'} Test "${suiteTest.test.name}" ${testExecution.status}`);
         } catch (error) {
           failedCount++;
           console.error(`❌ Test "${suiteTest.test.name}" failed:`, error.message);
-          
+
+          // Try to get step count even for failed tests (steps are stored as JSON)
+          const test = await this.prisma.test.findUnique({
+            where: { id: suiteTest.test.id }
+          });
+
+          const steps = (test?.steps as any[]) || [];
+          const stepCount = Array.isArray(steps) ? steps.length : 0;
+
           results.push({
             testId: suiteTest.test.id,
             testName: suiteTest.test.name,
             status: 'failed',
             errorMsg: error.message,
+            stepCount: stepCount,
+            failedStep: 'Execution initialization failed'
           });
         }
       }
     } catch (error) {
       errorMsg = `Suite execution failed: ${error.message}`;
       console.error('Suite execution error:', error);
+
+      // Send WebSocket event: Suite failed
+      this.progressGateway.sendSuiteFailed(execution.id, suiteId, suite.name, error.message);
     }
 
     // Update execution record with final results
@@ -282,12 +333,17 @@ export class TestSuitesService {
         duration: Date.now() - execution.startedAt.getTime(),
         passedTests: passedCount,
         failedTests: failedCount,
-        results,
+        results: {
+          testResults: results // Structure for frontend component
+        },
         errorMsg,
       },
     });
 
     console.log(`🏁 Suite "${suite.name}" completed: ${passedCount} passed, ${failedCount} failed`);
+
+    // Send WebSocket event: Suite completed
+    this.progressGateway.sendSuiteCompleted(execution.id, suiteId, suite.name, passedCount, failedCount);
 
     return finalExecution;
   }

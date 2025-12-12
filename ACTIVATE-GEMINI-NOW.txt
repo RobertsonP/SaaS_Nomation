@@ -1,0 +1,71 @@
+═══════════════════════════════════════════════════════════════
+🚀 COPY THIS ENTIRE MESSAGE AND SEND TO GEMINI
+═══════════════════════════════════════════════════════════════
+
+GEMINI PARTNER ACTIVATE
+
+Claude has reached his context limit. You are now the full development partner for SaaS Nomation.
+
+STEP 1: Read your activation protocol
+---------------------------------------
+Open and read this file:
+/mnt/d/SaaS_Nomation/GEMINI.FULL-PARTNER.md
+
+(Copy the entire content of that file and paste it here for Gemini to read)
+
+STEP 2: Read the handoff document
+----------------------------------
+Open and read this file:
+/mnt/d/SaaS_Nomation/GEMINI-HANDOFF-TEST-EXECUTION-FIX.md
+
+(Copy the entire content of that file and paste it here for Gemini to read)
+
+STEP 3: Confirm understanding
+------------------------------
+After reading both files, respond with:
+
+"🚀 GEMINI PARTNER MODE ACTIVATED
+
+I've read:
+✓ GEMINI.FULL-PARTNER.md (activation protocol)
+✓ GEMINI-HANDOFF-TEST-EXECUTION-FIX.md (current tasks)
+
+Understanding:
+- Product: SaaS Nomation test automation platform
+- Issue #1: Tests execute but return 500 errors (HIGH PRIORITY)
+- Issue #2: Improve test actions (assert, wait, add new actions)
+- Recent work: Claude fixed selector generation system
+- Current branch: dev/sec_phase/v2
+- Last commit: 88b886b
+
+Ready to start with Phase 1: Fix 500 Error Issue.
+
+What would you like me to begin with?"
+
+STEP 4: Start working
+---------------------
+Tell Gemini: "Start with Phase 1 - Fix the 500 error issue. Investigate why tests are executing successfully but returning 500 errors."
+
+═══════════════════════════════════════════════════════════════
+📋 QUICK REFERENCE FOR YOU
+═══════════════════════════════════════════════════════════════
+
+Files Gemini needs to read:
+1. /mnt/d/SaaS_Nomation/GEMINI.FULL-PARTNER.md
+2. /mnt/d/SaaS_Nomation/GEMINI-HANDOFF-TEST-EXECUTION-FIX.md
+3. /mnt/d/SaaS_Nomation/CLAUDE.local.md
+4. /mnt/d/SaaS_Nomation/screenshots/steps.png (shows the error)
+
+What Gemini will fix:
+- Issue #1: 500 errors during test execution (tests work but show as failed)
+- Issue #2: Improve assert actions (add types, better messages)
+- Issue #3: Improve wait actions (wait for element, visible, etc.)
+- Issue #4: Add new action types (hover, select, navigate, etc.)
+
+Current Status:
+✅ Selector system fixed by Claude
+✅ Code committed to git (branch: dev/sec_phase/v2)
+⚠️ Test execution needs fixing
+📋 Test actions need improvement
+
+═══════════════════════════════════════════════════════════════

@@ -12,6 +12,13 @@ export class ExecutionController {
     return this.executionService.executeTest(testId);
   }
 
+  @Post('test/:testId/run-live')
+  async runTestLive(@Param('testId') testId: string) {
+    // For now, run-live uses the same execution as regular run
+    // In the future, this could implement WebSocket streaming for real-time updates
+    return this.executionService.executeTest(testId);
+  }
+
   @Get('test/:testId/results')
   async getTestResults(@Param('testId') testId: string) {
     return this.executionService.getExecutionResults(testId);

@@ -59,6 +59,7 @@ export function TestSuitesPage() {
     id: string;
     name: string;
     totalTests: number;
+    executionId: string;
   } | null>(null)
 
   useEffect(() => {
@@ -116,24 +117,25 @@ export function TestSuitesPage() {
         showError('No Tests', 'Cannot run empty test suite. Please add tests first.')
         return
       }
-      
-      // Show execution modal instead of notifications
+
+      // Start actual execution and get execution ID
+      const executionResponse = await testSuitesAPI.execute(suiteId)
+      const executionId = executionResponse.data.id
+
+      console.log(`🚀 Suite execution started with ID: ${executionId}`)
+
+      // Show execution modal with real execution ID
       setExecutingSuite({
         id: suiteId,
         name: suite.name,
-        totalTests: suite.tests.length
+        totalTests: suite.tests.length,
+        executionId: executionId
       })
-      
-      // Start actual execution (in background)
-      testSuitesAPI.execute(suiteId).catch((error) => {
-        console.error('Suite execution failed:', error)
-        showError('Execution Failed', `Test suite "${suite.name}" execution failed`)
-        setExecutingSuite(null)
-      })
-      
+
     } catch (error) {
       console.error('Failed to start test suite execution:', error)
       showError('Execution Failed', 'Failed to start test suite execution')
+      setExecutingSuite(null)
     }
   }
 
@@ -166,6 +168,7 @@ export function TestSuitesPage() {
           suiteId={executingSuite.id}
           suiteName={executingSuite.name}
           totalTests={executingSuite.totalTests}
+          executionId={executingSuite.executionId}
           onComplete={handleExecutionComplete}
         />
       )}

@@ -2142,20 +2142,20 @@ export class ElementAnalyzerService {
 
   // Method for extracting elements from authenticated pages (used by authentication service)
   // NOW USES FULL COMPREHENSIVE SELECTOR SYSTEM (same as main analysis)
-  extractElementsFromAuthenticatedPage(page: any): Promise<any[]> {
+  async extractElementsFromAuthenticatedPage(page: any): Promise<any[]> {
     console.log('🔍 Extracting elements from authenticated page with comprehensive selectors...');
-    
+
     try {
       // Use the SAME comprehensive system as main analysis to avoid 0 elements issue
       console.log('🔄 Calling extractAllPageElements for authenticated page...');
-      const result = this.extractAllPageElements(page);
-      console.log('✅ extractAllPageElements call completed for authenticated page');
+      const result = await this.extractAllPageElements(page);
+      console.log(`✅ extractAllPageElements completed - found ${result.length} elements`);
       return result;
-      
+
     } catch (error) {
       console.error('❌ Error extracting elements from authenticated page:', error);
       console.error('❌ Error stack:', error.stack);
-      return Promise.resolve([]);
+      return [];
     }
   }
 

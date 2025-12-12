@@ -449,40 +449,69 @@ export class LiveBrowserService {
 
     const { page } = sessionData;
 
-    // Execute the action
-    switch (action.type) {
-      case 'click':
-        await page.click(action.selector);
-        break;
-      case 'hover':
-        await page.hover(action.selector);
-        break;
-      case 'type':
-        await page.fill(action.selector, action.value || '');
-        break;
+    try {
+      // Modern Playwright API: Use page.locator() for all interactions
+      const locator = page.locator(action.selector).first();
+      const timeout = 10000; // 10 seconds
+
+      // Execute the action
+      switch (action.type) {
+        case 'click':
+          await locator.click({ timeout });
+          console.log(`✓ Clicked element: ${action.selector}`);
+          break;
+        case 'hover':
+          await locator.hover({ timeout });
+          console.log(`✓ Hovered over element: ${action.selector}`);
+          break;
+        case 'type':
+          await locator.fill(action.value || '', { timeout });
+          console.log(`✓ Filled element: ${action.selector} with "${action.value}"`);
+          break;
+      }
+
+      // Wait for dynamic content
+      await page.waitForTimeout(1000);
+
+      // Update session state
+      try {
+        await this.prisma.browserSession.update({
+          where: { sessionToken },
+          data: {
+            currentState: 'after_interaction',
+            lastActivity: new Date(),
+          },
+        });
+      } catch (dbError) {
+        console.error('Warning: Failed to update session state in database:', dbError);
+        // Continue execution - database update failure shouldn't fail the action
+      }
+
+      // Capture elements after action - but don't fail if this errors
+      try {
+        const elements = await this.captureCurrentElements(sessionToken);
+
+        // Mark elements as discovered after interaction
+        return elements.map(element => ({
+          ...element,
+          discoveryState: action.type === 'hover' ? 'hover' : 'after_interaction',
+          discoveryTrigger: `${action.type} ${action.selector}`,
+        }));
+      } catch (captureError) {
+        console.error('Warning: Failed to capture elements after action:', captureError);
+        // Return empty array - action succeeded even if element capture failed
+        return [];
+      }
+
+    } catch (actionError) {
+      console.error(`✗ Action execution failed:`, {
+        type: action.type,
+        selector: action.selector,
+        value: action.value,
+        error: actionError.message
+      });
+      throw actionError; // Re-throw action failures
     }
-
-    // Wait for dynamic content
-    await page.waitForTimeout(1000);
-
-    // Update session state
-    await this.prisma.browserSession.update({
-      where: { sessionToken },
-      data: {
-        currentState: 'after_interaction',
-        lastActivity: new Date(),
-      },
-    });
-
-    // Capture elements after action
-    const elements = await this.captureCurrentElements(sessionToken);
-    
-    // Mark elements as discovered after interaction
-    return elements.map(element => ({
-      ...element,
-      discoveryState: action.type === 'hover' ? 'hover' : 'after_interaction',
-      discoveryTrigger: `${action.type} ${action.selector}`,
-    }));
   }
 
   async getSessionScreenshot(sessionToken: string): Promise<string> {
