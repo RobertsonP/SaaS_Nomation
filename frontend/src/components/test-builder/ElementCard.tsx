@@ -309,7 +309,7 @@ export function ElementCard({
             }}
             className="w-full px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium"
           >
-            ✨ Use in Test
+            Use in Test
           </button>
           
           {/* Secondary actions */}

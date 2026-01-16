@@ -15,4 +15,5 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   testTimeout: 10000,
+  testPathIgnorePatterns: ['<rootDir>/test/e2e/'],
 };

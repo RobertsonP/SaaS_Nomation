@@ -1,5 +1,13 @@
 import axios from 'axios';
 import { ProjectElement, PageAnalysisResult, SelectorValidationResult } from '../types/element.types';
+import { TestStep } from '../types/test.types';
+import {
+  NotificationPreferences,
+  AuthFlow,
+  AuthStep,
+  LiveStepRequest,
+  ElementHuntRequest
+} from '../types/api.types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
 
@@ -17,11 +25,23 @@ api.interceptors.request.use((config) => {
   if (config.url?.includes('/api/public/')) {
     return config;
   }
-  
+
   const token = localStorage.getItem('auth_token');
+  const organizationId = localStorage.getItem('organizationId');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Add organizationId to all requests
+  if (organizationId) {
+    if (config.method === 'get') {
+      config.params = { ...config.params, organizationId };
+    } else if (['post', 'put', 'patch', 'delete'].includes(config.method || '')) {
+      config.data = { ...config.data, organizationId };
+    }
+  }
+
   return config;
 });
 
@@ -53,12 +73,16 @@ api.interceptors.response.use(
         console.error('🚨 Max auth failures reached. Clearing auth data and redirecting to login.');
         localStorage.removeItem('auth_token');
         sessionStorage.clear();
-        
+
         // Prevent further requests by clearing headers
         delete api.defaults.headers.common['Authorization'];
-        
-        // Redirect to login
-        window.location.href = '/login';
+
+        // Dispatch custom event for App to handle navigation properly
+        // This prevents full page reload and maintains React Router state
+        window.dispatchEvent(new CustomEvent('auth:logout', {
+          detail: { reason: 'max_auth_failures' }
+        }));
+
         return Promise.reject(new Error('Authentication failed after multiple attempts'));
       }
       
@@ -77,6 +101,12 @@ export const authAPI = {
   register: (data: { name: string; email: string; password: string }) =>
     api.post('/auth/register', data),
   profile: () => api.get('/auth/profile'),
+  updateProfile: (data: { name?: string; theme?: string; timezone?: string }) =>
+    api.patch('/auth/profile', data),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post('/auth/change-password', data),
+  getNotificationPreferences: () => api.get('/auth/notifications'),
+  updateNotificationPreferences: (data: NotificationPreferences) => api.patch('/auth/notifications', data),
 };
 
 // Projects API
@@ -118,17 +148,21 @@ export const projectsAPI = {
     const response = await api.get(`/projects/${projectId}/analysis-history`);
     return response.data;
   },
+  getTestStats: async (projectId: string) => {
+    const response = await api.get(`/projects/${projectId}/test-stats`);
+    return response.data;
+  },
   clearElements: async (projectId: string) => {
     const response = await api.delete(`/projects/${projectId}/elements`);
     return response.data;
   },
   // Dynamic Element Discovery - Hunt New Elements
-  huntNewElements: async (projectId: string, data: { steps: any[], testId: string }) => {
+  huntNewElements: async (projectId: string, data: { steps: TestStep[], testId: string }) => {
     const response = await api.post(`/projects/${projectId}/hunt-elements`, data);
     return response.data;
   },
   // Live Step Execution
-  liveExecuteStep: async (projectId: string, data: { step: any, startingUrl: string, tempExecutionId: string }) => {
+  liveExecuteStep: async (projectId: string, data: { step: TestStep, startingUrl: string, tempExecutionId: string }) => {
     const response = await api.post(`/projects/${projectId}/live-execute-step`, data);
     return response.data;
   },
@@ -137,7 +171,7 @@ export const projectsAPI = {
     selector: string;
     elementType: string;
     description: string;
-    attributes?: any;
+    attributes?: Record<string, unknown>;
     confidence?: number;
     category?: string;
     source?: string;
@@ -145,16 +179,44 @@ export const projectsAPI = {
     const response = await api.post(`/projects/${projectId}/elements`, { elements });
     return response.data;
   },
+
+  // GitHub Integration
+  importGitHub: async (repoUrl: string, token?: string) => {
+    const response = await api.post('/projects/import-github', { repoUrl, token });
+    return response.data;
+  },
   
-  // Server-side Project Folder Analysis
-  analyzeProjectFolder: async (files: Array<{
-    name: string;
-    path: string;
-    size: number;
-    type: string;
-    content: string;
-  }>) => {
-    const response = await api.post('/projects/analyze-folder', { files });
+  // Self-Healing
+  healSelector: async (projectId: string, failedSelector: string) => {
+    const response = await api.post(`/projects/${projectId}/heal-selector`, { failedSelector });
+    return response.data;
+  },
+
+  // URL Discovery
+  startDiscovery: async (projectId: string, rootUrl: string, options?: {
+    maxDepth?: number;
+    maxPages?: number;
+    useSitemap?: boolean;
+  }) => {
+    const response = await api.post(`/projects/${projectId}/discover`, {
+      rootUrl,
+      ...options,
+    });
+    return response.data;
+  },
+
+  getDiscoveryProgress: async (projectId: string) => {
+    const response = await api.get(`/projects/${projectId}/discover/progress`);
+    return response.data;
+  },
+
+  getSiteMap: async (projectId: string) => {
+    const response = await api.get(`/projects/${projectId}/sitemap`);
+    return response.data;
+  },
+
+  selectPagesForAnalysis: async (projectId: string, urlIds: string[]) => {
+    const response = await api.post(`/projects/${projectId}/select-pages`, { urlIds });
     return response.data;
   },
 };
@@ -173,7 +235,7 @@ export const browserAPI = {
   },
   
   // Create browser session for live interaction
-  createSession: async (projectId: string, authFlow?: any) => {
+  createSession: async (projectId: string, authFlow?: AuthFlow) => {
     const response = await api.post('/api/public/browser/sessions', { projectId, authFlow });
     return response.data;
   },
@@ -219,11 +281,11 @@ export const browserAPI = {
 export const testsAPI = {
   getByProject: (projectId: string) => api.get(`/api/tests/project/${projectId}`),
   getById: (testId: string) => api.get(`/api/tests/${testId}`),
-  create: (data: { name: string; description?: string; projectId: string; startingUrl: string; steps: any[] }) =>
+  create: (data: { name: string; description?: string; projectId: string; startingUrl: string; steps: TestStep[] }) =>
     api.post('/api/tests', data),
-  update: (testId: string, data: { name: string; description?: string; startingUrl: string; steps: any[] }) =>
+  update: (testId: string, data: { name: string; description?: string; startingUrl: string; steps: TestStep[] }) =>
     api.put(`/api/tests/${testId}`, data),
-  updateSteps: (testId: string, steps: any[]) =>
+  updateSteps: (testId: string, steps: TestStep[]) =>
     api.put(`/api/tests/${testId}/steps`, { steps }),
   execute: (testId: string) => api.post(`/api/tests/${testId}/execute`),
   delete: (testId: string) => api.delete(`/api/tests/${testId}`),
@@ -233,6 +295,7 @@ export const testsAPI = {
 export const executionAPI = {
   run: (testId: string) => api.post(`/api/execution/test/${testId}/run`),
   runLive: (testId: string) => api.post(`/api/execution/test/${testId}/run-live`),
+  getJobStatus: (jobId: string) => api.get(`/api/execution/job/${jobId}`),
   stop: (executionId: string) => api.post(`/api/execution/${executionId}/stop`),
   getResults: (testId: string) => api.get(`/api/execution/test/${testId}/results`),
   getById: (executionId: string) => api.get(`/api/execution/${executionId}`),
@@ -240,14 +303,14 @@ export const executionAPI = {
 
 // Auth Flows API
 export const authFlowsAPI = {
-  create: (projectId: string, authFlow: any) => api.post('/api/auth-flows', { projectId, ...authFlow }),
+  create: (projectId: string, authFlow: Omit<AuthFlow, 'id'>) => api.post('/api/auth-flows', { projectId, ...authFlow }),
   getByProject: (projectId: string) => api.get(`/api/auth-flows/project/${projectId}`),
   getById: (id: string) => api.get(`/api/auth-flows/${id}`),
-  update: (id: string, authFlow: any) => api.put(`/api/auth-flows/${id}`, authFlow),
+  update: (id: string, authFlow: Partial<AuthFlow>) => api.put(`/api/auth-flows/${id}`, authFlow),
   delete: (id: string) => api.delete(`/api/auth-flows/${id}`),
   // NEW: Fixed API methods for templates and testing
   getTemplates: () => api.get('/api/templates/auth'), // Updated to use standalone endpoint
-  testAuth: (data: { loginUrl: string; username: string; password: string; steps?: any[] }) =>
+  testAuth: (data: { loginUrl: string; username: string; password: string; steps?: AuthStep[] }) =>
     api.post('/api/auth-flows/test', data),
 };
 
@@ -258,7 +321,7 @@ export const testSuitesAPI = {
     api.post('/api/test-suites', data),
   getById: (suiteId: string) => api.get(`/api/test-suites/${suiteId}`),
   update: (suiteId: string, data: { name: string; description?: string; status?: string }) =>
-    api.put(`/api/test-suites/${suiteId}`, data),
+    api.put(`/api/test-suites/${suiteId}`, { ...data }),
   delete: (suiteId: string) => api.delete(`/api/test-suites/${suiteId}`),
   addTests: (suiteId: string, testIds: string[]) =>
     api.post(`/api/test-suites/${suiteId}/tests`, { testIds }),
@@ -269,6 +332,34 @@ export const testSuitesAPI = {
   execute: (suiteId: string) => api.post(`/api/test-suites/${suiteId}/execute`),
   getExecutions: (suiteId: string) => api.get(`/api/test-suites/${suiteId}/executions`),
   getExecution: (executionId: string) => api.get(`/api/test-suites/executions/${executionId}`)
+};
+
+// Billing API
+export const billingAPI = {
+  createCheckout: (organizationId: string, priceId: string) => 
+    api.post('/billing/checkout', { organizationId, priceId }),
+  createPortal: (organizationId: string) => 
+    api.post('/billing/portal', { organizationId })
+};
+
+// Organizations API
+export const organizationsAPI = {
+  removeMember: (organizationId: string, userId: string) => 
+    api.delete(`/organizations/${organizationId}/members/${userId}`),
+  updateMemberRole: (organizationId: string, userId: string, role: string) => 
+    api.patch(`/organizations/${organizationId}/members/${userId}`, { role }),
+  revokeInvite: (organizationId: string, inviteId: string) => 
+    api.delete(`/organizations/${organizationId}/invites/${inviteId}`),
+  deleteOrganization: (organizationId: string) => 
+    api.delete(`/organizations/${organizationId}`)
+};
+
+// Reporting API
+export const reportingAPI = {
+  downloadPdf: (executionId: string) => 
+    api.get(`/reporting/execution/${executionId}/pdf`, { responseType: 'blob' }),
+  emailReport: (executionId: string, email: string) => 
+    api.post(`/reporting/execution/${executionId}/email`, { email })
 };
 
 // Convenience functions for AI features

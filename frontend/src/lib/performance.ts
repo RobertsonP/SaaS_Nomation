@@ -1,4 +1,7 @@
 // Performance monitoring utilities
+import { createLogger } from './logger';
+
+const logger = createLogger('PerformanceMonitor');
 
 interface PerformanceMetric {
   name: string
@@ -15,14 +18,14 @@ class PerformanceMonitor {
   // Start timing an operation
   startTimer(name: string, context?: Record<string, any>) {
     this.timers.set(name, performance.now())
-    console.log(`⏱️ Started timer: ${name}`)
+    logger.debug(`Started timer: ${name}`)
   }
 
   // End timing and record metric
   endTimer(name: string, context?: Record<string, any>): number {
     const startTime = this.timers.get(name)
     if (!startTime) {
-      console.warn(`Timer ${name} was not started`)
+      logger.warn(`Timer ${name} was not started`)
       return 0
     }
 
@@ -30,7 +33,7 @@ class PerformanceMonitor {
     this.timers.delete(name)
 
     this.recordMetric(name, duration, 'ms', context)
-    console.log(`⏱️ Completed timer: ${name} - ${duration.toFixed(2)}ms`)
+    logger.debug(`Completed timer: ${name} - ${duration.toFixed(2)}ms`)
     
     return duration
   }
@@ -49,7 +52,7 @@ class PerformanceMonitor {
 
     // Log slow operations
     if (unit === 'ms' && value > 1000) {
-      console.warn(`🐌 Slow operation detected: ${name} took ${value.toFixed(2)}ms`)
+      logger.warn(`Slow operation detected: ${name} took ${value.toFixed(2)}ms`)
     }
   }
 

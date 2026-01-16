@@ -1,13 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-interface TestStep {
-  id: string;
-  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck';
-  selector: string;
-  value?: string;
-  description: string;
-}
+import { TestStep } from '../../types/test.types';
 
 interface SortableTestStepProps {
   step: TestStep;
@@ -17,9 +10,10 @@ interface SortableTestStepProps {
   onLiveExecute?: (step: TestStep) => void;
   isExecuting?: boolean;
   projectId?: string;
+  isActiveVideoStep?: boolean; // NEW: Prop for video timestamp highlighting
 }
 
-export function SortableTestStep({ step, index, onRemove, onEdit, onLiveExecute, isExecuting, projectId }: SortableTestStepProps) {
+export function SortableTestStep({ step, index, onRemove, onEdit, onLiveExecute, isExecuting, projectId, isActiveVideoStep }: SortableTestStepProps) {
   const {
     attributes,
     listeners,
@@ -89,6 +83,7 @@ export function SortableTestStep({ step, index, onRemove, onEdit, onLiveExecute,
         border rounded-lg p-2 bg-white shadow-sm transition-all duration-200
         ${isDragging ? 'opacity-50 shadow-lg scale-105 z-50' : ''}
         ${isOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}
+        ${isActiveVideoStep ? 'border-purple-400 ring-2 ring-purple-300 bg-purple-50' : ''}
         hover:shadow-md hover:border-gray-300
       `}
     >

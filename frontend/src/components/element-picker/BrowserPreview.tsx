@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { browserAPI } from '../../lib/api';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('BrowserPreview');
 
 interface BrowserPreviewProps {
   url: string;
@@ -37,7 +40,7 @@ export function BrowserPreview({
 
   // Handle iframe load events
   const handleIframeLoad = useCallback(() => {
-    console.log('🌐 BrowserPreview: Iframe loaded successfully');
+    logger.debug('Iframe loaded successfully');
 
     // Clear any existing timeout
     if (loadTimeout) {
@@ -53,24 +56,24 @@ export function BrowserPreview({
     try {
       const iframe = iframeRef.current;
       if (!iframe || !iframe.contentWindow || !iframe.contentDocument) {
-        console.warn('⚠️ BrowserPreview: Iframe not accessible - missing window or document');
+        logger.warn('Iframe not accessible - missing window or document');
         return;
       }
 
       // Check if we can access the iframe content (same-origin)
       const iframeDoc = iframe.contentDocument;
-      console.log(`✅ BrowserPreview: Iframe document accessible - same origin detected`);
+      logger.debug('Iframe document accessible - same origin detected');
 
       // Inject our element picker script
       if (iframeDoc && isPickingMode) {
-        console.log('🎯 BrowserPreview: Injecting element picker script (picking mode is active)');
+        logger.debug('Injecting element picker script (picking mode is active)');
         injectElementPickerScript(iframeDoc);
       } else if (iframeDoc) {
-        console.log('📋 BrowserPreview: Iframe loaded but picking mode is not active yet');
+        logger.debug('Iframe loaded but picking mode is not active yet');
       }
 
     } catch (error) {
-      console.warn('❌ BrowserPreview: Cannot inject scripts into cross-origin iframe:', error);
+      logger.warn('Cannot inject scripts into cross-origin iframe', error);
       // For cross-origin, use backend proxy solution
       setIsCrossOrigin(true);
       setLoadError('⚠️ Cross-origin website detected. Using advanced element detection...');
@@ -119,7 +122,7 @@ export function BrowserPreview({
 
   // Cross-origin fallback using backend headless browser
   const handleCrossOriginFallback = useCallback(async () => {
-    console.log('🔄 Switching to cross-origin element detection mode');
+    logger.info('Switching to cross-origin element detection mode');
     
     // Clear the error after showing it briefly
     setTimeout(() => {
@@ -141,8 +144,8 @@ export function BrowserPreview({
     
     event.preventDefault();
     event.stopPropagation();
-    
-    console.log('🎯 Cross-origin click detected, analyzing page...');
+
+    logger.debug('Cross-origin click detected, analyzing page...');
     
     try {
       // Get click coordinates relative to iframe
@@ -178,7 +181,7 @@ export function BrowserPreview({
       }
       
     } catch (error) {
-      console.error('Cross-origin element detection failed:', error);
+      logger.error('Cross-origin element detection failed', error);
       alert('❌ Element detection failed. The page may be too complex or protected.');
     } finally {
       setIsLoading(false);
@@ -188,16 +191,16 @@ export function BrowserPreview({
   // Inject element picker functionality into the iframe
   const injectElementPickerScript = useCallback((doc: Document) => {
     if (!isPickingMode) {
-      console.log('⏸️ BrowserPreview: Script injection skipped - picking mode not active');
+      logger.debug('Script injection skipped - picking mode not active');
       return;
     }
 
-    console.log('🚀 BrowserPreview: Starting script injection process...');
+    logger.debug('Starting script injection process...');
 
     // Remove existing scripts
     const existingScript = doc.getElementById('element-picker-script');
     if (existingScript) {
-      console.log('🔄 BrowserPreview: Removing existing element picker script');
+      logger.debug('Removing existing element picker script');
       existingScript.remove();
     }
 
@@ -600,28 +603,28 @@ export function BrowserPreview({
 
     try {
       doc.head.appendChild(script);
-      console.log('✅ BrowserPreview: Element picker script injected successfully');
-      console.log(`📜 BrowserPreview: Script size: ${script.innerHTML.length} characters`);
+      logger.debug('Element picker script injected successfully');
+      logger.debug(`Script size: ${script.innerHTML.length} characters`);
     } catch (error) {
-      console.error('❌ BrowserPreview: Failed to inject element picker script:', error);
+      logger.error('Failed to inject element picker script', error);
     }
   }, [isPickingMode]);
 
   // Handle messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      console.log('📨 BrowserPreview: Received message from iframe:', event.data);
+      logger.debug('Received message from iframe', event.data);
 
       if (event.data.type === 'ELEMENT_SELECTED') {
-        console.log('🎯 BrowserPreview: Element selected from iframe:', event.data.data);
+        logger.info('Element selected from iframe', event.data.data);
         onElementSelected(event.data.data);
       } else if (event.data.type === 'PICKER_READY') {
-        console.log('✅ BrowserPreview: Element picker is ready in iframe');
+        logger.debug('Element picker is ready in iframe');
       } else if (event.data.type === 'PICKING_CANCELLED') {
-        console.log('❌ BrowserPreview: Picking mode cancelled in iframe');
+        logger.debug('Picking mode cancelled in iframe');
         setHighlight(prev => ({ ...prev, visible: false }));
       } else {
-        console.log('❓ BrowserPreview: Unknown message type from iframe:', event.data.type);
+        logger.debug('Unknown message type from iframe:', event.data.type);
       }
     };
 
@@ -631,11 +634,11 @@ export function BrowserPreview({
 
   // Update picking mode
   useEffect(() => {
-    console.log(`🔄 BrowserPreview: Picking mode changed to: ${isPickingMode}`);
+    logger.debug(`Picking mode changed to: ${isPickingMode}`);
 
     const iframe = iframeRef.current;
     if (!iframe || !iframe.contentWindow) {
-      console.warn('⚠️ BrowserPreview: Cannot send picking mode update - iframe not available');
+      logger.warn('Cannot send picking mode update - iframe not available');
       return;
     }
 
@@ -644,17 +647,17 @@ export function BrowserPreview({
         type: isPickingMode ? 'START_PICKING' : 'STOP_PICKING'
       };
 
-      console.log(`📤 BrowserPreview: Sending message to iframe:`, message);
+      logger.debug('Sending message to iframe', message);
       iframe.contentWindow.postMessage(message, '*');
 
       // Also try to inject script if picking mode is enabled and iframe is loaded
       if (isPickingMode && iframe.contentDocument) {
-        console.log('🔄 BrowserPreview: Re-injecting script due to picking mode activation');
+        logger.debug('Re-injecting script due to picking mode activation');
         injectElementPickerScript(iframe.contentDocument);
       }
 
     } catch (error) {
-      console.error('❌ BrowserPreview: Cannot send message to iframe:', error);
+      logger.error('Cannot send message to iframe', error);
     }
   }, [isPickingMode, injectElementPickerScript]);
 
@@ -675,7 +678,7 @@ export function BrowserPreview({
 
     // Set timeout for iframe loading
     const timeoutId = setTimeout(() => {
-      console.warn('Iframe load timeout reached for:', url);
+      logger.warn('Iframe load timeout reached for:', url);
       setIsLoading(false);
       
       // Check if this is a retry attempt

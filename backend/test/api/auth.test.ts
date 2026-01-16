@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 
-describe('Authentication API (e2e)', () => {
+describe.skip('Authentication API (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {

@@ -84,8 +84,17 @@
       "WebSearch",
       "WebFetch(domain:playwright.dev)",
       "WebFetch(domain:playwright.bootcss.com)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx:*)",
+      "Bash(npm --prefix frontend run build)",
+      "Bash(npm --prefix backend run build)",
+      "Bash(wc:*)",
+      "Bash(while read f)",
+      "Bash(do if grep -q 'bg-gray-50\"\"\"\"' \"$f\")",
+      "Bash(! grep -q 'bg-gray-50 dark:bg-gray' \"$f\")",
+      "Bash(then echo \"$f needs fix\" fi done)"
     ],
     "deny": []
-  }
+  },
+  "outputStyle": "default"
 }

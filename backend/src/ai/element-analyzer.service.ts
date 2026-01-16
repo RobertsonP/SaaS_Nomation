@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { chromium } from 'playwright';
+import { Page, ElementHandle } from 'playwright';
 import { AiService } from './ai.service';
-import { DetectedElement, PageAnalysisResult, SelectorValidationResult, QualityMetrics } from './interfaces/element.interface';
+import { DetectedElement, PageAnalysisResult, SelectorValidationResult, QualityMetrics, LoginFlow } from './interfaces/element.interface';
 import { AdvancedSelectorGeneratorService } from '../browser/advanced-selector-generator.service';
+import { BrowserManagerService } from './browser-manager.service';
+import { SelectorQualityService } from './selector-quality.service';
+import { ScreenshotService } from './screenshot.service';
+import { TestStep, MultiUrlAnalysisResult, UrlAnalysisResult, ElementHuntResult } from '../common/types/execution.types';
+import { MockElementData, MockElement, MockDocument, MockElementWrapper, MockElementList } from '../common/types/dom.types';
 
 @Injectable()
 export class ElementAnalyzerService {
@@ -12,25 +17,29 @@ export class ElementAnalyzerService {
 
   constructor(
     private aiService: AiService,
-    private advancedSelectorService: AdvancedSelectorGeneratorService
+    private advancedSelectorService: AdvancedSelectorGeneratorService,
+    private browserManager: BrowserManagerService,
+    private selectorQuality: SelectorQualityService,
+    private screenshotService: ScreenshotService
   ) {}
 
   async analyzePage(url: string): Promise<PageAnalysisResult> {
-    const browser = await this.setupBrowser();
-    const page = await browser.newPage();
-    
+    const browser = await this.browserManager.setupBrowser();
+    // Use createPageForUrl to handle localhost SSL errors
+    const page = await this.browserManager.createPageForUrl(browser, url);
+
     try {
       console.log(`Analyzing page: ${url}`);
       
       // Navigate to the page and wait for content to load
-      await this.navigateToPage(page, url);
+      await this.browserManager.navigateToPage(page, url);
       
       // Enhanced element extraction with CSS information
       const elements = await this.extractAllPageElements(page);
       
       console.log(`Found ${elements.length} elements with enhanced data`);
       
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       
       return {
         url,
@@ -39,7 +48,7 @@ export class ElementAnalyzerService {
         success: true
       };
     } catch (error) {
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       console.error('❌ Page analysis failed:', error);
       
       // Enhanced error categorization and feedback
@@ -62,7 +71,7 @@ export class ElementAnalyzerService {
   /**
    * Extract all testable elements from a page
    */
-  private async extractAllPageElements(page: any): Promise<any[]> {
+  private async extractAllPageElements(page: Page): Promise<DetectedElement[]> {
     console.log('🔄 Starting extractAllPageElements - entering page.evaluate()...');
 
     // First, extract elements without screenshots in browser context
@@ -1016,8 +1025,10 @@ export class ElementAnalyzerService {
               }
             };
 
-            // Mark image elements for later screenshot capture
-            if (elementType === 'image' || cssProps.backgroundImage !== 'none') {
+            // Mark interactive elements for screenshot capture (buttons, inputs, links, forms, images)
+            const interactiveTypes = ['button', 'input', 'link', 'form', 'image'];
+            const hasBackgroundImage = cssProps.backgroundImage !== 'none';
+            if (interactiveTypes.includes(elementType) || hasBackgroundImage) {
               detectedElement.needsScreenshot = true;
             }
 
@@ -1203,13 +1214,14 @@ export class ElementAnalyzerService {
           const mockDocument = this.createMockDocument(elementsWithAdvancedSelectors);
 
           // Generate selectors using advanced service
+          // Type assertions needed: Mock objects implement BrowserElement/BrowserDocument via index signatures
           const generatedSelectors = this.advancedSelectorService.generateSelectors({
-            element: mockElement,
-            document: mockDocument,
+            element: mockElement as unknown as import('../browser/strategies/selector-strategy.interface').BrowserElement,
+            document: mockDocument as unknown as import('../browser/strategies/selector-strategy.interface').BrowserDocument,
             prioritizeUniqueness: true,
             includePlaywrightSpecific: false, // Use CSS selectors only (not Playwright locators)
             testableElementsOnly: false, // We already filtered
-            allElements: elementsWithAdvancedSelectors // Enable layout-based selectors
+            allElements: elementsWithAdvancedSelectors as unknown as import('../browser/strategies/selector-strategy.interface').BrowserElement[]
           });
 
           if (generatedSelectors && generatedSelectors.length > 0) {
@@ -1242,202 +1254,66 @@ export class ElementAnalyzerService {
 
     console.log(`✅ Advanced selector generation complete - ${extractedElements.length} elements enhanced`);
 
-    // Now capture thumbnails for image elements outside browser context
-    console.log('📸 Processing thumbnails for image elements...');
-    const currentUrl = await page.url();
+    // Capture thumbnails for interactive elements (3x parallel for speed)
+    const elementsNeedingScreenshots = extractedElements.filter(el => el.needsScreenshot);
+    const totalCount = elementsNeedingScreenshots.length;
 
-    for (let i = 0; i < extractedElements.length; i++) {
-      const element = extractedElements[i];
-      if (element.needsScreenshot) {
-        try {
-          console.log(`📸 Capturing thumbnail for element: ${element.selector}`);
-          const thumbnail = await this.captureElementScreenshotFromPage(page, element.selector, true);
+    if (totalCount > 0) {
+      console.log(`📸 Capturing ${totalCount} element screenshots (3x parallel)...`);
 
-          if (thumbnail) {
-            // Add thumbnail to visualData
-            if (element.attributes?.visualData) {
-              element.attributes.visualData.thumbnailBase64 = thumbnail;
-              element.attributes.visualData.type = 'image';
-            }
-            // Also keep it in the old location for backward compatibility
-            element.screenshot = thumbnail;
-            console.log(`✅ Thumbnail captured: ${element.selector}`);
-          } else {
-            console.log(`⚠️ Failed to capture thumbnail: ${element.selector}`);
-          }
-        } catch (error) {
-          console.error(`❌ Thumbnail capture error for ${element.selector}:`, error.message);
-        }
-        // Remove the temporary flag
-        delete element.needsScreenshot;
-      }
-    }
+      const BATCH_SIZE = 3;
+      let capturedCount = 0;
+      let failedCount = 0;
 
-    console.log('✅ Thumbnail processing complete');
-    return extractedElements;
-  }
+      for (let i = 0; i < totalCount; i += BATCH_SIZE) {
+        const batch = elementsNeedingScreenshots.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
 
-  /**
-   * Setup browser with optimal configuration for element analysis
-   */
-  private async setupBrowser() {
-    console.log('🚀 Setting up browser with enhanced configuration for slow sites...');
-    
-    const browser = await chromium.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        // Enhanced args for slow/problematic sites
-        '--disable-extensions',
-        '--disable-plugins',
-        '--disable-images', // Skip images for faster loading in analysis
-        '--disable-javascript-harmony-shipping',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-default-apps'
-      ]
-    });
-    
-    console.log('✅ Browser setup complete');
-    return browser;
-  }
+        console.log(`📸 Batch ${batchNum}/${totalBatches} (${batch.length} elements)...`);
 
-  /**
-   * Navigate to page and wait for content to load with enhanced loading strategies
-   */
-  private async navigateToPage(page: any, url: string) {
-    console.log(`🌐 Navigating to ${url} with enhanced loading strategy...`);
-    
-    try {
-      // Strategy 1: Try networkidle first (fast sites)
-      console.log(`📡 Attempting fast load strategy (networkidle, 15s timeout)...`);
-      await page.goto(url, { 
-        waitUntil: 'networkidle', 
-        timeout: 15000 
-      });
-      console.log(`✅ Fast load successful for ${url}`);
-      
-    } catch (error) {
-      console.log(`⚠️ Fast load failed: ${error.message}`);
-      console.log(`🔄 Trying progressive load strategy (domcontentloaded + load + manual waits)...`);
-      
-      try {
-        // Strategy 2: Progressive loading for slow sites
-        await page.goto(url, { 
-          waitUntil: 'domcontentloaded',  // Wait for DOM only
-          timeout: 45000  // Longer timeout for slow sites
-        });
-        console.log(`📄 DOM loaded for ${url}`);
-        
-        // Wait for basic page load event
-        try {
-          await page.waitForLoadState('load', { timeout: 15000 });
-          console.log(`🔗 Load event completed for ${url}`);
-        } catch (loadError) {
-          console.log(`⚠️ Load event timeout - proceeding anyway: ${loadError.message}`);
-        }
-        
-        // Wait for document ready state
-        await page.evaluate(() => {
-          return new Promise((resolve) => {
-            if (document.readyState === 'complete') {
-              resolve(true);
+        await Promise.all(batch.map(async (element) => {
+          try {
+            const thumbnail = await this.screenshotService.captureElementScreenshotFromPage(
+              page,
+              element.selector,
+              true // thumbnail mode (JPEG, quality 70)
+            );
+
+            if (thumbnail) {
+              // Update visualData
+              if (element.attributes?.visualData) {
+                element.attributes.visualData.thumbnailBase64 = thumbnail;
+                element.attributes.visualData.type = 'image';
+              }
+              // Backward compatibility
+              element.screenshot = thumbnail;
+              capturedCount++;
             } else {
-              const checkReady = () => {
-                if (document.readyState === 'complete') {
-                  resolve(true);
-                } else {
-                  setTimeout(checkReady, 100);
-                }
-              };
-              checkReady();
+              failedCount++;
             }
-          });
-        });
-        console.log(`📋 Document ready state complete for ${url}`);
-        
-        console.log(`✅ Progressive load successful for ${url}`);
-        
-      } catch (progressiveError) {
-        console.log(`⚠️ Progressive load also failed: ${progressiveError.message}`);
-        console.log(`🚀 Trying minimal load strategy (domcontentloaded only)...`);
-        
-        // Strategy 3: Minimal loading for problematic sites
-        await page.goto(url, { 
-          waitUntil: 'domcontentloaded',
-          timeout: 60000  // Maximum timeout
-        });
-        console.log(`⚡ Minimal load completed for ${url}`);
-      }
-    }
-    
-    // Progressive waits for dynamic content with multiple stages
-    console.log(`⏳ Waiting for dynamic content to load...`);
-    
-    // Stage 1: Basic content stabilization
-    await page.waitForTimeout(2000);
-    
-    // Stage 2: Check for common loading indicators and wait for them to disappear
-    try {
-      await page.waitForFunction(() => {
-        const loadingSelectors = [
-          '.loading', '.loader', '.spinner', '.preloader',
-          '[data-loading]', '[data-testid="loading"]',
-          '.fa-spinner', '.fa-circle-o-notch'
-        ];
-        
-        for (const selector of loadingSelectors) {
-          const element = document.querySelector(selector);
-          if (element && window.getComputedStyle(element).display !== 'none') {
-            return false; // Still loading
+          } catch (error) {
+            console.error(`⚠️ Screenshot failed for ${element.selector}:`, error.message);
+            failedCount++;
           }
-        }
-        return true; // No visible loading indicators
-      }, {}, { timeout: 5000 });
-      console.log(`🎯 Loading indicators cleared for ${url}`);
-    } catch (indicatorError) {
-      console.log(`⏰ Loading indicator wait timeout - proceeding: ${indicatorError.message}`);
-    }
-    
-    // Stage 3: Wait for images to load
-    try {
-      await page.waitForFunction(() => {
-        const images = document.querySelectorAll('img');
-        return Array.from(images).every(img => img.complete || img.naturalWidth > 0);
-      }, {}, { timeout: 3000 });
-      console.log(`🖼️ Images loaded for ${url}`);
-    } catch (imageError) {
-      console.log(`📷 Image load timeout - proceeding: ${imageError.message}`);
-    }
-    
-    // Stage 4: Final stabilization wait
-    await page.waitForTimeout(1000);
-    
-    console.log(`🏁 Navigation and content loading complete for ${url}`);
-  }
+          // Clean up temporary flag
+          delete element.needsScreenshot;
+        }));
+      }
 
-  /**
-   * Properly close browser instance
-   */
-  private async closeBrowser(browser: any) {
-    await browser.close();
+      console.log(`✅ Screenshots complete: ${capturedCount} captured, ${failedCount} failed`);
+    } else {
+      console.log('📸 No elements need screenshots');
+    }
+    return extractedElements;
   }
 
   // Phase 2: Enhanced selector validation with comprehensive metrics
   async validateSelector(url: string, selector: string): Promise<SelectorValidationResult> {
-    const browser = await this.setupBrowser();
-    const page = await browser.newPage();
-    
+    const browser = await this.browserManager.setupBrowser();
+    // Use createPageForUrl to handle localhost SSL errors
+    const page = await this.browserManager.createPageForUrl(browser, url);
+
     try {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
       
@@ -1456,7 +1332,7 @@ export class ElementAnalyzerService {
       }
       
       // Calculate comprehensive quality metrics
-      const qualityBreakdown = this.calculateEnhancedSelectorQuality(selector, elementCount, elementHandle);
+      const qualityBreakdown = this.selectorQuality.calculateEnhancedSelectorQuality(selector, elementCount, elementHandle);
       
       // Generate enhanced suggestions
       const suggestions = this.generateEnhancedSelectorSuggestions(selector, elementCount, qualityBreakdown);
@@ -1465,7 +1341,7 @@ export class ElementAnalyzerService {
       const alternativeSelectors = elementCount !== 1 ? 
         await this.generateAlternativeSelectors(page, selector, elementHandle) : [];
       
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       
       return {
         selector,
@@ -1482,7 +1358,7 @@ export class ElementAnalyzerService {
         qualityBreakdown
       };
     } catch (error) {
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       
       return {
         selector,
@@ -1515,11 +1391,12 @@ export class ElementAnalyzerService {
         throw new Error('No URLs provided for validation');
       }
       const validationResults = [];
-      const browser = await this.setupBrowser();
+      const browser = await this.browserManager.setupBrowser();
 
       for (const url of urls) {
         try {
-          const page = await browser.newPage();
+          // Use createPageForUrl to handle localhost SSL errors
+          const page = await this.browserManager.createPageForUrl(browser, url);
           await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
           
           const elements = await page.locator(selector).all();
@@ -1545,7 +1422,7 @@ export class ElementAnalyzerService {
         }
       }
 
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
 
       // Analyze cross-page results
       const validUrls = validationResults.filter(r => r.isValid).length;
@@ -1563,7 +1440,7 @@ export class ElementAnalyzerService {
         .map(r => `${r.url}: ${r.error}`);
 
       // Calculate overall quality based on cross-page consistency
-      const qualityBreakdown = this.calculateEnhancedSelectorQuality(
+      const qualityBreakdown = this.selectorQuality.calculateEnhancedSelectorQuality(
         selector, 
         averageMatchCount,
         null
@@ -1629,331 +1506,38 @@ export class ElementAnalyzerService {
   }
 
 
-  // Phase 2: Enhanced quality scoring with comprehensive metrics
-  private calculateEnhancedSelectorQuality(selector: string, elementCount: number, elementHandle?: any): QualityMetrics {
-    // Calculate uniqueness score (40% weight)
-    const uniquenessScore = this.calculateUniquenessScore(selector, elementCount);
-    
-    // Calculate stability score (30% weight)
-    const stabilityScore = this.calculateStabilityScore(selector);
-    
-    // Calculate specificity score (20% weight)
-    const specificityScore = this.calculateSpecificityScore(selector);
-    
-    // Calculate accessibility score (10% weight)
-    const accessibilityScore = this.calculateAccessibilityScore(selector, elementHandle);
-    
-    // Calculate weighted overall score
-    const overall = (
-      uniquenessScore * 0.4 +
-      stabilityScore * 0.3 +
-      specificityScore * 0.2 +
-      accessibilityScore * 0.1
-    );
-    
-    return {
-      uniqueness: uniquenessScore,
-      stability: stabilityScore,
-      specificity: specificityScore,
-      accessibility: accessibilityScore,
-      overall: Math.max(0, Math.min(1, overall))
-    };
-  }
-  
-  private calculateUniquenessScore(selector: string, elementCount: number): number {
-    if (elementCount === 0) return 0;
-    if (elementCount === 1) return 1.0; // Perfect uniqueness
-    if (elementCount <= 3) return 0.7;  // Good uniqueness
-    if (elementCount <= 10) return 0.4; // Fair uniqueness
-    return 0.1; // Poor uniqueness
-  }
-  
-  private calculateStabilityScore(selector: string): number {
-    let score = 0.5; // Base score
-    
-    // High stability attributes
-    if (selector.includes('[data-testid=') || selector.includes('data-testid=')) {
-      score += 0.5; // Most stable
-    } else if (selector.includes('[data-test') || selector.includes('[data-cy') || selector.includes('[data-e2e')) {
-      score += 0.45; // Very stable test attributes
-    } else if (selector.includes('[aria-label=') || selector.includes('aria-label=')) {
-      score += 0.4; // Stable accessibility attributes
-    } else if (selector.includes('[id=') || selector.includes('#') && !selector.includes('nth-')) {
-      score += 0.35; // Stable if unique ID
-    } else if (selector.includes('[role=') || selector.includes('role=')) {
-      score += 0.3; // Semantic stability
-    } else if (selector.includes('[name=') || selector.includes('name=')) {
-      score += 0.25; // Moderately stable
-    }
-    
-    // Stability penalties
-    if (selector.includes('nth-child') || selector.includes('nth-of-type')) {
-      score -= 0.3; // Position-based selectors are fragile
-    }
-    if (selector.includes(':first-child') || selector.includes(':last-child')) {
-      score -= 0.2; // Position-based but less fragile
-    }
-    if (selector.split(' ').length > 4) {
-      score -= 0.15; // Overly complex selectors
-    }
-    if (selector.includes('>>') || selector.includes('xpath=')) {
-      score -= 0.2; // Complex or non-CSS selectors
-    }
-    
-    return Math.max(0, Math.min(1, score));
-  }
-  
-  private calculateSpecificityScore(selector: string): number {
-    let score = 0.5; // Base score for balanced specificity
-    
-    const parts = selector.split(' ').filter(p => p.trim() !== '');
-    const complexity = parts.length;
-    
-    // Optimal specificity range (2-3 parts)
-    if (complexity >= 2 && complexity <= 3) {
-      score += 0.3;
-    } else if (complexity === 1) {
-      score += 0.1; // Too general
-    } else if (complexity > 3) {
-      score -= 0.2; // Too specific
-    }
-    
-    // Bonus for semantic specificity
-    if (selector.includes('[type=') || selector.includes('input[')) {
-      score += 0.2; // Good semantic specificity
-    }
-    
-    // Penalty for overly broad selectors
-    if (selector === 'div' || selector === 'span' || selector === 'a') {
-      score -= 0.4; // Too broad
-    }
-    
-    return Math.max(0, Math.min(1, score));
-  }
-  
-  private calculateAccessibilityScore(selector: string, elementHandle?: any): number {
-    let score = 0.3; // Base score
-    
-    // Accessibility attribute bonuses
-    if (selector.includes('[aria-label=') || selector.includes('aria-label=')) {
-      score += 0.4;
-    }
-    if (selector.includes('[aria-') || selector.includes('aria-')) {
-      score += 0.3;
-    }
-    if (selector.includes('[role=') || selector.includes('role=')) {
-      score += 0.3;
-    }
-    if (selector.includes('[alt=') || selector.includes('alt=')) {
-      score += 0.2;
-    }
-    if (selector.includes('[title=') || selector.includes('title=')) {
-      score += 0.1;
-    }
-    
-    // Semantic element bonuses
-    const semanticElements = ['button', 'input', 'textarea', 'select', 'a', 'form', 'label'];
-    if (semanticElements.some(elem => selector.includes(elem))) {
-      score += 0.2;
-    }
-    
-    return Math.max(0, Math.min(1, score));
-  }
-  
-  // Backward compatibility method
-  private calculateSelectorQuality(selector: string, elementCount: number): number {
-    const metrics = this.calculateEnhancedSelectorQuality(selector, elementCount);
-    return metrics.overall;
-  }
-
-  private generateSelectorSuggestions(selector: string, elementCount: number): string[] {
-    const suggestions: string[] = [];
-    
-    if (elementCount === 0) {
-      suggestions.push('Element not found - check if selector is correct');
-      suggestions.push('Try using browser dev tools to inspect the element');
-      suggestions.push('Consider using more specific attributes like data-testid');
-    } else if (elementCount > 1) {
-      suggestions.push(`${elementCount} elements match - consider adding more specific attributes`);
-      suggestions.push('Use :first, :last, or :nth-child() to target specific element');
-      suggestions.push('Add data-testid attribute to the target element for better uniqueness');
-    } else {
-      suggestions.push('Great! Selector finds exactly one element');
-    }
-    
-    // General suggestions based on selector type
-    if (selector.includes('nth-child')) {
-      suggestions.push('Position-based selectors may break if page structure changes');
-      suggestions.push('Consider using semantic attributes instead');
-    }
-    
-    if (!selector.includes('[') && !selector.includes('#') && !selector.includes('.')) {
-      suggestions.push('Consider using ID, class, or attribute selectors for better stability');
-    }
-    
-    if (selector.split(' ').length > 3) {
-      suggestions.push('Complex selectors may be fragile - try to simplify if possible');
-    }
-    
-    return suggestions;
-  }
-
-  // Phase 2: Enhanced suggestion generation with quality metrics context
-  private generateEnhancedSelectorSuggestions(selector: string, elementCount: number, qualityMetrics: QualityMetrics): string[] {
-    const suggestions: string[] = [];
-    
-    // Uniqueness suggestions
-    if (elementCount === 0) {
-      suggestions.push('🔍 Element not found - verify selector syntax and element existence');
-      suggestions.push('💡 Use browser dev tools to inspect and get the correct selector');
-      if (qualityMetrics.accessibility < 0.5) {
-        suggestions.push('♿ Consider using accessible attributes like aria-label or role');
-      }
-    } else if (elementCount > 1) {
-      suggestions.push(`⚠️ ${elementCount} elements match - selector needs to be more specific`);
-      if (qualityMetrics.uniqueness < 0.5) {
-        suggestions.push('🎯 Add unique identifiers: data-testid, id, or specific attributes');
-        suggestions.push('🔧 Use :first, :last, or :nth-child() as temporary solution');
-      }
-    } else {
-      suggestions.push('✅ Perfect! Selector finds exactly one element');
-    }
-    
-    // Stability suggestions
-    if (qualityMetrics.stability < 0.6) {
-      suggestions.push('⚡ Improve stability: use data-testid or semantic attributes');
-      if (selector.includes('nth-child') || selector.includes('nth-of-type')) {
-        suggestions.push('🏗️ Position-based selectors are fragile - use semantic attributes instead');
-      }
-      if (!selector.includes('[data-') && !selector.includes('[aria-')) {
-        suggestions.push('🛡️ Add test-specific attributes for better reliability');
-      }
-    }
-    
-    // Specificity suggestions
-    if (qualityMetrics.specificity < 0.5) {
-      if (selector.split(' ').length > 4) {
-        suggestions.push('🎛️ Selector is too complex - simplify for better maintainability');
-      } else if (selector.split(' ').length === 1 && !selector.includes('[') && !selector.includes('#')) {
-        suggestions.push('🔍 Selector is too broad - add more specific attributes');
-      }
-    }
-    
-    // Accessibility suggestions
-    if (qualityMetrics.accessibility < 0.5) {
-      suggestions.push('♿ Enhance accessibility: use aria-label, role, or semantic elements');
-      suggestions.push('🏷️ Consider using form labels and semantic HTML elements');
-    }
-    
-    // Overall quality suggestions
-    if (qualityMetrics.overall < 0.6) {
-      suggestions.push('📈 Overall quality is low - consider improving stability and uniqueness');
-    } else if (qualityMetrics.overall >= 0.8) {
-      suggestions.push('🌟 Excellent selector quality - this is test-automation ready!');
-    }
-    
-    return suggestions;
-  }
-
   // Phase 2: Generate alternative selectors for non-unique ones
-  private async generateAlternativeSelectors(page: any, originalSelector: string, elementHandle: any): Promise<string[]> {
-    if (!elementHandle) return [];
-    
-    try {
-      // Extract element attributes to generate alternatives
-      const alternatives = await page.evaluate((element) => {
-        const suggestions: string[] = [];
-        
-        // Try ID-based selector
-        if (element.id && element.id.trim() !== '') {
-          suggestions.push(`#${element.id}`);
-        }
-        
-        // Try data-testid selector
-        const testId = element.getAttribute('data-testid');
-        if (testId) {
-          suggestions.push(`[data-testid="${testId}"]`);
-        }
-        
-        // Try aria-label selector
-        const ariaLabel = element.getAttribute('aria-label');
-        if (ariaLabel) {
-          suggestions.push(`[aria-label="${ariaLabel}"]`);
-        }
-        
-        // Try name attribute
-        const name = element.getAttribute('name');
-        if (name) {
-          suggestions.push(`${element.tagName.toLowerCase()}[name="${name}"]`);
-        }
-        
-        // Try type + class combination
-        const type = element.getAttribute('type');
-        const className = element.className;
-        if (type && className) {
-          const firstClass = className.split(' ')[0];
-          if (firstClass) {
-            suggestions.push(`${element.tagName.toLowerCase()}[type="${type}"].${firstClass}`);
-          }
-        }
-        
-        // Try parent-child combinations
-        const parent = element.parentElement;
-        if (parent && parent.id) {
-          suggestions.push(`#${parent.id} > ${element.tagName.toLowerCase()}`);
-        }
-        
-        return suggestions;
-      }, elementHandle);
-      
-      // Filter out alternatives that are the same as original
-      return alternatives.filter(alt => alt !== originalSelector);
-      
-    } catch (error) {
-      console.warn('Failed to generate alternative selectors:', error);
-      return [];
-    }
+  private async generateAlternativeSelectors(page: Page, originalSelector: string, elementHandle: ElementHandle | null): Promise<string[]> {
+    // Delegate to SelectorQualityService
+    return this.selectorQuality.generateAlternativeSelectors(page, originalSelector, elementHandle);
   }
 
-  // Phase 2: Generate cross-page validation suggestions
-  private generateCrossPageSuggestions(validation: any, selector: string): string[] {
-    const suggestions: string[] = [];
-    
-    if (validation.validUrls === 0) {
-      suggestions.push('❌ Selector not found on any project pages');
-      suggestions.push('🔍 Verify selector exists across your application');
-    } else if (validation.validUrls < validation.totalUrls) {
-      suggestions.push(`⚠️ Selector only works on ${validation.validUrls}/${validation.totalUrls} pages`);
-      suggestions.push('🌐 Consider using more universal selectors for cross-page consistency');
-    }
-    
-    if (!validation.uniqueOnAllPages) {
-      suggestions.push('🎯 Selector matches multiple elements on some pages');
-      suggestions.push('🔧 Add more specific attributes to ensure uniqueness');
-      if (validation.inconsistentPages.length > 0) {
-        suggestions.push(`📋 Inconsistent pages: ${validation.inconsistentPages.slice(0, 3).join(', ')}`);
-      }
-    }
-    
-    if (validation.averageMatchCount > 3) {
-      suggestions.push('📊 High average match count indicates selector is too broad');
-    }
-    
-    if (validation.validationErrors.length > 0) {
-      suggestions.push('🚨 Some pages had validation errors - check browser console');
-    }
-    
-    if (validation.uniqueOnAllPages && validation.validUrls === validation.totalUrls) {
-      suggestions.push('🎉 Perfect cross-page consistency! This selector is production-ready');
-    }
-    
-    return suggestions;
+  // Backward compatibility wrappers - delegate to services
+  private generateSelectorSuggestions(selector: string, elementCount: number): string[] {
+    return this.selectorQuality.generateSelectorSuggestions(selector, elementCount);
+  }
+
+  private generateEnhancedSelectorSuggestions(selector: string, elementCount: number, qualityMetrics: QualityMetrics): string[] {
+    return this.selectorQuality.generateEnhancedSelectorSuggestions(selector, elementCount, qualityMetrics);
+  }
+
+  // Phase 2: Generate cross-page validation suggestions - delegate to SelectorQualityService
+  private generateCrossPageSuggestions(validation: {
+    validUrls: number;
+    totalUrls: number;
+    uniqueOnAllPages: boolean;
+    inconsistentPages: string[];
+    averageMatchCount: number;
+    validationErrors: string[];
+  }, selector: string): string[] {
+    return this.selectorQuality.generateCrossPageSuggestions(validation, selector);
   }
 
   async getPageMetadata(url: string): Promise<{ title: string; description?: string }> {
-    const browser = await this.setupBrowser();
-    const page = await browser.newPage();
-    
+    const browser = await this.browserManager.setupBrowser();
+    // Use createPageForUrl to handle localhost SSL errors
+    const page = await this.browserManager.createPageForUrl(browser, url);
+
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
       
@@ -1961,11 +1545,11 @@ export class ElementAnalyzerService {
       const pageTitle = await this.extractIntelligentPageTitle(page, url);
       const description = await page.locator('meta[name="description"]').getAttribute('content');
       
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       
       return { title: pageTitle, description };
     } catch (error) {
-      await this.closeBrowser(browser);
+      await this.browserManager.closeBrowser(browser);
       
       // Generate user-friendly fallback title from URL
       const fallbackTitle = this.generateFallbackTitle(url);
@@ -1974,7 +1558,7 @@ export class ElementAnalyzerService {
   }
 
   // Enhanced intelligent page title extraction
-  private async extractIntelligentPageTitle(page: any, url: string): Promise<string> {
+  private async extractIntelligentPageTitle(page: Page, url: string): Promise<string> {
     try {
       // Strategy 1: Get document title
       const documentTitle = await page.title();
@@ -2142,7 +1726,7 @@ export class ElementAnalyzerService {
 
   // Method for extracting elements from authenticated pages (used by authentication service)
   // NOW USES FULL COMPREHENSIVE SELECTOR SYSTEM (same as main analysis)
-  async extractElementsFromAuthenticatedPage(page: any): Promise<any[]> {
+  async extractElementsFromAuthenticatedPage(page: Page): Promise<DetectedElement[]> {
     console.log('🔍 Extracting elements from authenticated page with comprehensive selectors...');
 
     try {
@@ -2160,8 +1744,12 @@ export class ElementAnalyzerService {
   }
 
   // Enhanced error categorization for better debugging and user feedback
-  categorizeAnalysisError(error: any, url: string): { category: 'NETWORK_ERROR' | 'TIMEOUT_ERROR' | 'AUTHENTICATION_ERROR' | 'JAVASCRIPT_ERROR' | 'BROWSER_ERROR' | 'ELEMENT_ANALYSIS_ERROR' | 'SSL_ERROR' | 'UNKNOWN_ERROR' | 'SLOW_SITE_TIMEOUT' | 'LOADING_TIMEOUT' | 'BOT_DETECTION'; message: string; details: any } {
-    const errorMessage = error.message || error.toString();
+  categorizeAnalysisError(error: Error | unknown, url: string): {
+    category: 'NETWORK_ERROR' | 'TIMEOUT_ERROR' | 'AUTHENTICATION_ERROR' | 'JAVASCRIPT_ERROR' | 'BROWSER_ERROR' | 'ELEMENT_ANALYSIS_ERROR' | 'SSL_ERROR' | 'UNKNOWN_ERROR' | 'SLOW_SITE_TIMEOUT' | 'LOADING_TIMEOUT' | 'BOT_DETECTION';
+    message: string;
+    details: { originalError: string; url: string; suggestions: string[] }
+  } {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     const lowerMessage = errorMessage.toLowerCase();
     
     // Timeout errors (most common for slow sites)
@@ -2172,7 +1760,7 @@ export class ElementAnalyzerService {
           message: `Site loads too slowly (>30s): ${new URL(url).hostname} may have heavy content, ads, or slow CDN. Try again or contact site administrator.`,
           details: { 
             url, 
-            error: errorMessage,
+            originalError: errorMessage,
             suggestions: [
               'Site has heavy JavaScript, analytics, or ads causing slow loading',
               'CDN or external resources may be slow',
@@ -2185,7 +1773,7 @@ export class ElementAnalyzerService {
         return {
           category: 'LOADING_TIMEOUT',
           message: `Page loading timeout: ${errorMessage}`,
-          details: { url, error: errorMessage }
+          details: { originalError: errorMessage, url, suggestions: ['Increase timeout', 'Check network speed'] }
         };
       }
     }
@@ -2198,7 +1786,7 @@ export class ElementAnalyzerService {
         message: `Network connection failed: Cannot reach ${new URL(url).hostname}. Check URL or internet connection.`,
         details: { 
           url, 
-          error: errorMessage,
+          originalError: errorMessage,
           suggestions: [
             'Verify the URL is correct and accessible',
             'Check if the site is down or blocking automated access',
@@ -2214,7 +1802,7 @@ export class ElementAnalyzerService {
       return {
         category: 'SSL_ERROR',
         message: `SSL certificate error: ${new URL(url).hostname} has certificate issues.`,
-        details: { url, error: errorMessage }
+        details: { originalError: errorMessage, url, suggestions: ['Check SSL certificate', 'Try HTTP instead of HTTPS'] }
       };
     }
     
@@ -2226,7 +1814,7 @@ export class ElementAnalyzerService {
         message: `Authentication required: ${new URL(url).hostname} requires login to access this page.`,
         details: { 
           url, 
-          error: errorMessage,
+          originalError: errorMessage,
           suggestions: [
             'Page may require user login',
             'Set up authentication flow in project settings',
@@ -2244,7 +1832,7 @@ export class ElementAnalyzerService {
         message: `Site blocking automated access: ${new URL(url).hostname} has anti-bot protection.`,
         details: { 
           url, 
-          error: errorMessage,
+          originalError: errorMessage,
           suggestions: [
             'Site uses Cloudflare, CAPTCHA, or bot detection',
             'Try again after a few minutes',
@@ -2259,7 +1847,7 @@ export class ElementAnalyzerService {
       return {
         category: 'JAVASCRIPT_ERROR',
         message: `JavaScript execution failed: ${errorMessage}`,
-        details: { url, error: errorMessage }
+        details: { originalError: errorMessage, url, suggestions: ['Check page JavaScript', 'Disable JS blocking extensions'] }
       };
     }
     
@@ -2267,9 +1855,9 @@ export class ElementAnalyzerService {
     return {
       category: 'UNKNOWN_ERROR',
       message: `Analysis failed for ${new URL(url).hostname}: ${errorMessage}`,
-      details: { 
-        url, 
-        error: errorMessage,
+      details: {
+        originalError: errorMessage,
+        url,
         suggestions: [
           'Try analyzing the page again',
           'Check browser console for detailed errors',
@@ -2280,23 +1868,27 @@ export class ElementAnalyzerService {
   }
 
   // Authentication-aware page analysis
-  async analyzePageWithAuth(url: string, authFlow: any): Promise<PageAnalysisResult> {
+  async analyzePageWithAuth(url: string, authFlow: LoginFlow): Promise<PageAnalysisResult> {
     console.log(`🔐 Analyzing page with auth: ${url}`);
     return await this.analyzePage(url);
   }
 
   // Multiple URL analysis with authentication
-  async analyzeAllUrlsWithAuth(urls: string[], authFlow: any, progressCallback?: (step: string, message: string, current?: number, total?: number) => void): Promise<any> {
+  async analyzeAllUrlsWithAuth(
+    urls: string[],
+    authFlow: LoginFlow,
+    progressCallback?: (step: string, message: string, current?: number, total?: number) => void
+  ): Promise<MultiUrlAnalysisResult> {
     console.log(`🔐 Analyzing ${urls.length} URLs with auth flow`);
-    
-    const urlResults = [];
+
+    const urlResults: UrlAnalysisResult[] = [];
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
       try {
         if (progressCallback) {
           progressCallback('analyzing', `Analyzing ${url}`, i + 1, urls.length);
         }
-        
+
         const result = await this.analyzePage(url);
         urlResults.push({
           url,
@@ -2305,15 +1897,16 @@ export class ElementAnalyzerService {
           errorMessage: result.errorMessage
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         urlResults.push({
           url,
           elements: [],
           success: false,
-          errorMessage: error.message
+          errorMessage
         });
       }
     }
-    
+
     return {
       success: true,
       urlResults,
@@ -2321,81 +1914,77 @@ export class ElementAnalyzerService {
     };
   }
 
-  // Element screenshot capture
+  // Element screenshot capture - delegate to ScreenshotService
   async captureElementScreenshot(url: string, selector: string): Promise<string | null> {
-    console.log(`📸 Capturing screenshot for element: ${selector} on ${url}`);
-    
-    const browser = await this.setupBrowser();
-    const page = await browser.newPage();
-    
-    try {
-      await this.navigateToPage(page, url);
-      
-      const element = page.locator(selector).first();
-      const screenshot = await element.screenshot({ type: 'png' });
-      
-      await this.closeBrowser(browser);
-      
-      return `data:image/png;base64,${screenshot.toString('base64')}`;
-      
-    } catch (error) {
-      console.error(`❌ Failed to capture screenshot: ${error.message}`);
-      await this.closeBrowser(browser);
-      return null;
-    }
-  }
-
-  /**
-   * Capture screenshot for an element using existing page instance
-   */
-  private async captureElementScreenshotFromPage(page: any, selector: string, thumbnail = false): Promise<string | null> {
-    try {
-      const element = page.locator(selector).first();
-
-      if (thumbnail) {
-        // Capture mini thumbnail with JPEG compression for small file size
-        const screenshot = await element.screenshot({
-          type: 'jpeg',
-          quality: 70  // 70% quality for good balance of size vs visual quality
-        });
-        return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
-      } else {
-        // Full screenshot
-        const screenshot = await element.screenshot({ type: 'png' });
-        return `data:image/png;base64,${screenshot.toString('base64')}`;
-      }
-    } catch (error) {
-      console.error(`❌ Failed to capture screenshot from page: ${error.message}`);
-      return null;
-    }
+    return this.screenshotService.captureElementScreenshot(url, selector);
   }
 
   async huntElementsAfterSteps(config: {
     startingUrl: string;
-    steps: any[];
+    steps: TestStep[];
     projectId: string;
     testId: string;
-  }): Promise<DetectedElement[]> {
+  }): Promise<{ success: boolean; elements?: DetectedElement[]; error?: string }> {
     console.log(`🔍 Starting element hunting after executing ${config.steps.length} test steps`);
-    
+
     let browser = null;
     try {
-      browser = await this.setupBrowser();
-      const page = await browser.newPage();
-      
+      browser = await this.browserManager.setupBrowser();
+      // Use createPageForUrl to handle localhost SSL errors
+      const page = await this.browserManager.createPageForUrl(browser, config.startingUrl);
+
       // Set desktop viewport and navigate to starting URL (matches live-browser.service.ts)
       await page.setViewportSize({ width: 1920, height: 1080 });
       console.log(`🌐 Navigating to: ${config.startingUrl}`);
-      await page.goto(config.startingUrl, { waitUntil: 'networkidle', timeout: 30000 });
-      
+
+      // Progressive navigation with multiple fallbacks
+      let navigationSucceeded = false;
+      try {
+        await page.goto(config.startingUrl, { waitUntil: 'networkidle', timeout: 15000 });
+        console.log(`✅ Navigation succeeded with networkidle`);
+        navigationSucceeded = true;
+      } catch (navError) {
+        console.warn(`⚠️ Networkidle wait timed out, trying domcontentloaded...`);
+        // If networkidle fails (common on complex sites), ensure we at least loaded DOM
+        if (page.url() === 'about:blank') {
+          try {
+            await page.goto(config.startingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            console.log(`✅ Navigation succeeded with domcontentloaded`);
+            navigationSucceeded = true;
+          } catch (domError) {
+            console.warn(`⚠️ Domcontentloaded wait timed out, trying basic load...`);
+            try {
+              await page.goto(config.startingUrl, { waitUntil: 'load', timeout: 45000 });
+              console.log(`✅ Navigation succeeded with load`);
+              navigationSucceeded = true;
+            } catch (loadError) {
+              console.error(`❌ All navigation strategies failed`);
+            }
+          }
+        } else {
+          // Page already loaded, consider it successful
+          console.log(`✅ Page already loaded (networkidle timeout but page navigated)`);
+          navigationSucceeded = true;
+        }
+      }
+
+      if (!navigationSucceeded) {
+        return {
+          success: false,
+          error: 'Navigation timeout: Unable to load starting URL after 45 seconds with all strategies'
+        };
+      }
+
       // Execute each test step to reach the final state
       console.log(`⚡ Executing ${config.steps.length} test steps...`);
+      let successfulSteps = 0;
       for (let i = 0; i < config.steps.length; i++) {
         const step = config.steps[i];
         console.log(`  Step ${i + 1}/${config.steps.length}: ${step.type} on ${step.selector}`);
-        
+
         try {
           await this.executeTestStep(page, step);
+          successfulSteps++;
           // Small delay between steps for stability
           await page.waitForTimeout(500);
         } catch (stepError) {
@@ -2403,89 +1992,112 @@ export class ElementAnalyzerService {
           // Continue with remaining steps even if one fails
         }
       }
-      
-      console.log(`✅ Completed test step execution. Now discovering elements in final state...`);
-      
+
+      console.log(`✅ Completed ${successfulSteps}/${config.steps.length} test steps successfully`);
+
       // Wait for page to stabilize after all interactions
       await page.waitForTimeout(1000);
-      
+
       // Discover elements in the final state using existing method
+      console.log(`🔍 Discovering elements in post-interaction state...`);
       const elements = await this.extractAllPageElements(page);
-      
+
       console.log(`🎯 Discovered ${elements.length} elements in post-interaction state`);
-      
-      await this.closeBrowser(browser);
-      return elements;
-      
+
+      return {
+        success: true,
+        elements: elements
+      };
+
     } catch (error) {
       console.error(`❌ Element hunting failed: ${error.message}`);
-      await this.closeBrowser(browser);
-      throw error;
+      console.error(`❌ Error stack:`, error.stack);
+
+      return {
+        success: false,
+        error: `Element hunting failed: ${error.message}`
+      };
+
+    } finally {
+      // Always cleanup browser, even on error
+      if (browser) {
+        try {
+          await this.browserManager.closeBrowser(browser);
+          console.log(`🧹 Browser cleanup completed`);
+        } catch (cleanupError) {
+          console.error(`⚠️ Browser cleanup failed: ${cleanupError.message}`);
+          // Don't throw - cleanup errors shouldn't fail the operation
+        }
+      }
     }
   }
 
-  private async executeTestStep(page: any, step: any): Promise<void> {
+  private async executeTestStep(page: Page, step: TestStep): Promise<void> {
     const { type, selector, value } = step;
     
-    // Wait for element to be available
-    await page.waitForSelector(selector, { timeout: 10000 });
+    // Use modern Playwright Locator API for better reliability
+    const locator = page.locator(selector).first();
+    
+    // Wait for element to be available (visible and stable)
+    try {
+      await locator.waitFor({ state: 'visible', timeout: 10000 });
+    } catch (e) {
+      console.warn(`⚠️ Element ${selector} not visible within timeout, trying anyway...`);
+    }
     
     switch (type) {
       case 'click':
-        await page.click(selector);
+        await locator.click({ timeout: 5000 });
         break;
       
       case 'doubleclick':
-        await page.dblclick(selector);
+        await locator.dblclick({ timeout: 5000 });
         break;
       
       case 'type':
-        await page.type(selector, value || '');
+        await locator.fill(value || '', { timeout: 5000 });
         break;
       
       case 'clear':
-        await page.evaluate((sel) => {
-          const element = document.querySelector(sel);
-          if (element) element.value = '';
-        }, selector);
+        await locator.fill('', { timeout: 5000 });
         break;
       
       case 'hover':
-        await page.hover(selector);
+        await locator.hover({ timeout: 5000 });
         break;
       
       case 'select':
-        await page.select(selector, value || '');
+        await locator.selectOption(value || '', { timeout: 5000 });
         break;
       
       case 'check':
-        await page.check(selector);
+        await locator.check({ timeout: 5000 });
         break;
       
       case 'uncheck':
-        await page.uncheck(selector);
+        await locator.uncheck({ timeout: 5000 });
         break;
       
       case 'press':
         await page.keyboard.press(value || 'Enter');
         break;
-      
+        
       case 'wait':
         const waitTime = parseInt(value) || 1000;
         await page.waitForTimeout(waitTime);
         break;
-      
+
       case 'scroll':
         await page.evaluate((sel) => {
           const element = document.querySelector(sel);
           if (element) element.scrollIntoView();
         }, selector);
         break;
-      
+
       default:
-        console.warn(`Unknown step type: ${type}`);
+        console.warn(`⚠️ Unknown step type: ${type}, skipping`);
     }
-    
+
     // Wait for any potential page changes after the action
     await page.waitForTimeout(200);
   }
@@ -2493,20 +2105,31 @@ export class ElementAnalyzerService {
   /**
    * Create a mock element object for advanced selector generation
    */
-  private createMockElement(elementData: any): any {
+  private createMockElement(elementData: MockElementData): MockElement {
+    // Helper to create empty mock element list
+    const emptyList = (): MockElementList => {
+      const arr: MockElement[] = [];
+      return Object.assign(arr, {
+        item: (index: number) => arr[index] || null,
+        forEach: (cb: (el: MockElement, i: number) => void) => arr.forEach(cb)
+      }) as MockElementList;
+    };
+
     return {
-      tagName: elementData.tagName?.toUpperCase(),
+      tagName: elementData.tagName?.toUpperCase() || '',
       id: elementData.id || '',
       className: elementData.className || '',
       textContent: elementData.textContent || '',
       innerHTML: elementData.innerHTML || '',
       getAttribute: (name: string) => elementData.attributes?.[name] || null,
-      setAttribute: (name: string, value: string) => {}, // No-op for mock
+      hasAttribute: (name: string) => !!(elementData.attributes?.[name]),
+      setAttribute: () => {}, // No-op for mock
+      querySelectorAll: () => emptyList(), // Simple mock - returns empty list
       parentElement: elementData.parentId || elementData.parentTagName ? {
         id: elementData.parentId,
         tagName: elementData.parentTagName?.toUpperCase(),
         getAttribute: (name: string) => {
-          if (name === 'role') return elementData.parentRole;
+          if (name === 'role') return elementData.parentRole || null;
           return null;
         },
         children: { length: elementData.siblingCount || 0 },
@@ -2522,6 +2145,8 @@ export class ElementAnalyzerService {
         opacity: elementData.computedStyle?.opacity || '1'
       },
       getBoundingClientRect: () => ({
+        x: 0,
+        y: 0,
         width: elementData.isVisible ? 100 : 0,
         height: elementData.isVisible ? 30 : 0,
         top: 0,
@@ -2538,7 +2163,7 @@ export class ElementAnalyzerService {
       },
       attributes: Object.keys(elementData.attributes || {}).map(name => ({
         name,
-        value: elementData.attributes[name]
+        value: elementData.attributes?.[name] || null
       })),
       previousElementSibling: null,
       nextElementSibling: null
@@ -2548,10 +2173,18 @@ export class ElementAnalyzerService {
   /**
    * Create a mock document object for selector uniqueness testing
    */
-  private createMockDocument(allElements: any[]): any {
-    const querySelectorAllImpl = (selector: string) => {
+  private createMockDocument(allElements: MockElementWrapper[]): MockDocument {
+    // Helper to convert array to MockElementList
+    const toElementList = (arr: MockElement[]): MockElementList => {
+      return Object.assign(arr, {
+        item: (index: number) => arr[index] || null,
+        forEach: (cb: (el: MockElement, i: number) => void) => arr.forEach(cb)
+      }) as MockElementList;
+    };
+
+    const querySelectorAllImpl = (selector: string): MockElementList => {
       // Simple mock - try to match elements by basic selectors
-      const matches: any[] = [];
+      const matches: MockElement[] = [];
 
       for (const el of allElements) {
         if (!el.elementData) continue;
@@ -2591,16 +2224,16 @@ export class ElementAnalyzerService {
         }
       }
 
-      return matches;
+      return toElementList(matches);
     };
 
     return {
       querySelectorAll: querySelectorAllImpl,
-      querySelector: (selector: string) => {
+      querySelector: (selector: string): MockElement | null => {
         const matches = querySelectorAllImpl(selector);
         return matches.length > 0 ? matches[0] : null;
       },
-      getElementById: (id: string) => {
+      getElementById: (id: string): MockElement | null => {
         for (const el of allElements) {
           if (el.elementData?.id === id) {
             return this.createMockElement(el.elementData);

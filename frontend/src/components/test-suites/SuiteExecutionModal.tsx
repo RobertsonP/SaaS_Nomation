@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { WebSocketExecutionEvent } from '../../types/api.types';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('SuiteExecution');
 
 interface TestResult {
   testId: string;
@@ -65,7 +69,7 @@ export function SuiteExecutionModal({
   useEffect(() => {
     if (!isOpen || !executionId) return;
 
-    console.log(`📡 Connecting to execution WebSocket for execution ${executionId}`);
+    logger.debug(`Connecting to WebSocket for execution ${executionId}`);
 
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
     const newSocket = io(`${API_URL}/execution-progress`, {
@@ -73,18 +77,18 @@ export function SuiteExecutionModal({
     });
 
     newSocket.on('connect', () => {
-      console.log('✅ Connected to execution WebSocket');
+      logger.debug('Connected to WebSocket');
       // Subscribe to this execution
       newSocket.emit('subscribe-to-execution', executionId);
     });
 
     newSocket.on('subscription-confirmed', (data) => {
-      console.log('✅ Subscribed to execution:', data);
+      logger.debug('Subscribed to execution', data);
     });
 
     // Listen for execution progress events
-    newSocket.on('execution-progress', (event: any) => {
-      console.log('📨 Received execution event:', event.type, event.status);
+    newSocket.on('execution-progress', (event: WebSocketExecutionEvent) => {
+      logger.debug('Received event', { type: event.type, status: event.status });
 
       if (event.type === 'suite') {
         handleSuiteEvent(event);
@@ -96,20 +100,20 @@ export function SuiteExecutionModal({
     });
 
     newSocket.on('disconnect', () => {
-      console.log('❌ Disconnected from execution WebSocket');
+      logger.warn('Disconnected from WebSocket');
     });
 
     setSocket(newSocket);
 
     return () => {
-      console.log('🔌 Cleaning up WebSocket connection');
+      logger.debug('Cleaning up WebSocket connection');
       newSocket.disconnect();
     };
   }, [isOpen, executionId]);
 
-  const handleSuiteEvent = (event: any) => {
+  const handleSuiteEvent = (event: WebSocketExecutionEvent & { progress?: { current: number; total: number } }) => {
     if (event.status === 'started') {
-      console.log(`🚀 Suite started: ${event.message}`);
+      logger.info(`Suite started: ${event.message}`);
       setExecutionProgress(prev => ({
         ...prev,
         status: 'running',
@@ -117,14 +121,14 @@ export function SuiteExecutionModal({
         tests: Array.from({ length: event.details.totalTests || totalTests }, (_, index) => ({
           testId: `pending-${index}`,
           testName: `Test ${index + 1}`,
-          status: 'pending',
+          status: 'pending' as const,
           progress: 0,
           stepsCompleted: 0,
           totalSteps: 0
         }))
       }));
-    } else if (event.status === 'progress') {
-      console.log(`⏳ Suite progress: ${event.message}`);
+    } else if (event.status === 'running' && event.progress) {
+      logger.debug(`Suite progress: ${event.message}`);
       const { current, total } = event.progress;
       setExecutionProgress(prev => ({
         ...prev,
@@ -132,8 +136,7 @@ export function SuiteExecutionModal({
         overallProgress: ((current - 1) / total) * 100
       }));
     } else if (event.status === 'completed') {
-      console.log(`✅ Suite completed: ${event.message}`);
-      const { passed, failed } = event.details;
+      logger.info(`Suite completed: ${event.message}`);
       setExecutionProgress(prev => ({
         ...prev,
         status: 'completed',
@@ -151,8 +154,8 @@ export function SuiteExecutionModal({
           onClose();
         }
       }, 3000);
-    } else if (event.status === 'error' || event.status === 'failed') {
-      console.error(`❌ Suite failed: ${event.message}`);
+    } else if (event.status === 'failed') {
+      logger.error(`Suite failed: ${event.message}`);
       setExecutionProgress(prev => ({
         ...prev,
         status: 'failed',
@@ -162,12 +165,12 @@ export function SuiteExecutionModal({
     }
   };
 
-  const handleTestEvent = (event: any) => {
-    const testId = event.details.testId;
-    const testName = event.details.testName;
+  const handleTestEvent = (event: WebSocketExecutionEvent) => {
+    const testId = event.details.testId ?? '';
+    const testName = event.details.testName ?? '';
 
     if (event.status === 'started') {
-      console.log(`🧪 Test started: ${testName}`);
+      logger.debug(`Test started: ${testName}`);
       setExecutionProgress(prev => ({
         ...prev,
         tests: prev.tests.map(test =>
@@ -176,7 +179,7 @@ export function SuiteExecutionModal({
                 ...test,
                 testId,
                 testName,
-                status: 'running',
+                status: 'running' as const,
                 startedAt: event.timestamp,
                 stepsCompleted: 0,
                 totalSteps: 0
@@ -185,14 +188,14 @@ export function SuiteExecutionModal({
         )
       }));
     } else if (event.status === 'completed') {
-      console.log(`✅ Test passed: ${testName}`);
+      logger.debug(`Test passed: ${testName}`);
       setExecutionProgress(prev => ({
         ...prev,
         tests: prev.tests.map(test =>
           test.testId === testId
             ? {
                 ...test,
-                status: 'passed',
+                status: 'passed' as const,
                 progress: 100,
                 completedAt: event.timestamp,
                 duration: event.details.duration
@@ -201,14 +204,14 @@ export function SuiteExecutionModal({
         )
       }));
     } else if (event.status === 'failed') {
-      console.log(`❌ Test failed: ${testName}`);
+      logger.warn(`Test failed: ${testName}`);
       setExecutionProgress(prev => ({
         ...prev,
         tests: prev.tests.map(test =>
           test.testId === testId
             ? {
                 ...test,
-                status: 'failed',
+                status: 'failed' as const,
                 progress: 100,
                 completedAt: event.timestamp,
                 error: event.details.error
@@ -219,11 +222,11 @@ export function SuiteExecutionModal({
     }
   };
 
-  const handleStepEvent = (event: any) => {
-    const { stepIndex, totalSteps, stepDescription } = event.details;
+  const handleStepEvent = (event: WebSocketExecutionEvent) => {
+    const { stepIndex = 0, totalSteps = 0, stepDescription = '' } = event.details;
 
-    if (event.status === 'started' || event.status === 'progress') {
-      console.log(`🔄 Step ${stepIndex + 1}/${totalSteps}: ${stepDescription}`);
+    if (event.status === 'started' || event.status === 'running') {
+      logger.debug(`Step ${stepIndex + 1}/${totalSteps}: ${stepDescription}`);
       setExecutionProgress(prev => {
         const currentTestIndex = prev.currentTestIndex;
         return {
@@ -241,7 +244,7 @@ export function SuiteExecutionModal({
         };
       });
     } else if (event.status === 'completed') {
-      console.log(`✅ Step completed: ${stepDescription}`);
+      logger.debug(`Step completed: ${stepDescription}`);
       setExecutionProgress(prev => {
         const currentTestIndex = prev.currentTestIndex;
         return {
@@ -258,7 +261,7 @@ export function SuiteExecutionModal({
         };
       });
     } else if (event.status === 'failed') {
-      console.log(`❌ Step failed: ${stepDescription}`);
+      logger.warn(`Step failed: ${stepDescription}`);
       // Step failure is handled by test failure event
     }
   };

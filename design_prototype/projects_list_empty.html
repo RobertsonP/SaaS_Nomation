@@ -2,76 +2,138 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaaS Nomation - Projects</title>
+    <title>SaaS Nomation - Projects (Empty)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         :root {
             --bg-primary: #1A202C;
             --bg-secondary: #2D3748;
-            --border-color: #4A5568;
+            --bg-tertiary: #4A5568;
             --text-primary: #E2E8F0;
             --text-secondary: #A0AEC0;
             --accent-primary: #38B2AC;
-            --accent-primary-hover: #4FD1C5;
+            --accent-hover: #4FD1C5;
         }
-        body { 
-            margin: 0; 
-            font-family: 'Inter', sans-serif; 
-            background-color: var(--bg-secondary); 
-            color: var(--text-primary);
-        }
-        /* Main layout classes */
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-secondary); color: var(--text-primary); }
         .global-layout { display: flex; min-height: 100vh; }
-        .sidebar { width: 260px; background-color: var(--bg-primary); border-right: 1px solid var(--border-color); }
-        .page-container { flex-grow: 1; display: flex; flex-direction: column; }
-        .top-header { padding: 16px 24px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary); }
-        .main-content { padding: 24px; flex-grow: 1; }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .page-header h1 { font-size: 2rem; font-weight: 700; margin: 0; }
-        .btn-primary { background-color: var(--accent-primary); color: #1A202C; border: 1px solid var(--accent-primary); padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
-        .btn-primary:hover { background-color: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+        .sidebar { width: 260px; background-color: var(--bg-primary); padding: 20px; }
+        .main-content { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; }
+        
+        .empty-state-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
 
-        /* Empty State Styles */
-        .empty-state-container { display: flex; justify-content: center; align-items: center; height: 100%; flex-direction: column; text-align: center; }
-        .empty-state-content { max-width: 450px; }
-        .empty-state-content h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 12px; }
-        .empty-state-content p { color: var(--text-secondary); margin-bottom: 24px; }
-        .empty-state-icon { width: 48px; height: 48px; color: var(--border-color); margin-bottom: 16px; }
+        .illustration {
+            font-size: 5rem;
+            margin-bottom: 24px;
+            opacity: 0.8;
+        }
+
+        h2 { font-size: 2rem; margin: 0 0 12px 0; font-weight: 700; }
+        p { color: var(--text-secondary); font-size: 1.1rem; line-height: 1.6; margin-bottom: 32px; }
+
+        .action-card {
+            background: var(--bg-primary);
+            border: 2px dashed var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-4px);
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: #1A202C;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 16px;
+        }
+
+        .steps {
+            text-align: left;
+            margin-top: 40px;
+            width: 100%;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+        .step-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            font-weight: bold;
+        }
+        .step.active .step-icon {
+            background: var(--accent-primary);
+            color: #1A202C;
+        }
+        .step.active { color: var(--text-primary); }
 
     </style>
 </head>
 <body>
     <div class="global-layout">
-        <aside class="sidebar">...</aside>
-        <div class="page-container">
-            <header class="top-header">...</header>
-            <main class="main-content" style="display: flex; flex-direction: column;">
-                <div class="page-header">
-                    <h1>Projects</h1>
-                    <a href="#" class="btn-primary">+ New Project</a>
-                </div>
-                <div class="empty-state-container">
-                    <div class="empty-state-content" style="background-color: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 48px;">
-                        <div style="font-size: 4rem; margin-bottom: 16px; opacity: 0.5;">📦</div>
-                        <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 8px;">Create Your First Project</h2>
-                        <p style="color: var(--text-secondary); max-width: 400px; margin: 0 auto 32px auto;">SaaS Nomation helps you automate testing by analyzing your web applications. Get started by creating a project.</p>
-                        
-                        <a href="#" class="btn-primary" style="padding: 12px 24px; font-size: 1rem;">+ Create Your First Project</a>
+        <aside class="sidebar">
+            <h3>Nomation</h3>
+            <!-- Placeholder Sidebar Items -->
+            <div style="margin-top: 40px; opacity: 0.5;">Dashboard</div>
+            <div style="margin-top: 16px; color: var(--accent-primary);">Projects</div>
+            <div style="margin-top: 16px; opacity: 0.5;">Settings</div>
+        </aside>
 
-                        <div style="text-align: left; margin-top: 48px; border-top: 1px solid var(--border-color); padding-top: 32px;">
-                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">How to Get Started</h3>
-                            <ol style="padding-left: 20px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 12px;">
-                                <li>Click 'New Project' to create a project for your application.</li>
-                                <li>Add a URL for Nomation to analyze.</li>
-                                <li>Review the discovered elements and build your first test.</li>
-                            </ol>
-                            <a href="#" style="display: inline-block; margin-top: 16px; font-size: 0.875rem; color: var(--accent-primary);">Watch a 5-minute tutorial</a>
-                        </div>
+        <main class="main-content">
+            <div class="empty-state-container">
+                <div class="illustration">🚀</div>
+                <h2>Let's Ship Quality Software</h2>
+                <p>You haven't created any test projects yet. Start by adding your first application URL.</p>
+
+                <div class="action-card">
+                    <h3 style="margin: 0 0 8px 0;">Create First Project</h3>
+                    <p style="margin: 0; font-size: 0.9rem;">Analyze your site and start testing in minutes.</p>
+                    <button class="btn-primary">Get Started</button>
+                </div>
+
+                <div class="steps">
+                    <div class="step active">
+                        <div class="step-icon">1</div>
+                        <div>Create a Project for your application</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-icon">2</div>
+                        <div>Nomation AI analyzes your site structure</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-icon">3</div>
+                        <div>Build robust tests visually</div>
                     </div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </main>
     </div>
 </body>
 </html>

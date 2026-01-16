@@ -2,24 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { TestBuilder } from '../../components/test-builder/TestBuilder'
 import { TestConfigurationModal } from '../../components/test-builder/TestConfigurationModal'
+import { LiveElementPicker } from '../../components/element-picker/LiveElementPicker' // NEW IMPORT
 import { testsAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { ProjectElement } from '../../types/element.types'
+import { TestStep, Test } from '../../types/test.types'
+import { createLogger } from '../../lib/logger'
 
-interface TestStep {
-  id: string
-  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck'
-  selector: string
-  value?: string
-  description: string
-}
-
-interface Test {
-  id: string
-  name: string
-  description?: string
-  steps: TestStep[]
-}
+const logger = createLogger('TestBuilderPage')
 
 interface ProjectUrl {
   id: string;
@@ -35,7 +25,7 @@ interface Project {
 }
 
 export function TestBuilderPage() {
-  const { projectId, testId } = useParams<{ projectId: string; testId?: string }>()
+  const { projectId, testId } = useParams<{ projectId?: string; testId?: string }>()
   const navigate = useNavigate()
   const { showSuccess, showError } = useNotification()
   const [test, setTest] = useState<Test | null>(null)
@@ -49,6 +39,7 @@ export function TestBuilderPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [showLivePicker, setShowLivePicker] = useState(false) // NEW STATE
 
   // const [configModified, setConfigModified] = useState(false) // Currently unused
 
@@ -68,7 +59,7 @@ export function TestBuilderPage() {
                               JSON.stringify(parsedSteps) !== JSON.stringify(test?.steps || []);
             setHasUnsavedChanges(hasChanges);
           } catch (e) {
-            console.warn('Failed to parse saved steps:', e);
+            logger.warn('Failed to parse saved steps', e);
           }
         }
       };
@@ -102,9 +93,15 @@ export function TestBuilderPage() {
   }, [hasUnsavedChanges]);
 
   const loadData = async () => {
+    if (!projectId) {
+      logger.error('No projectId provided');
+      navigate('/projects');
+      return;
+    }
+
     try {
       // Load project
-      const projectResponse = await projectsAPI.getById(projectId!)
+      const projectResponse = await projectsAPI.getById(projectId)
       setProject(projectResponse.data)
 
       // Set default starting URL to first project URL
@@ -126,7 +123,7 @@ export function TestBuilderPage() {
         setShowConfigModal(true)
       }
     } catch (error) {
-      console.error('Failed to load data:', error)
+      logger.error('Failed to load data', error)
     } finally {
       setLoading(false)
     }
@@ -142,6 +139,12 @@ export function TestBuilderPage() {
       if (!testName.trim()) {
         showError('Validation Error', 'Please enter a test name.')
         return
+      }
+
+      if (!projectId) {
+        showError('Error', 'Project ID is missing. Cannot save test.')
+        navigate('/projects');
+        return;
       }
 
       if (testId) {
@@ -162,7 +165,7 @@ export function TestBuilderPage() {
         await testsAPI.create({
           name: testName,
           description: testDescription,
-          projectId: projectId!,
+          projectId: projectId, // Type guard above ensures this is defined
           startingUrl: selectedStartingUrl,
           steps
         })
@@ -171,7 +174,7 @@ export function TestBuilderPage() {
       }
       navigate(`/projects/${projectId}/tests`)
     } catch (error) {
-      console.error('Failed to save test:', error)
+      logger.error('Failed to save test', error)
       showError('Save Failed', 'Failed to save test. Please check that all fields are valid.')
     }
   }
@@ -331,6 +334,7 @@ export function TestBuilderPage() {
               projectId={projectId}
               testId={testId}
               startingUrl={selectedStartingUrl}
+              setShowLivePicker={setShowLivePicker} // NEW PROP
             />
           </div>
         </div>
@@ -359,7 +363,7 @@ export function TestBuilderPage() {
                           const parsedSteps = JSON.parse(savedSteps);
                           await handleSave(parsedSteps);
                         } catch (e) {
-                          console.error('Failed to save before navigation:', e);
+                          logger.error('Failed to save before navigation', e);
                         }
                       }
                     }
@@ -392,6 +396,26 @@ export function TestBuilderPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Live Element Picker */}
+      {projectId && (
+        <LiveElementPicker
+          isOpen={showLivePicker}
+          projectId={projectId}
+          onClose={() => setShowLivePicker(false)}
+          onElementsSelected={(elements) => {
+            showSuccess('Elements Selected', `${elements.length} element(s) added to library`);
+            setShowLivePicker(false);
+          }}
+          onSelectElement={(selector, description) => {
+            // Backward compatibility handler
+            logger.debug('Selected Element', { selector, description });
+            showSuccess('Element Selected', `"${description}" added to library`);
+            setShowLivePicker(false);
+          }}
+          initialUrl={selectedStartingUrl}
+        />
       )}
     </>
   )

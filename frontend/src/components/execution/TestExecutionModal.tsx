@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { WebSocketExecutionEvent } from '../../types/api.types'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('TestExecutionModal')
 
 interface TestExecutionModalProps {
   isOpen: boolean
@@ -47,7 +51,7 @@ export function TestExecutionModal({
   useEffect(() => {
     if (!isOpen || !executionId) return
 
-    console.log(`📡 Connecting to test execution WebSocket for execution ${executionId}`)
+    logger.debug(`Connecting to WebSocket for execution ${executionId}`)
 
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002'
     const newSocket = io(`${API_URL}/execution-progress`, {
@@ -55,17 +59,17 @@ export function TestExecutionModal({
     })
 
     newSocket.on('connect', () => {
-      console.log('✅ Connected to test execution WebSocket')
+      logger.debug('Connected to WebSocket')
       newSocket.emit('subscribe-to-execution', executionId)
     })
 
     newSocket.on('subscription-confirmed', (data) => {
-      console.log('✅ Subscribed to test execution:', data)
+      logger.debug('Subscribed to execution', data)
     })
 
     // Listen for execution progress events
-    newSocket.on('execution-progress', (event: any) => {
-      console.log('📨 Received test execution event:', event.type, event.status)
+    newSocket.on('execution-progress', (event: WebSocketExecutionEvent) => {
+      logger.debug('Received event', { type: event.type, status: event.status })
 
       if (event.type === 'test') {
         handleTestEvent(event)
@@ -75,27 +79,27 @@ export function TestExecutionModal({
     })
 
     newSocket.on('disconnect', () => {
-      console.log('❌ Disconnected from test execution WebSocket')
+      logger.warn('Disconnected from WebSocket')
     })
 
     setSocket(newSocket)
 
     return () => {
-      console.log('🔌 Cleaning up test execution WebSocket connection')
+      logger.debug('Cleaning up WebSocket connection')
       newSocket.disconnect()
     }
   }, [isOpen, executionId])
 
-  const handleTestEvent = (event: any) => {
+  const handleTestEvent = (event: WebSocketExecutionEvent) => {
     if (event.status === 'started') {
-      console.log(`🧪 Test started: ${event.message}`)
+      logger.info(`Test started: ${event.message}`)
       setExecutionResult(prev => ({
         ...prev,
         status: 'running',
         startedAt: event.timestamp
       }))
     } else if (event.status === 'completed') {
-      console.log(`✅ Test passed: ${event.message}`)
+      logger.info(`Test passed: ${event.message}`)
       setExecutionResult(prev => ({
         ...prev,
         status: 'passed',
@@ -113,7 +117,7 @@ export function TestExecutionModal({
         }
       }, 3000)
     } else if (event.status === 'failed') {
-      console.error(`❌ Test failed: ${event.message}`)
+      logger.error(`Test failed: ${event.message}`)
       setExecutionResult(prev => ({
         ...prev,
         status: 'failed',
@@ -123,16 +127,18 @@ export function TestExecutionModal({
     }
   }
 
-  const handleStepEvent = (event: any) => {
-    const { stepIndex, totalSteps, stepDescription } = event.details
+  const handleStepEvent = (event: WebSocketExecutionEvent) => {
+    const stepIndex = event.details.stepIndex ?? 0
+    const totalSteps = event.details.totalSteps ?? 0
+    const stepDescription = event.details.stepDescription ?? ''
 
     if (event.status === 'started') {
-      console.log(`🔄 Step ${stepIndex + 1}/${totalSteps}: ${stepDescription}`)
+      logger.debug(`Step ${stepIndex + 1}/${totalSteps}: ${stepDescription}`)
       setExecutionResult(prev => {
-        const existingStepIndex = prev.steps.findIndex(s => s.stepIndex === stepIndex)
-        const updatedSteps = existingStepIndex >= 0
+        const existingStepIdx = prev.steps.findIndex(s => s.stepIndex === stepIndex)
+        const updatedSteps = existingStepIdx >= 0
           ? prev.steps.map((s, idx) =>
-              idx === existingStepIndex
+              idx === existingStepIdx
                 ? { ...s, status: 'running' as const, timestamp: event.timestamp }
                 : s
             )
@@ -149,7 +155,7 @@ export function TestExecutionModal({
         return { ...prev, steps: updatedSteps }
       })
     } else if (event.status === 'completed') {
-      console.log(`✅ Step completed: ${stepDescription}`)
+      logger.debug(`Step completed: ${stepDescription}`)
       setExecutionResult(prev => ({
         ...prev,
         steps: prev.steps.map(s =>
@@ -159,7 +165,7 @@ export function TestExecutionModal({
         )
       }))
     } else if (event.status === 'failed') {
-      console.log(`❌ Step failed: ${stepDescription}`)
+      logger.warn(`Step failed: ${stepDescription}`)
       setExecutionResult(prev => ({
         ...prev,
         steps: prev.steps.map(s =>
@@ -268,7 +274,7 @@ export function TestExecutionModal({
                       step.status === 'passed' ? 'bg-green-50 border-green-200' :
                       step.status === 'failed' ? 'bg-red-50 border-red-200' :
                       step.status === 'running' ? 'bg-blue-50 border-blue-200' :
-                      'bg-gray-50 border-gray-200'
+                      'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -373,7 +379,7 @@ export function TestExecutionModal({
 
         {/* Footer Actions */}
         {!isMinimized && executionResult.status !== 'running' && (
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
             <button
               onClick={onClose}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"

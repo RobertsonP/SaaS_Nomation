@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-1.1.x", "linux-musl"]
+  binaryTargets = ["debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -9,15 +9,83 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String
-  password  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  projects  Project[]
+  id          String               @id @default(cuid())
+  email       String               @unique
+  name        String
+  password    String
+  theme       String?              @default("light")
+  timezone    String?              @default("UTC")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  projects    Project[]
+  memberships OrganizationMember[]
+  notificationPreferences UserNotificationPreferences?
 
   @@map("users")
+}
+
+model UserNotificationPreferences {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  emailFailures        Boolean  @default(true)
+  emailSuccess         Boolean  @default(false)
+  emailWeeklyDigest    Boolean  @default(true)
+  notificationEmails   String[] // Array of emails to notify (defaults to user email)
+  quietHoursStart      String?  // HH:mm format (UTC)
+  quietHoursEnd        String?  // HH:mm format (UTC)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notification_preferences")
+}
+
+model Organization {
+  id                   String               @id @default(cuid())
+  name                 String
+  slug                 String               @unique
+  plan                 String               @default("free") // free, pro, enterprise
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionStatus   String?              @default("inactive") // active, trialing, past_due, canceled, incomplete
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean              @default(false)
+  maxUsers             Int                  @default(1)
+  maxExecutions        Int                  @default(100)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  members              OrganizationMember[]
+  projects             Project[]
+  invites              OrganizationInvite[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String       @default("member") // owner, admin, member, viewer
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  email          String
+  token          String       @unique
+  role           String       @default("member")
+  organizationId String
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@map("organization_invites")
 }
 
 model Project {
@@ -27,6 +95,7 @@ model Project {
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   userId                String
+  organizationId        String?
   authFlows             AuthFlow[]
   browserSessions       BrowserSession[]
   crossPageValidations  CrossPageValidation[]
@@ -34,26 +103,63 @@ model Project {
   pageStates            PageState[]
   elements              ProjectElement[]
   urls                  ProjectUrl[]
+  pageRelationships     PageRelationship[]
   user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization          Organization?           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tests                 Test[]
   testSuites            TestSuite[]
 
+  @@index([userId])
+  @@index([organizationId])
   @@map("projects")
 }
 
 model ProjectUrl {
-  id           String           @id @default(cuid())
-  url          String
-  title        String?
-  description  String?
-  analyzed     Boolean          @default(false)
-  analysisDate DateTime?
-  createdAt    DateTime         @default(now())
-  projectId    String
-  elements     ProjectElement[]
-  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  url            String
+  title          String?
+  description    String?
+  analyzed       Boolean          @default(false)
+  analysisDate   DateTime?
+  verified       Boolean          @default(false)
+  lastVerified   DateTime?
+  createdAt      DateTime         @default(now())
+  projectId      String
+  // Discovery-related fields
+  discovered     Boolean          @default(false)  // Was this URL auto-discovered?
+  discoveryDepth Int?                              // Depth from root URL (0 = root, 1 = first level, etc.)
+  requiresAuth   Boolean          @default(false)  // Does this page require authentication?
+  pageType       String?                           // navigation, content, form, external, etc.
+  screenshot     String?          @db.Text         // Base64 thumbnail screenshot of the page
+  elements       ProjectElement[]
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outgoingLinks  PageRelationship[] @relation("SourceUrl")
+  incomingLinks  PageRelationship[] @relation("TargetUrl")
 
+  @@index([projectId])
+  @@index([projectId, analyzed])
   @@map("project_urls")
+}
+
+model PageRelationship {
+  id           String     @id @default(cuid())
+  projectId    String
+  sourceUrlId  String
+  targetUrlId  String
+  linkText     String?    // Text of the link
+  linkType     String     // navigation, button, footer, sidebar, form, external
+  requiresAuth Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceUrl    ProjectUrl @relation("SourceUrl", fields: [sourceUrlId], references: [id], onDelete: Cascade)
+  targetUrl    ProjectUrl @relation("TargetUrl", fields: [targetUrlId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceUrlId, targetUrlId])
+  @@index([projectId])
+  @@index([sourceUrlId])
+  @@index([targetUrlId])
+  @@map("page_relationships")
 }
 
 model Test {
@@ -69,26 +175,32 @@ model Test {
   authFlowId  String?
   executions  TestExecution[]
   suiteTests  TestSuiteTest[]
-  authFlow    AuthFlow?       @relation(fields: [authFlowId], references: [id])
+  authFlow    AuthFlow?       @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
   @@map("tests")
 }
 
 model TestExecution {
-  id          String    @id @default(cuid())
-  status      String
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-  duration    Int?
-  results     Json?
-  errorMsg    String?
-  testId      String
-  logs        Json?
-  metrics     Json?
-  screenshots Json?
-  test        Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  status         String
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  duration       Int?
+  results        Json?
+  errorMsg       String?
+  testId         String
+  logs           Json?
+  metrics        Json?
+  screenshots    Json?
+  videoPath      String?   // Relative path to video file (.webm)
+  videoThumbnail String?   // Relative path to thumbnail image (.png)
+  test           Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
 
+  @@index([testId])
+  @@index([testId, startedAt])
+  @@index([status])
   @@map("test_executions")
 }
 
@@ -127,13 +239,18 @@ model ProjectElement {
   stabilityScore     Float?
   uniquenessScore    Float?
   validationErrors   String[]
-  authFlow           AuthFlow?                @relation(fields: [authFlowId], references: [id])
+  authFlow           AuthFlow?                @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   pageState          PageState?               @relation(fields: [pageStateId], references: [id])
   project            Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sourceUrl          ProjectUrl?              @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
   qualityHistory     SelectorQualityHistory[]
 
   @@unique([projectId, selector, sourceUrlId, discoveryState])
+  @@index([authFlowId])
+  @@index([pageStateId])
+  @@index([sourceUrlId])
+  @@index([projectId, confidence])
+  @@index([projectId, discoveryState])
   @@map("project_elements")
 }
 
@@ -154,6 +271,7 @@ model AuthFlow {
   elements          ProjectElement[]
   tests             Test[]
 
+  @@index([projectId])
   @@map("auth_flows")
 }
 
@@ -166,10 +284,12 @@ model PageState {
   capturedAt DateTime         @default(now())
   authFlowId String?
   projectId  String
-  authFlow   AuthFlow?        @relation(fields: [authFlowId], references: [id])
+  authFlow   AuthFlow?        @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   elements   ProjectElement[]
 
+  @@index([projectId])
+  @@index([authFlowId])
   @@map("page_states")
 }
 
@@ -184,9 +304,11 @@ model BrowserSession {
   expiresAt       DateTime
   projectId       String
   authFlowId      String?
-  authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id])
+  authFlow        AuthFlow? @relation(fields: [authFlowId], references: [id], onDelete: SetNull)
   project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
+  @@index([authFlowId])
   @@map("browser_sessions")
 }
 
@@ -254,6 +376,7 @@ model TestSuite {
   tests       TestSuiteTest[]
   executions  TestSuiteExecution[]
 
+  @@index([projectId])
   @@map("test_suites")
 }
 
@@ -284,5 +407,6 @@ model TestSuiteExecution {
   failedTests   Int       @default(0)
   suite         TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
 
+  @@index([suiteId])
   @@map("test_suite_executions")
 }

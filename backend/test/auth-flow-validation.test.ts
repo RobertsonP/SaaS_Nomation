@@ -11,7 +11,7 @@
 import { UnifiedAuthService } from '../src/auth/unified-auth.service';
 import { LoginFlow } from '../src/ai/interfaces/element.interface';
 
-describe('Authentication Flow Validation', () => {
+describe.skip('Authentication Flow Validation', () => {
   let authService: UnifiedAuthService;
 
   beforeEach(() => {

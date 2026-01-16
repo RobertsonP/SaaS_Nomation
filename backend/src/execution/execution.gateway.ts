@@ -12,8 +12,8 @@ export interface ExecutionProgressEvent {
   executionId: string;
   testId?: string;
   suiteId?: string;
-  type: 'test' | 'suite' | 'step';
-  status: 'started' | 'progress' | 'completed' | 'failed' | 'error';
+  type: 'test' | 'suite' | 'step' | 'step:retry';
+  status: 'started' | 'progress' | 'completed' | 'failed' | 'error' | 'retrying';
   message: string;
   details?: any;
   timestamp: Date;
@@ -228,6 +228,30 @@ export class ExecutionProgressGateway implements OnGatewayConnection, OnGatewayD
       status: 'failed',
       message: `Failed at step ${stepIndex + 1}/${totalSteps}: ${stepDescription}`,
       details: { stepIndex, totalSteps, stepDescription, error },
+      timestamp: new Date(),
+      progress: {
+        current: stepIndex + 1,
+        total: totalSteps,
+        percentage: Math.round(((stepIndex + 1) / totalSteps) * 100),
+      },
+    });
+  }
+
+  sendStepRetry(executionId: string, stepIndex: number, totalSteps: number, stepDescription: string, attempt: number, maxAttempts: number, errorReason: string, errorCategory: string) {
+    this.sendProgressUpdate({
+      executionId,
+      type: 'step:retry',
+      status: 'retrying',
+      message: `Retrying step ${stepIndex + 1}/${totalSteps}: ${stepDescription} (Attempt ${attempt}/${maxAttempts})`,
+      details: {
+        stepIndex,
+        totalSteps,
+        stepDescription,
+        attempt,
+        maxAttempts,
+        errorReason,
+        errorCategory
+      },
       timestamp: new Date(),
       progress: {
         current: stepIndex + 1,

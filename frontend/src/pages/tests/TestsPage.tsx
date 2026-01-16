@@ -1,15 +1,30 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { testsAPI, projectsAPI, executionAPI } from '../../lib/api'
+import { testsAPI, projectsAPI } from '../../lib/api'
 import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 import { TestExecutionModal } from '../../components/execution/TestExecutionModal'
+import { useTestExecution } from '../../hooks/useTestExecution'
+import { TestStep } from '../../types/test.types'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('TestsPage')
+
+// Result types for modal callbacks
+interface TestExecutionResultCallback {
+  status: 'passed' | 'failed' | 'running';
+  duration?: number;
+}
+
+interface LiveExecutionResultCallback {
+  status: 'initializing' | 'running' | 'passed' | 'failed' | 'stopped';
+}
 
 interface Test {
   id: string
   name: string
   description?: string
   status: string
-  steps: any[]
+  steps: TestStep[]
   createdAt: string
 }
 
@@ -20,7 +35,7 @@ interface Project {
 }
 
 export function TestsPage() {
-  const { id: projectId } = useParams<{ id: string }>()
+  const { projectId } = useParams<{ projectId: string }>()
   const [tests, setTests] = useState<Test[]>([])
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -37,6 +52,10 @@ export function TestsPage() {
     startingUrl: ''
   })
 
+  // Hook for queue-based execution
+  const { runTest, executionState, isExecuting } = useTestExecution()
+  const [currentlyRunningTestId, setCurrentlyRunningTestId] = useState<string | null>(null)
+
   useEffect(() => {
     if (projectId) {
       loadProjectAndTests()
@@ -52,7 +71,7 @@ export function TestsPage() {
       setProject(projectResponse.data)
       setTests(testsResponse.data)
     } catch (error) {
-      console.error('Failed to load project and tests:', error)
+      logger.error('Failed to load project and tests', error)
     } finally {
       setLoading(false)
     }
@@ -70,35 +89,27 @@ export function TestsPage() {
       setShowCreateForm(false)
       loadProjectAndTests()
     } catch (error) {
-      console.error('Failed to create test:', error)
+      logger.error('Failed to create test', error)
     }
   }
 
   const handleRunTest = async (testId: string) => {
-    try {
-      const test = tests.find(t => t.id === testId)
-      if (!test) {
-        console.error('Test not found')
-        return
-      }
-
-      // Start test execution and get execution ID
-      const executionResponse = await executionAPI.run(testId)
-      const executionId = executionResponse.data.id
-
-      console.log(`🚀 Test execution started with ID: ${executionId}`)
-
-      // Show execution modal with real execution ID
-      setExecutingTest({
-        id: testId,
-        name: test.name,
-        executionId: executionId
-      })
-
-    } catch (error) {
-      console.error('Failed to start test execution:', error)
-      // Could show error notification here
+    if (isExecuting) {
+      alert('A test is already running. Please wait.')
+      return
     }
+
+    setCurrentlyRunningTestId(testId)
+    
+    // Use the queue hook
+    runTest(testId, (result) => {
+      logger.info('Test execution completed', result)
+      setCurrentlyRunningTestId(null)
+      // Reload tests to show status update
+      loadProjectAndTests()
+      // Optional: Show notification
+      alert(`Test execution completed: ${result.success ? 'PASSED' : 'FAILED'}`)
+    })
   }
 
   const handleRunTestLive = async (testId: string, testName: string) => {
@@ -117,13 +128,13 @@ export function TestsPage() {
       // Reload tests after successful deletion
       loadProjectAndTests()
     } catch (error) {
-      console.error('Failed to delete test:', error)
+      logger.error('Failed to delete test', error)
       alert('Failed to delete test. Please try again.')
     }
   }
 
-  const handleTestExecutionComplete = (result: any) => {
-    console.log('Test execution completed:', result)
+  const handleTestExecutionComplete = (result: TestExecutionResultCallback) => {
+    logger.info('Test execution completed', result)
     // Reload tests to show latest execution
     loadProjectAndTests()
   }
@@ -132,8 +143,8 @@ export function TestsPage() {
     setExecutingTest(null)
   }
 
-  const handleLiveExecutionComplete = (result: any) => {
-    console.log('Live execution completed:', result)
+  const handleLiveExecutionComplete = (result: LiveExecutionResultCallback) => {
+    logger.info('Live execution completed', result)
     // Could navigate to results or show success message
   }
 
@@ -153,12 +164,12 @@ export function TestsPage() {
     <div className="p-6">
       <div className="mb-6">
         <div className="flex items-center mb-4">
-          <Link to="/projects" className="text-blue-600 hover:text-blue-800">
+          <Link to="/projects" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
             ← Back to Projects
           </Link>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
-        <p className="text-gray-600 mt-2">{project?.description}</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{project?.name}</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">{project?.description}</p>
       </div>
 
       <div className="flex justify-between items-center mb-6">
@@ -236,10 +247,10 @@ export function TestsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow border">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
         {tests.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-gray-500 mb-4">No tests created yet</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">No tests created yet</p>
             <div className="space-y-4">
               <button
                 onClick={() => setShowCreateForm(true)}
@@ -250,14 +261,14 @@ export function TestsPage() {
             </div>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y dark:divide-gray-700">
             {tests.map((test) => (
-              <div key={test.id} className="p-6 hover:bg-gray-50">
+              <div key={test.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-lg font-semibold">{test.name}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{test.name}</h3>
                     {test.description && (
-                      <p className="text-gray-600 mt-1">{test.description}</p>
+                      <p className="text-gray-600 dark:text-gray-400 mt-1">{test.description}</p>
                     )}
                     <div className="flex items-center mt-2 space-x-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -285,14 +296,24 @@ export function TestsPage() {
                     <div className="flex space-x-1">
                       <button
                         onClick={() => handleRunTest(test.id)}
-                        disabled={test.steps.length === 0}
+                        disabled={test.steps.length === 0 || (isExecuting && currentlyRunningTestId === test.id)}
                         className={`text-sm font-medium px-3 py-1 rounded transition-colors ${
                           test.steps.length === 0
                             ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-green-600 hover:text-green-800 hover:bg-green-50'
+                            : (isExecuting && currentlyRunningTestId === test.id)
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'text-green-600 hover:text-green-800 hover:bg-green-50'
                         }`}
                       >
-                        Run
+                        {(isExecuting && currentlyRunningTestId === test.id) ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {executionState?.status === 'waiting' ? `#${executionState.position}` : 'Running'}
+                          </span>
+                        ) : 'Run'}
                       </button>
 
                       <button

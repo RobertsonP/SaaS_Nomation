@@ -100,9 +100,20 @@ Proceed with the standard workflow (Plan -> Approve -> Implement -> Verify), but
 *   **Context Aware:** Check imports and surrounding functions. Don't break existing patterns.
 
 ### 3. The "QA Architect" Verification Rule
-*   **Verify Everything:** Code must compile (`npm run build`). Tests must pass.
-*   **Visual Check:** If UI, verify it looks good (Designer role).
-*   **Function Check:** Verify it actually works (QA role).
+**Build Verification**: Code must compile (`npm run build` for both backend + frontend)
+**Test Verification**: Test suite must pass (`npm test` for backend)
+**Runtime Verification**: MANDATORY - Must start app and test actual user workflows
+  *   Start services: `docker-compose up` or `npm run dev`
+  *   Navigate through changed features in browser
+  *   Verify no console errors, no crashes, no regressions
+**Visual Verification**: If UI changed, verify it matches design standards
+**Functional Verification**: Feature must work end-to-end, not just compile
+
+**No "Trust Me" Policy**: All claims must have evidence
+  *   Build logs for compilation check
+  *   Test output for test check
+  *   Screenshots + console logs for runtime check
+  *   Before/after screenshots for visual check
 
 ### 4. The "SDET" Documentation Rule
 *   **Session Notes:** Always document the session in `/notes/week-YYYY-MM-DD/`.
@@ -143,7 +154,13 @@ Proceed with the standard workflow (Plan -> Approve -> Implement -> Verify), but
 When the session ends or user requests handoff:
 1.  **Summarize:** What did the "Team" accomplish?
 2.  **Status:** What is the state of the code?
-3.  **Next Steps:** What should the "Team" (or Claude) tackle next?
+3.  **Evidence:** Provide verification proof (see QA Architect Verification Rule)
+    *   Build logs, test output, screenshots, console logs
+4.  **Definition of Done:** Confirm all 5 levels completed (see GEMINI.PARTNER.md)
+5.  **Next Steps:** What should the "Team" (or Claude) tackle next?
+
+**MANDATORY:** Create session notes in `/notes/week-YYYY-MM-DD/` with complete evidence.
+See GEMINI.PARTNER.md Section 4 (DOCUMENT) for required template.
 
 ---
 

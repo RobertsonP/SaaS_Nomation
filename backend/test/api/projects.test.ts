@@ -3,12 +3,20 @@ import { ProjectsService } from '../../src/projects/projects.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { ElementAnalyzerService } from '../../src/ai/element-analyzer.service';
 import { AuthFlowsService } from '../../src/auth-flows/auth-flows.service';
+import { AuthenticationAnalyzerService } from '../../src/ai/authentication-analyzer.service';
+import { SimplifiedAuthService } from '../../src/auth-flows/simplified-auth.service';
+import { AnalysisProgressGateway } from '../../src/analysis/analysis-progress.gateway';
+import { AnalysisRetryService } from '../../src/analysis/analysis-retry.service';
+import { ProjectAnalyzerService } from '../../src/analysis/project-analyzer.service';
 
 describe('ProjectsService - Element Sorting', () => {
   let service: ProjectsService;
-  let mockPrisma: Partial<PrismaService>;
-  let mockElementAnalyzer: Partial<ElementAnalyzerService>;
-  let mockAuthFlowsService: Partial<AuthFlowsService>;
+  let mockPrisma: any;
+  let mockElementAnalyzer: any;
+  
+  const mockAuthenticationAnalyzer = {
+    analyzeAllUrlsWithAuth: jest.fn(),
+  };
 
   beforeEach(async () => {
     mockPrisma = {
@@ -17,7 +25,12 @@ describe('ProjectsService - Element Sorting', () => {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+      },
+      projectUrl: {
+        createMany: jest.fn(),
         findMany: jest.fn(),
+        deleteMany: jest.fn(),
+        update: jest.fn(),
       },
       projectElement: {
         createMany: jest.fn(),
@@ -26,20 +39,21 @@ describe('ProjectsService - Element Sorting', () => {
         update: jest.fn(),
         findUnique: jest.fn(),
       },
-      projectUrl: {
-        createMany: jest.fn(),
+      testExecution: {
         deleteMany: jest.fn(),
-        update: jest.fn(),
       },
-    } as any;
-
-    mockElementAnalyzer = {
-      getPageMetadata: jest.fn().mockResolvedValue({ title: 'Test Page' }),
-      captureElementScreenshot: jest.fn().mockResolvedValue('base64-screenshot'),
+      test: {
+        deleteMany: jest.fn(),
+      },
+      crossPageValidation: {
+        create: jest.fn(),
+      }
     };
 
-    mockAuthFlowsService = {
-      getByProject: jest.fn().mockResolvedValue([]),
+    mockElementAnalyzer = {
+      captureElementScreenshot: jest.fn().mockResolvedValue('base64-screenshot'),
+      validateSelector: jest.fn(),
+      validateSelectorAcrossPages: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -47,7 +61,12 @@ describe('ProjectsService - Element Sorting', () => {
         ProjectsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ElementAnalyzerService, useValue: mockElementAnalyzer },
-        { provide: AuthFlowsService, useValue: mockAuthFlowsService },
+        { provide: AuthenticationAnalyzerService, useValue: mockAuthenticationAnalyzer },
+        { provide: AuthFlowsService, useValue: {} },
+        { provide: SimplifiedAuthService, useValue: {} },
+        { provide: AnalysisProgressGateway, useValue: { sendStarted: jest.fn(), sendProgress: jest.fn(), sendCompleted: jest.fn(), sendError: jest.fn() } },
+        { provide: AnalysisRetryService, useValue: {} },
+        { provide: ProjectAnalyzerService, useValue: {} },
       ],
     }).compile();
 
@@ -80,6 +99,7 @@ describe('ProjectsService - Element Sorting', () => {
           elements: {
             include: { sourceUrl: true },
             orderBy: [
+              { sourceUrl: { url: 'asc' } },
               { confidence: 'desc' },
               { elementType: 'asc' },
               { createdAt: 'desc' }
@@ -117,6 +137,7 @@ describe('ProjectsService - Element Sorting', () => {
         where: { projectId: 'test-project' },
         include: { sourceUrl: true },
         orderBy: [
+          { sourceUrl: { url: 'asc' } },
           { confidence: 'desc' },
           { elementType: 'asc' },
           { createdAt: 'desc' }
@@ -155,9 +176,9 @@ describe('ProjectsService - Element Sorting', () => {
       expect(mockPrisma.projectElement.update).toHaveBeenCalledWith({
         where: { id: 'test-element' },
         data: {
+          screenshot: 'base64-screenshot',
           attributes: {
             existingData: 'test',
-            screenshot: 'base64-screenshot',
             screenshotCapturedAt: expect.any(String)
           }
         }

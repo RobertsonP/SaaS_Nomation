@@ -48,7 +48,8 @@ export class AuthFlowTemplatesService {
           },
           {
             type: 'wait',
-            selector: '2000',
+            selector: '',
+            value: '2000',
             description: 'Wait for redirect',
             timeout: 10000
           }
@@ -82,7 +83,8 @@ export class AuthFlowTemplatesService {
           },
           {
             type: 'wait',
-            selector: '2000',
+            selector: '',
+            value: '2000',
             description: 'Wait for password page'
           },
           {
@@ -98,7 +100,8 @@ export class AuthFlowTemplatesService {
           },
           {
             type: 'wait',
-            selector: '3000',
+            selector: '',
+            value: '3000',
             description: 'Wait for authentication'
           }
         ],
@@ -135,10 +138,15 @@ export class AuthFlowTemplatesService {
     }
 
     if (step.type === 'wait') {
-      const timeout = parseInt(step.selector);
-      if (isNaN(timeout) || timeout < 100 || timeout > 30000) {
-        return { valid: false, error: 'Wait time must be between 100ms and 30s' };
+      // For time-based waits, value contains the time in milliseconds
+      if (step.value) {
+        const timeout = parseInt(step.value);
+        if (isNaN(timeout) || timeout < 100 || timeout > 30000) {
+          return { valid: false, error: 'Wait time must be between 100ms and 30s' };
+        }
       }
+      // For element-based waits, selector should contain an element selector
+      // Both are valid, so we don't need additional validation here
     }
 
     return { valid: true };

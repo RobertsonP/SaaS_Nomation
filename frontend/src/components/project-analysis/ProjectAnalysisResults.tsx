@@ -46,7 +46,7 @@ export function ProjectAnalysisResults({ analysis, onCreateTests, onStartOver }:
       case 'vue': return 'text-green-600 bg-green-50 border-green-200'
       case 'angular': return 'text-red-600 bg-red-50 border-red-200'
       case 'mixed': return 'text-purple-600 bg-purple-50 border-purple-200'
-      default: return 'text-gray-600 bg-gray-50 border-gray-200'
+      default: return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
     }
   }
 
@@ -143,7 +143,7 @@ export function ProjectAnalysisResults({ analysis, onCreateTests, onStartOver }:
           </div>
           <button
             onClick={onStartOver}
-            className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50"
+            className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Upload Different Project
           </button>
@@ -177,7 +177,7 @@ export function ProjectAnalysisResults({ analysis, onCreateTests, onStartOver }:
           <div className="flex space-x-2">
             <button
               onClick={() => setShowAllElements(!showAllElements)}
-              className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+              className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               {showAllElements ? 'Hide Empty Components' : 'Show All Components'}
             </button>
@@ -189,7 +189,7 @@ export function ProjectAnalysisResults({ analysis, onCreateTests, onStartOver }:
             </button>
             <button
               onClick={clearSelection}
-              className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+              className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Clear Selection
             </button>
@@ -220,7 +220,7 @@ export function ProjectAnalysisResults({ analysis, onCreateTests, onStartOver }:
           displayComponents.map((component) => (
             <div key={component.name} className="bg-white border rounded-lg">
               <div
-                className="p-4 border-b cursor-pointer hover:bg-gray-50"
+                className="p-4 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                 onClick={() => toggleComponent(component.name)}
               >
                 <div className="flex items-center justify-between">

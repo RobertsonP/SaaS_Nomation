@@ -91,6 +91,8 @@ describe('AuthFlowsService - Empty Form Fix', () => {
         data: {
           projectId: 'test-project',
           ...authFlowData,
+          useAutoDetection: true,
+          manualSelectors: null
         }
       });
 

@@ -134,7 +134,7 @@ export function ElementPreviewCard({
       <div className="relative">
         {useCSSPreview && element.attributes?.cssInfo ? (
           // Phase 2: CSS-first preview with quality integration
-          <div className="bg-gray-50 p-2">
+          <div className="bg-gray-50 dark:bg-gray-800 p-2">
             <CSSPreviewRenderer
               element={element}
               mode={compact ? 'compact' : 'detailed'}
@@ -148,7 +148,7 @@ export function ElementPreviewCard({
           </div>
         ) : screenshot ? (
           // Fallback: Screenshot preview
-          <div className="bg-gray-50 p-2">
+          <div className="bg-gray-50 dark:bg-gray-800 p-2">
             <img 
               src={`data:image/png;base64,${screenshot}`}
               alt={`Preview of ${element.description}`}

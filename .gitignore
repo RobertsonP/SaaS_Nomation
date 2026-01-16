@@ -14,6 +14,7 @@ node_modules/
 # Environment variables
 .env
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -170,3 +171,13 @@ backend/*.png
 
 # MCP configuration (if contains sensitive data)
 # mcp.config.json (uncomment if needed)
+
+# Handoff & Prompt Files (Transient)
+CLAUDE_PROMPT.txt
+ACTIVATE-GEMINI-NOW.txt
+GEMINI-HANDOFF-*.md
+Issues_for_this_session.md
+Issues_for_this_session.md.bak
+
+# Temp Scripts
+validate-selectors.js

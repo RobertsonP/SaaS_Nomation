@@ -8,8 +8,10 @@ import { ExecutionProgressGateway } from './execution.gateway';
 
 interface TestStep {
   id: string;
-  type: 'click' | 'type' | 'wait' | 'assert';
-  selector: string;
+  type: 'click' | 'type' | 'wait' | 'assert' // Existing types
+      | 'hover' | 'select' | 'check' | 'uncheck' | 'navigate' | 'scroll' // New actions
+      | 'press' | 'screenshot' | 'doubleclick' | 'rightclick' | 'clear' | 'upload'; // More new actions
+  selector?: string;
   fallbackSelectors?: string[]; // NEW: Fallback selectors for robustness
   value?: string;
   description: string;
@@ -306,7 +308,19 @@ export class ExecutionService {
           return { success: true, action: 'type', selector: step.selector, value: step.value };
 
         case 'wait':
-          const waitTime = parseInt(step.value || '1000', 10);
+          const rawWaitTime = parseInt(step.value || '1000', 10);
+
+          // Validate timeout: must be positive and capped at 60 seconds
+          if (isNaN(rawWaitTime) || rawWaitTime < 0) {
+            throw new Error(`Invalid wait time: ${step.value}. Must be a positive number.`);
+          }
+
+          const waitTime = Math.min(rawWaitTime, 60000); // Cap at 60 seconds
+
+          if (rawWaitTime > 60000) {
+            console.warn(`⚠️ Wait time ${rawWaitTime}ms exceeded max, capped to 60000ms`);
+          }
+
           await page.waitForTimeout(waitTime);
           console.log(`✓ Waited for ${waitTime}ms`);
           return { success: true, action: 'wait', value: waitTime };
@@ -320,6 +334,73 @@ export class ExecutionService {
           }
           console.log(`✓ Assertion passed: "${step.value}" found in "${textContent}"`);
           return { success: true, action: 'assert', value: step.value, actual: textContent };
+
+        // NEW ACTIONS - Gemini Implements These
+        case 'hover':
+          await locator.hover({ timeout });
+          console.log(`✓ Hovered over: ${step.selector}`);
+          return { success: true, action: 'hover', selector: step.selector };
+
+        case 'select':
+          await locator.selectOption(step.value || '', { timeout });
+          console.log(`✓ Selected option "${step.value}" in: ${step.selector}`);
+          return { success: true, action: 'select', selector: step.selector, value: step.value };
+
+        case 'check':
+          await locator.check({ timeout });
+          console.log(`✓ Checked: ${step.selector}`);
+          return { success: true, action: 'check', selector: step.selector };
+
+        case 'uncheck':
+          await locator.uncheck({ timeout });
+          console.log(`✓ Unchecked: ${step.selector}`);
+          return { success: true, action: 'uncheck', selector: step.selector };
+
+        case 'navigate':
+          // For navigation, the locator is not relevant, use page.goto
+          await page.goto(step.value || '', {
+            waitUntil: 'domcontentloaded', // Wait for basic page content
+            timeout
+          });
+          console.log(`✓ Navigated to: ${step.value}`);
+          return { success: true, action: 'navigate', url: step.value };
+
+        case 'scroll':
+          await locator.scrollIntoViewIfNeeded({ timeout });
+          console.log(`✓ Scrolled to: ${step.selector}`);
+          return { success: true, action: 'scroll', selector: step.selector };
+
+        case 'press':
+          await page.keyboard.press(step.value || 'Enter'); // Default to Enter key
+          console.log(`✓ Pressed key: ${step.value}`);
+          return { success: true, action: 'press', key: step.value };
+
+        case 'screenshot':
+          const screenshotBuffer = await page.screenshot({ type: 'png', fullPage: true });
+          const screenshotBase64 = screenshotBuffer.toString('base64');
+          console.log(`✓ Captured screenshot`);
+          return { success: true, action: 'screenshot', screenshot: `data:image/png;base64,${screenshotBase64}` };
+
+        case 'doubleclick':
+          await locator.dblclick({ timeout });
+          console.log(`✓ Double-clicked: ${step.selector}`);
+          return { success: true, action: 'doubleclick', selector: step.selector };
+
+        case 'rightclick':
+          await locator.click({ button: 'right', timeout });
+          console.log(`✓ Right-clicked: ${step.selector}`);
+          return { success: true, action: 'rightclick', selector: step.selector };
+
+        case 'clear':
+          await locator.clear({ timeout });
+          console.log(`✓ Cleared: ${step.selector}`);
+          return { success: true, action: 'clear', selector: step.selector };
+
+        case 'upload':
+          // step.value should be the path to the file to upload
+          await locator.setInputFiles(step.value || '', { timeout });
+          console.log(`✓ Uploaded file to: ${step.selector}`);
+          return { success: true, action: 'upload', selector: step.selector, filePath: step.value };
 
         default:
           throw new Error(`Unknown step type: ${step.type}`);

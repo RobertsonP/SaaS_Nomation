@@ -1,10 +1,14 @@
 // Comprehensive validation utilities for testing user journeys
 import { api } from './api';
+import axios, { AxiosError } from 'axios';
+import { createLogger } from './logger';
+
+const logger = createLogger('ValidationService');
 
 interface ValidationResult {
   success: boolean
   message: string
-  details?: any
+  details?: ValidationResult | Record<string, unknown>
   duration?: number
 }
 
@@ -15,17 +19,22 @@ interface UserJourneyStep {
   required: boolean
 }
 
+// Type guard for Axios errors
+function isAxiosError(error: unknown): error is AxiosError {
+  return axios.isAxiosError(error);
+}
+
 class ValidationService {
   private results: ValidationResult[] = []
 
   // Validate API endpoints
   async validateApiEndpoint(
-    url: string, 
+    url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-    body?: any
+    body?: Record<string, unknown>
   ): Promise<ValidationResult> {
     const startTime = performance.now()
-    
+
     try {
       const response = await api.request({
         url,
@@ -34,7 +43,7 @@ class ValidationService {
       })
 
       const duration = performance.now() - startTime
-      
+
       return {
         success: true,
         message: `${method} ${url} - Success (${response.status})`,
@@ -44,17 +53,25 @@ class ValidationService {
           data: response.data
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = performance.now() - startTime
+      if (isAxiosError(error)) {
+        return {
+          success: false,
+          message: `${method} ${url} - Error: ${error.response?.status || 'Network Error'}`,
+          duration,
+          details: {
+            status: error.response?.status,
+            error: error.message,
+            data: error.response?.data
+          }
+        }
+      }
       return {
         success: false,
-        message: `${method} ${url} - Error: ${error.response?.status || 'Network Error'}`,
+        message: `${method} ${url} - Error: Unknown error`,
         duration,
-        details: { 
-          status: error.response?.status,
-          error: error.message,
-          data: error.response?.data
-        }
+        details: { error: error instanceof Error ? error.message : 'Unknown error' }
       }
     }
   }
@@ -84,11 +101,12 @@ class ValidationService {
         success: true,
         message: 'Project upload workflow validated successfully'
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       return {
         success: false,
-        message: `Project upload validation error: ${error.message}`,
-        details: { error: error.message }
+        message: `Project upload validation error: ${errorMessage}`,
+        details: { error: errorMessage }
       }
     }
   }
@@ -110,11 +128,12 @@ class ValidationService {
           : 'Hunt elements workflow validation failed',
         details: huntTest
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       return {
         success: false,
-        message: `Hunt elements validation error: ${error.message}`,
-        details: { error: error.message }
+        message: `Hunt elements validation error: ${errorMessage}`,
+        details: { error: errorMessage }
       }
     }
   }
@@ -137,11 +156,12 @@ class ValidationService {
           : 'Test execution workflow validation failed',
         details: createTest
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       return {
         success: false,
-        message: `Test execution validation error: ${error.message}`,
-        details: { error: error.message }
+        message: `Test execution validation error: ${errorMessage}`,
+        details: { error: errorMessage }
       }
     }
   }
@@ -190,8 +210,8 @@ class ValidationService {
     const results: ValidationResult[] = []
 
     for (const step of steps) {
-      console.log(`🧪 Validating: ${step.name}`)
-      
+      logger.info(`Validating: ${step.name}`)
+
       try {
         const result = await Promise.race([
           step.action(),
@@ -207,26 +227,27 @@ class ValidationService {
 
         // If required step fails, stop validation
         if (step.required && !result.success) {
-          console.error(`❌ Required step failed: ${step.name}`)
+          logger.error(`Required step failed: ${step.name}`)
           break
         }
 
-        console.log(result.success ? `✅ ${step.name}` : `⚠️ ${step.name}`)
-      } catch (error: any) {
+        logger.info(result.success ? `Passed: ${step.name}` : `Warning: ${step.name}`)
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         const result = {
           success: false,
-          message: `${step.name}: Timeout or error - ${error.message}`,
-          details: { error: error.message }
+          message: `${step.name}: Timeout or error - ${errorMessage}`,
+          details: { error: errorMessage }
         }
 
         results.push(result)
         
         if (step.required) {
-          console.error(`❌ Required step timed out: ${step.name}`)
+          logger.error(`Required step timed out: ${step.name}`)
           break
         }
-        
-        console.log(`⚠️ ${step.name} (timeout)`)
+
+        logger.warn(`${step.name} (timeout)`)
       }
     }
 

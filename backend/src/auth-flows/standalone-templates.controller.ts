@@ -49,7 +49,8 @@ export class StandaloneTemplatesController {
           },
           {
             type: 'wait',
-            selector: '2000',
+            selector: 'none',
+            value: '2000',
             description: 'Wait for redirect',
             timeout: 10000
           }
@@ -83,7 +84,8 @@ export class StandaloneTemplatesController {
           },
           {
             type: 'wait',
-            selector: '2000',
+            selector: '',
+            value: '2000',
             description: 'Wait for password page'
           },
           {
@@ -99,7 +101,8 @@ export class StandaloneTemplatesController {
           },
           {
             type: 'wait',
-            selector: '3000',
+            selector: '',
+            value: '3000',
             description: 'Wait for authentication'
           }
         ],

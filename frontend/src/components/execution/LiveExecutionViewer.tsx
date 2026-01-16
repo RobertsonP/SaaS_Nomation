@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../lib/api';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('LiveExecutionViewer');
 
 interface LiveExecutionStep {
   id: string;
@@ -127,7 +130,7 @@ export function LiveExecutionViewer({
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log('🔗 Live execution WebSocket connected');
+        logger.debug('Live execution WebSocket connected');
       };
 
       wsRef.current.onmessage = (event) => {
@@ -135,21 +138,21 @@ export function LiveExecutionViewer({
           const update = JSON.parse(event.data);
           handleExecutionUpdate(update);
         } catch (parseError) {
-          console.error('Failed to parse WebSocket message:', parseError);
+          logger.error('Failed to parse WebSocket message', parseError);
         }
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        logger.error('WebSocket error', error);
         setError('Live connection lost. Execution may still be running in background.');
       };
 
       wsRef.current.onclose = () => {
-        console.log('WebSocket connection closed');
+        logger.debug('WebSocket connection closed');
       };
 
     } catch (error) {
-      console.error('Failed to setup WebSocket:', error);
+      logger.error('Failed to setup WebSocket', error);
     }
   };
 
@@ -208,7 +211,7 @@ export function LiveExecutionViewer({
           break;
 
         default:
-          console.log('Unknown update type:', update.type);
+          logger.warn('Unknown update type', update.type);
       }
 
       return updatedData;
@@ -221,7 +224,7 @@ export function LiveExecutionViewer({
         await api.post(`/api/execution/${executionData.executionId}/stop`);
       }
     } catch (error) {
-      console.error('Failed to stop execution:', error);
+      logger.error('Failed to stop execution', error);
     }
   };
 

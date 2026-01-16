@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react'
 import { ProjectElement } from '../../types/element.types'
+import { TestStep } from '../../types/test.types'
 import { getProjectElements } from '../../lib/api'
 import { ElementLibraryPanel } from './ElementLibraryPanel'
 import { TestBuilderPanel } from './TestBuilderPanel'
-
-interface TestStep {
-  id: string
-  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck'
-  selector: string
-  value?: string
-  description: string
-}
 
 interface TestBuilderProps {
   onSave: (steps: TestStep[]) => void
@@ -20,9 +13,10 @@ interface TestBuilderProps {
   testId?: string // For localStorage persistence
   onElementsUpdated?: () => void // Callback when new elements are discovered
   startingUrl?: string // Test's configured starting URL
+  setShowLivePicker: (show: boolean) => void // NEW PROP
 }
 
-export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated, startingUrl }: TestBuilderProps) {
+export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated, startingUrl, setShowLivePicker }: TestBuilderProps) {
   // Simplified state for layout component
   const [elementLibrary, setElementLibrary] = useState<ProjectElement[]>([])
   const [loadingElements, setLoadingElements] = useState(false)
@@ -91,6 +85,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             showQuality={true}
             compact={false}
             isLoading={loadingElements}
+            setShowLivePicker={setShowLivePicker} // NEW PROP
           />
         </div>
 

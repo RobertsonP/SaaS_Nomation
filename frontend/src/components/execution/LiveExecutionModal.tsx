@@ -1,12 +1,5 @@
 import { useEffect } from 'react';
-
-interface TestStep {
-  id: string;
-  type: string;
-  selector: string;
-  value?: string;
-  description: string;
-}
+import { TestStep } from '../../types/test.types';
 
 interface ExecutionResult {
   success: boolean;
@@ -127,7 +120,7 @@ export function LiveExecutionModal({
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 space-y-6">
             {/* Step Information */}
-            <div className="bg-gray-50 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                 <span>📋</span>
                 <span>Step Details</span>
@@ -164,7 +157,7 @@ export function LiveExecutionModal({
             </div>
 
             {/* Execution Results */}
-            <div className="bg-gray-50 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                 <span>{result.success ? '🎯' : '⚠️'}</span>
                 <span>Execution Results</span>
@@ -218,7 +211,7 @@ export function LiveExecutionModal({
 
             {/* Screenshot */}
             {result.screenshot && (
-              <div className="bg-gray-50 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <span>📸</span>
                   <span>Screenshot</span>
@@ -243,7 +236,7 @@ export function LiveExecutionModal({
 
             {/* Execution Logs */}
             {result.logs && result.logs.length > 0 && (
-              <div className="bg-gray-50 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
                   <span>📝</span>
                   <span>Execution Logs</span>
@@ -268,7 +261,7 @@ export function LiveExecutionModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             {result.timing && (
               <span>

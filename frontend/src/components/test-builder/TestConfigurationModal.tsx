@@ -232,9 +232,9 @@ export function TestConfigurationModal({
 
             {/* URL Count Info */}
             {project?.urls && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center space-x-2">
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     <span className="font-medium">{project.urls.length}</span> page{project.urls.length !== 1 ? 's' : ''} available in this project
                   </div>
                 </div>
@@ -253,7 +253,7 @@ export function TestConfigurationModal({
             <div className="flex space-x-3">
               <button
                 onClick={handleCancel}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
               </button>

@@ -1,3 +1,5 @@
+import { Browser, Page } from 'playwright';
+
 export interface DetectedElement {
   selector: string;
   elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image';
@@ -145,7 +147,9 @@ export interface DetectedElement {
       };
     };
 
-    [key: string]: any; // Allow additional attributes
+    // Index signature for additional dynamic attributes stored in Prisma JSON field
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any;
   };
 }
 
@@ -161,6 +165,7 @@ export interface PageAnalysisResult {
     originalError: string;
     url: string;
     suggestions: string[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
   };
 }
@@ -249,11 +254,13 @@ export interface ElementDifference {
 }
 
 // NEW: Live browser session interface
+// Note: Browser and Page types imported from playwright at top of file
+
 export interface BrowserSession {
   id: string;
   projectId: string;
-  browserInstance?: any; // Playwright browser instance
-  pageInstance?: any;    // Playwright page instance
+  browserInstance?: Browser; // Playwright browser instance
+  pageInstance?: Page;       // Playwright page instance
   isAuthenticated: boolean;
   currentState: string;
   startedAt: Date;

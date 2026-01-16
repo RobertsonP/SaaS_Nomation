@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { authFlowsAPI } from '../../lib/api';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('AuthSetup');
 
 interface AuthTemplate {
   name: string;
@@ -97,19 +100,19 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
   const loadTemplates = async () => {
     try {
-      console.log('🔄 Loading auth templates...');
+      logger.debug('Loading auth templates...');
       const response = await authFlowsAPI.getTemplates();
       const templates = response.data;
-      console.log(`✅ Loaded ${templates.length} auth templates`);
-      
+      logger.info(`Loaded ${templates.length} auth templates`);
+
       setTemplates(templates);
       if (templates.length > 0) {
         setSelectedTemplate(templates[0]); // Select first template by default
-        console.log(`📋 Selected default template: ${templates[0].name}`);
+        logger.debug(`Selected default template: ${templates[0].name}`);
       }
     } catch (error: any) {
-      console.error('❌ Failed to load templates:', error);
-      console.error('❌ Error details:', error.response?.data || error.message);
+      logger.error('Failed to load templates', error);
+      logger.error('Error details', error.response?.data || error.message);
       
       // Provide user feedback
       setTestResult({
@@ -126,7 +129,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
   const handleTestAuthentication = async () => {
     if (!selectedTemplate || !credentials.loginUrl || !credentials.username || !credentials.password) {
-      console.warn('❌ Missing required fields for authentication test');
+      logger.warn('Missing required fields for authentication test');
       setTestResult({
         success: false,
         message: 'Please fill in all required fields',
@@ -140,12 +143,12 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
       return;
     }
 
-    console.log('🧪 Starting authentication test...');
-    console.log(`📍 Login URL: ${credentials.loginUrl}`);
-    console.log(`👤 Username: ${credentials.username}`);
-    console.log(`🔑 Password: ${credentials.password.substring(0, 3)}***`);
-    console.log(`📋 Template: ${selectedTemplate.name}`);
-    console.log(`🔧 Steps: ${selectedTemplate.steps.length} steps`);
+    logger.info('Starting authentication test...');
+    logger.debug(`Login URL: ${credentials.loginUrl}`);
+    logger.debug(`Username: ${credentials.username}`);
+    logger.debug(`Password: ${credentials.password.substring(0, 3)}***`);
+    logger.debug(`Template: ${selectedTemplate.name}`);
+    logger.debug(`Steps: ${selectedTemplate.steps.length} steps`);
 
     setTesting(true);
     setTestResult(null); // Clear previous results
@@ -159,20 +162,20 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
       });
       
       const result = response.data;
-      console.log('✅ Authentication test completed:', result);
-      
+      logger.info('Authentication test completed', result);
+
       setTestResult(result);
-      
+
       if (result.success) {
-        console.log('🎉 Authentication test successful!');
+        logger.info('Authentication test successful!');
         setStep('review');
       } else {
-        console.log('❌ Authentication test failed:', result.message);
-        console.log('💡 Suggestions:', result.suggestions);
+        logger.warn('Authentication test failed:', result.message);
+        logger.debug('Suggestions:', result.suggestions);
       }
     } catch (error: any) {
-      console.error('❌ Authentication test failed:', error);
-      console.error('❌ Error details:', error.response?.data || error.message);
+      logger.error('Authentication test failed', error);
+      logger.error('Error details', error.response?.data || error.message);
       
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
       
@@ -211,18 +214,18 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
       if (isEditMode && authFlowId) {
         // Update existing auth flow
         await authFlowsAPI.update(authFlowId, authFlowData);
-        console.log('✅ Auth flow updated successfully');
-        console.log(`   Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
+        logger.info('Auth flow updated successfully');
+        logger.debug(`Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
         if (!useAutoDetection) {
-          console.log(`   Manual selectors:`, manualSelectors);
+          logger.debug('Manual selectors:', manualSelectors);
         }
       } else {
         // Create new auth flow
         await authFlowsAPI.create(projectId, authFlowData);
-        console.log('✅ Auth flow created successfully');
-        console.log(`   Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
+        logger.info('Auth flow created successfully');
+        logger.debug(`Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
         if (!useAutoDetection) {
-          console.log(`   Manual selectors:`, manualSelectors);
+          logger.debug('Manual selectors:', manualSelectors);
         }
       }
 
@@ -239,7 +242,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
       }, 800);
 
     } catch (error: any) {
-      console.error('Failed to save auth flow:', error);
+      logger.error('Failed to save auth flow', error);
 
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
 
@@ -260,19 +263,19 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             🔐 {isEditMode ? 'Edit Authentication Flow' : 'Simplified Authentication Setup'}
           </h2>
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <div className={`px-2 py-1 rounded ${step === 'credentials' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}>
+          <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+            <div className={`px-2 py-1 rounded ${step === 'credentials' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
               1. Credentials
             </div>
-            <div className={`px-2 py-1 rounded ${step === 'test' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}>
+            <div className={`px-2 py-1 rounded ${step === 'test' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
               2. Test
             </div>
-            <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}>
+            <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
               3. Review
             </div>
           </div>
@@ -280,9 +283,9 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
         {step === 'credentials' && (
           <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">How it works:</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">How it works:</h3>
+              <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
                 <li>✅ We'll automatically detect the best authentication approach</li>
                 <li>✅ Test your credentials safely before saving</li>
                 <li>✅ Get detailed feedback if something goes wrong</li>
@@ -292,60 +295,60 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Authentication Flow Name
                 </label>
                 <input
                   type="text"
                   value={credentials.name}
                   onChange={(e) => setCredentials({...credentials, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
                   placeholder="e.g., Admin Login, User Portal"
                 />
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Login Page URL <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="url"
                   value={credentials.loginUrl}
                   onChange={(e) => setCredentials({...credentials, loginUrl: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
                   placeholder="https://yoursite.com/login"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Username/Email <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={credentials.username}
                   onChange={(e) => setCredentials({...credentials, username: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
                   placeholder="your.username@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Password <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="password"
                   value={credentials.password}
                   onChange={(e) => setCredentials({...credentials, password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
                   placeholder="Your secure password"
                 />
               </div>
             </div>
 
             {/* Auto Detection Mode Toggle */}
-            <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
+            <div className="border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
               <div className="flex items-start space-x-3">
                 <input
                   type="checkbox"
@@ -355,16 +358,16 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
                   className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <div className="flex-1">
-                  <label htmlFor="useAutoDetection" className="font-medium text-blue-900 cursor-pointer">
-                    🤖 Use Automatic Field Detection (Recommended)
+                  <label htmlFor="useAutoDetection" className="font-medium text-blue-900 dark:text-blue-200 cursor-pointer">
+                    Use Automatic Field Detection (Recommended)
                   </label>
-                  <p className="text-sm text-blue-800 mt-1">
+                  <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
                     Our smart system will automatically find username, password, and submit button fields using 30+ detection strategies.
                     Works with most websites including custom implementations, frameworks (React/Vue/Angular), and multi-language sites.
                   </p>
                   {!useAutoDetection && (
-                    <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-900">
-                      ⚠️ Manual mode requires you to provide exact CSS selectors. Only use this if automatic detection fails.
+                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-600 rounded text-sm text-yellow-900 dark:text-yellow-200">
+                      Manual mode requires you to provide exact CSS selectors. Only use this if automatic detection fails.
                     </div>
                   )}
                 </div>
@@ -373,45 +376,45 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
             {/* Manual Selectors (Only shown when auto detection is OFF) */}
             {!useAutoDetection && (
-              <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 space-y-4">
-                <h4 className="font-medium text-gray-900 mb-2">Manual Field Selectors</h4>
-                <p className="text-sm text-gray-600 mb-3">Provide exact CSS selectors for each field:</p>
+              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Manual Field Selectors</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Provide exact CSS selectors for each field:</p>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Username/Email Field Selector <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={manualSelectors.usernameSelector}
                     onChange={(e) => setManualSelectors({...manualSelectors, usernameSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
                     placeholder='e.g., input[name="email"], #username'
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Password Field Selector <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={manualSelectors.passwordSelector}
                     onChange={(e) => setManualSelectors({...manualSelectors, passwordSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
                     placeholder='e.g., input[type="password"], #pass'
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Submit Button Selector <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={manualSelectors.submitSelector}
                     onChange={(e) => setManualSelectors({...manualSelectors, submitSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
                     placeholder='e.g., button[type="submit"], #loginBtn'
                   />
                 </div>
@@ -419,9 +422,9 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
             )}
 
             {selectedTemplate && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Selected Template: {selectedTemplate.name}</h4>
-                <p className="text-sm text-gray-600 mb-3">{selectedTemplate.description}</p>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Selected Template: {selectedTemplate.name}</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{selectedTemplate.description}</p>
                 <div className="text-xs text-gray-500">
                   <strong>Steps:</strong> {selectedTemplate.steps.map(s => s.description).join(' → ')}
                 </div>
@@ -449,7 +452,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
                 </button>
                 <button
                   onClick={onCancel}
-                  className="px-6 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg"
+                  className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg"
                 >
                   Cancel
                 </button>
@@ -461,8 +464,8 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
         {step === 'test' && (
           <div className="space-y-6">
             <div className="text-center">
-              <h3 className="text-lg font-medium mb-2">Testing Authentication...</h3>
-              <p className="text-gray-600">We'll verify your credentials work correctly</p>
+              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Testing Authentication...</h3>
+              <p className="text-gray-600 dark:text-gray-400">We'll verify your credentials work correctly</p>
             </div>
 
             {!testResult && !testing && (
@@ -479,22 +482,22 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
             {testing && (
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-                <p className="text-gray-600">Testing authentication flow...</p>
+                <p className="text-gray-600 dark:text-gray-400">Testing authentication flow...</p>
               </div>
             )}
 
             {testResult && (
-              <div className={`p-4 rounded-lg ${testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <div className={`p-4 rounded-lg ${testResult.success ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'}`}>
                 <div className="flex items-center mb-3">
                   <span className={`text-2xl mr-3 ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
                     {testResult.success ? '✅' : '❌'}
                   </span>
-                  <h4 className={`font-medium ${testResult.success ? 'text-green-900' : 'text-red-900'}`}>
+                  <h4 className={`font-medium ${testResult.success ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
                     {testResult.success ? 'Authentication Successful!' : 'Authentication Failed'}
                   </h4>
                 </div>
-                
-                <p className={`text-sm mb-3 ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
+
+                <p className={`text-sm mb-3 ${testResult.success ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
                   {testResult.message}
                 </p>
 
@@ -523,7 +526,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
             <div className="flex space-x-4">
               <button
                 onClick={() => setStep('credentials')}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 ← Back to Credentials
               </button>
@@ -553,13 +556,13 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
           <div className="space-y-6">
             <div className="text-center">
               <div className="text-green-600 text-4xl mb-4">✅</div>
-              <h3 className="text-lg font-medium mb-2">Authentication Ready!</h3>
-              <p className="text-gray-600">Your authentication flow has been tested and is ready to use</p>
+              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Authentication Ready!</h3>
+              <p className="text-gray-600 dark:text-gray-400">Your authentication flow has been tested and is ready to use</p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="font-medium">Flow Name:</span>
+                <span className="font-medium text-gray-900 dark:text-white">Flow Name:</span>
                 <span>{credentials.name}</span>
               </div>
               <div className="flex justify-between text-sm">
@@ -589,7 +592,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
               </button>
               <button
                 onClick={() => setStep('test')}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 ← Test Again
               </button>

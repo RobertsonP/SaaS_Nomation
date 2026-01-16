@@ -9,6 +9,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null
+  isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
@@ -41,25 +42,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await authAPI.login({ email, password })
-    const { token, user } = response.data
+    const { token, user, organizationId } = response.data
     localStorage.setItem('auth_token', token)
+    localStorage.setItem('organizationId', organizationId)
+    localStorage.setItem('user', JSON.stringify(user))
     setUser(user)
   }
 
   const register = async (name: string, email: string, password: string) => {
     const response = await authAPI.register({ name, email, password })
-    const { token, user } = response.data
+    const { token, user, organizationId } = response.data
     localStorage.setItem('auth_token', token)
+    localStorage.setItem('organizationId', organizationId)
+    localStorage.setItem('user', JSON.stringify(user))
     setUser(user)
   }
 
   const logout = () => {
     localStorage.removeItem('auth_token')
+    localStorage.removeItem('organizationId')
+    localStorage.removeItem('user')
     setUser(null)
   }
 
+  const isAuthenticated = !!user
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )

@@ -21,28 +21,28 @@ export function InfoModal({
     switch (variant) {
       case 'success':
         return {
-          icon: '🎉',
+          icon: '✓',
           headerBg: 'bg-green-50',
           headerText: 'text-green-900',
           buttonBg: 'bg-green-600 hover:bg-green-700',
         }
       case 'warning':
         return {
-          icon: '⚠️',
+          icon: '!',
           headerBg: 'bg-yellow-50',
           headerText: 'text-yellow-900',
           buttonBg: 'bg-yellow-600 hover:bg-yellow-700',
         }
       case 'error':
         return {
-          icon: '❌',
+          icon: '✕',
           headerBg: 'bg-red-50',
           headerText: 'text-red-900',
           buttonBg: 'bg-red-600 hover:bg-red-700',
         }
       default:
         return {
-          icon: 'ℹ️',
+          icon: 'i',
           headerBg: 'bg-blue-50',
           headerText: 'text-blue-900',
           buttonBg: 'bg-blue-600 hover:bg-blue-700',
@@ -69,7 +69,7 @@ export function InfoModal({
         </div>
 
         {/* Footer Action */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
           <button
             onClick={onClose}
             className={`px-4 py-2 text-white rounded-lg transition-colors ${styles.buttonBg}`}

@@ -12,6 +12,9 @@ interface ElementLibraryPanelProps {
   previewMode?: 'auto' | 'css' | 'screenshot';
   showQuality?: boolean;
   compact?: boolean;
+  setShowLivePicker: (show: boolean) => void;
+  onAnalyzePages?: () => void;  // Analyze button handler
+  onClearElements?: () => void; // Clear all elements handler
 }
 
 // Simple element type icons
@@ -132,7 +135,10 @@ export function ElementLibraryPanel({
   onUrlChange,
   previewMode = 'auto',
   showQuality = false,
-  compact = false
+  compact = false,
+  setShowLivePicker,
+  onAnalyzePages,
+  onClearElements
 }: ElementLibraryPanelProps) {
 
   // Filter elements based on type and URL
@@ -173,9 +179,36 @@ export function ElementLibraryPanel({
     <div className="flex flex-col h-full">
       {/* Fixed Header */}
       <div className="flex-shrink-0 p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Elements ({filteredElements.length})
-        </h3>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Elements ({filteredElements.length})
+          </h3>
+          <div className="flex gap-2">
+            {onAnalyzePages && (
+              <button
+                onClick={onAnalyzePages}
+                className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
+              >
+                🔍 Analyze Pages
+              </button>
+            )}
+            <button
+              onClick={() => setShowLivePicker(true)}
+              className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors"
+            >
+              ⚡ Live Picker
+            </button>
+            {onClearElements && elements.length > 0 && (
+              <button
+                onClick={onClearElements}
+                className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md font-medium transition-colors"
+                title="Clear all elements from this project"
+              >
+                🗑️ Clear All
+              </button>
+            )}
+          </div>
+        </div>
         <p className="text-sm text-gray-600">
           Click any element to add it to your test
         </p>

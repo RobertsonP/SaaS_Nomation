@@ -1,12 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { TestStep } from '../../types/test.types';
+import { createLogger } from '../../lib/logger';
 
-interface TestStep {
-  id: string;
-  type: string;
-  selector: string;
-  value?: string;
-  description: string;
-}
+const logger = createLogger('BrowserExecutionView');
 
 interface BrowserExecutionViewProps {
   url: string;
@@ -117,10 +113,10 @@ export function BrowserExecutionView({
       `;
       
       iframeDoc.head.appendChild(script);
-      console.log('✅ Injected step highlight script for:', step.description);
-      
+      logger.debug('Injected step highlight script for', step.description);
+
     } catch (error) {
-      console.warn('Cannot inject highlight script into iframe:', error);
+      logger.warn('Cannot inject highlight script into iframe', error);
     }
   }, []);
 

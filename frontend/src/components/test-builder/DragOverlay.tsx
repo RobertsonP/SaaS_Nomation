@@ -1,13 +1,6 @@
 import { DragOverlay as DnDKitDragOverlay } from '@dnd-kit/core';
+import { TestStep } from '../../types/test.types';
 import { SortableTestStep } from './SortableTestStep';
-
-interface TestStep {
-  id: string;
-  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck';
-  selector: string;
-  value?: string;
-  description: string;
-}
 
 interface DragOverlayProps {
   activeStep: TestStep | null;

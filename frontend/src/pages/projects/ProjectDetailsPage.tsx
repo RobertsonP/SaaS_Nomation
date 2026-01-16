@@ -4,9 +4,13 @@ import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
 import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
+import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
 import { useNotification } from '../../contexts/NotificationContext';
 import { ProjectElement } from '../../types/element.types';
 import { io, Socket } from 'socket.io-client';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('ProjectDetails');
 
 interface ProjectUrl {
   id: string;
@@ -15,6 +19,8 @@ interface ProjectUrl {
   description?: string;
   analyzed: boolean;
   analysisDate?: string;
+  verified: boolean;
+  lastVerified?: string;
 }
 
 interface Project {
@@ -35,6 +41,7 @@ export function ProjectDetailsPage() {
   const { showSuccess, showError } = useNotification();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'sitemap' | 'urls' | 'elements' | 'auth'>('overview');
   const [selectedElementType, setSelectedElementType] = useState<string>('all');
   const [selectedUrl, setSelectedUrl] = useState<string>('all');
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]); // URL IDs for selective analysis
@@ -43,6 +50,7 @@ export function ProjectDetailsPage() {
   const [showUrlManager, setShowUrlManager] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [addingUrl, setAddingUrl] = useState(false);
+  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
   
   // ENHANCED: Add authentication and analysis state
   const [authFlows, setAuthFlows] = useState<any[]>([]);
@@ -50,11 +58,21 @@ export function ProjectDetailsPage() {
   const [analysisProgress, setAnalysisProgress] = useState<string>('');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showLivePicker, setShowLivePicker] = useState(false);
   
   // NEW: Analysis dashboard state
   const [showAnalysisDashboard, setShowAnalysisDashboard] = useState(false);
   const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
   const [analysisMetrics, setAnalysisMetrics] = useState<any>(null);
+
+  // NEW: Test execution stats state
+  const [testStats, setTestStats] = useState<{
+    totalExecutions: number;
+    totalPassed: number;
+    totalFailed: number;
+    regressions: number;
+    successRate: number;
+  } | null>(null);
   
   // NEW: Auth setup state for collapsible section
   const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
@@ -62,6 +80,13 @@ export function ProjectDetailsPage() {
   // Authentication modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [editingAuthFlow, setEditingAuthFlow] = useState<{id: string; data: any} | null>(null);
+
+  // Site Map state
+  const [showSiteMap, setShowSiteMap] = useState(false);
+  const [showDiscoveryModal, setShowDiscoveryModal] = useState(false);
+
+  // Fetch site map data
+  const { data: siteMapData, loading: siteMapLoading, refetch: refetchSiteMap } = useSiteMapData(projectId);
 
   // NEW: Progress and technical details state
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
@@ -77,6 +102,7 @@ export function ProjectDetailsPage() {
   useEffect(() => {
     loadProject();
     loadAuthFlows();
+    loadTestStats();
     if (showAnalysisDashboard) {
       loadAnalysisHistory();
       loadAnalysisMetrics();
@@ -98,17 +124,17 @@ export function ProjectDetailsPage() {
         const socket = socketRef.current;
 
         socket.on('connect', () => {
-          console.log('🔗 WebSocket connected for auto-refresh');
+          logger.debug('WebSocket connected for auto-refresh');
           socket.emit('subscribe-to-project', projectId);
         });
 
         socket.on('subscription-confirmed', (data) => {
-          console.log('✅ Subscribed to project updates:', data);
+          logger.debug('Subscribed to project updates', data);
         });
 
         // Listen for analysis events and trigger auto-refresh
         socket.on('analysis-started', (data) => {
-          console.log('🚀 Analysis started, enabling auto-refresh');
+          logger.info('Analysis started, enabling auto-refresh');
           setIsAnalysisRunning(true);
           setAnalyzing(true);
           setCurrentAnalysisStep('Initializing...');
@@ -126,7 +152,7 @@ export function ProjectDetailsPage() {
         });
 
         socket.on('analysis-progress', (data) => {
-          console.log('📊 Analysis progress update:', data);
+          logger.debug('Analysis progress update', data);
           
           // Enhanced step display with URL extraction for cleaner progress info
           let stepMessage = data.message || 'Processing...';
@@ -152,14 +178,14 @@ export function ProjectDetailsPage() {
           if (data.progress && data.progress.current !== undefined && data.progress.total !== undefined) {
             const progress = data.progress.percentage || Math.round((data.progress.current / data.progress.total) * 100);
             setAnalysisProgressPercent(progress);
-            console.log(`🔄 Progress updated: ${progress}% (${data.progress.current}/${data.progress.total})`);
+            logger.debug(`Progress updated: ${progress}% (${data.progress.current}/${data.progress.total})`);
           } else if (data.current !== undefined && data.total !== undefined) {
             // Fallback for direct current/total values (if any)
             const progress = Math.round((data.current / data.total) * 100);
             setAnalysisProgressPercent(progress);
-            console.log(`🔄 Progress updated (fallback): ${progress}% (${data.current}/${data.total})`);
+            logger.debug(`Progress updated (fallback): ${progress}% (${data.current}/${data.total})`);
           } else {
-            console.log(`⚠️ No progress data available in event:`, data);
+            logger.warn('No progress data available in event', data);
           }
           
           // Add log entry
@@ -174,13 +200,13 @@ export function ProjectDetailsPage() {
           loadProject();
         });
 
-        socket.on('analysis-completed', (data) => {
-          console.log('✅ Analysis completed, disabling auto-refresh');
+        socket.on('analysis-completed', async (data) => {
+          logger.info('Analysis completed, disabling auto-refresh');
           setIsAnalysisRunning(false);
           setAnalyzing(false);
           setCurrentAnalysisStep('Complete');
           setAnalysisProgressPercent(100);
-          
+
           // Add log entry
           const timestamp = new Date().toLocaleTimeString();
           setAnalysisLogs(prev => [...prev, {
@@ -188,20 +214,21 @@ export function ProjectDetailsPage() {
             level: 'SUCCESS',
             message: `Analysis completed successfully. Found ${data.totalElements || 0} elements.`
           }]);
-          
+
+          // CRITICAL FIX: Load project data BEFORE stopping auto-refresh
+          // This ensures element library gets the latest data
+          await loadProject();
+          if (showAnalysisDashboard) {
+            loadAnalysisHistory();
+            loadAnalysisMetrics();
+          }
+
+          // THEN stop auto-refresh (after data is loaded)
           stopAutoRefresh();
-          // Final refresh to get all new elements
-          setTimeout(() => {
-            loadProject();
-            if (showAnalysisDashboard) {
-              loadAnalysisHistory();
-              loadAnalysisMetrics();
-            }
-          }, 1000);
         });
 
         socket.on('analysis-error', (data) => {
-          console.error('❌ Analysis error:', data);
+          logger.error('Analysis error', data);
           setIsAnalysisRunning(false);
           setAnalyzing(false);
           setCurrentAnalysisStep('Error occurred');
@@ -219,17 +246,17 @@ export function ProjectDetailsPage() {
         });
 
         socket.on('disconnect', () => {
-          console.log('🔌 WebSocket disconnected');
+          logger.debug('WebSocket disconnected');
           stopAutoRefresh();
         });
 
         socket.on('connect_error', (error) => {
-          console.warn('Real-time analysis WebSocket connection failed - live updates will not be available:', error.message);
+          logger.warn('Real-time analysis WebSocket connection failed - live updates will not be available', error.message);
           // Continue without real-time updates
         });
 
       } catch (error) {
-        console.error('Failed to initialize WebSocket:', error);
+        logger.error('Failed to initialize WebSocket', error);
       }
     };
 
@@ -252,7 +279,7 @@ export function ProjectDetailsPage() {
     // Start auto-refresh every 3 seconds during analysis
     autoRefreshIntervalRef.current = setInterval(() => {
       if (isAnalysisRunning) {
-        console.log('🔄 Auto-refreshing project data...');
+        logger.debug('Auto-refreshing project data...');
         loadProject();
       }
     }, 3000);
@@ -270,9 +297,19 @@ export function ProjectDetailsPage() {
       const response = await projectsAPI.getById(projectId!);
       setProject(response.data);
     } catch (error) {
-      console.error('Failed to load project:', error);
+      logger.error('Failed to load project', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTestStats = async () => {
+    try {
+      const stats = await projectsAPI.getTestStats(projectId!);
+      setTestStats(stats);
+    } catch (error) {
+      logger.error('Failed to load test stats', error);
+      setTestStats(null);
     }
   };
 
@@ -281,7 +318,7 @@ export function ProjectDetailsPage() {
       const response = await authFlowsAPI.getByProject(projectId!);
       setAuthFlows(response.data);
     } catch (error) {
-      console.error('Failed to load auth flows:', error);
+      logger.error('Failed to load auth flows', error);
       setAuthFlows([]);
     }
   };
@@ -292,7 +329,7 @@ export function ProjectDetailsPage() {
       const history = await projectsAPI.getAnalysisHistory(projectId!);
       setAnalysisHistory(history);
     } catch (error) {
-      console.error('Failed to load analysis history:', error);
+      logger.error('Failed to load analysis history', error);
       setAnalysisHistory([]);
     }
   };
@@ -303,7 +340,7 @@ export function ProjectDetailsPage() {
       const metrics = await projectsAPI.getAnalysisMetrics(projectId!);
       setAnalysisMetrics(metrics);
     } catch (error) {
-      console.error('Failed to load analysis metrics:', error);
+      logger.error('Failed to load analysis metrics', error);
       setAnalysisMetrics(null);
     }
   };
@@ -326,7 +363,7 @@ export function ProjectDetailsPage() {
       }, 2000);
 
     } catch (error: any) {
-      console.error('Analysis error:', error);
+      logger.error('Analysis error', error);
       showError('Analysis Failed', error.response?.data?.message || 'Failed to analyze URLs');
     } finally {
       setAnalyzing(false);
@@ -348,7 +385,7 @@ export function ProjectDetailsPage() {
       }, 2000);
 
     } catch (error) {
-      console.error('Analysis error:', error);
+      logger.error('Analysis error', error);
       
       // Check if this is a timeout error while WebSocket continues
       if ((error as any)?.code === 'ECONNABORTED' && (error as any)?.message?.includes('timeout')) {
@@ -392,7 +429,7 @@ export function ProjectDetailsPage() {
       setCurrentAnalysisStep('Ready for new analysis');
       
     } catch (error) {
-      console.error('Clear elements error:', error);
+      logger.error('Clear elements error', error);
       showError('Clear Error', 'Failed to clear project elements');
     } finally {
       setAnalyzing(false);
@@ -430,7 +467,7 @@ export function ProjectDetailsPage() {
       showSuccess('URL Added', 'URL has been added to the project. Run analysis to discover elements.');
       loadProject(); // Reload to show updated URLs
     } catch (error) {
-      console.error('Failed to add URL:', error);
+      logger.error('Failed to add URL', error);
       showError('Failed to Add URL', 'Please try again.');
     } finally {
       setAddingUrl(false);
@@ -439,14 +476,14 @@ export function ProjectDetailsPage() {
 
   const handleRemoveUrl = async (urlToRemove: string) => {
     if (!projectId || !project) return;
-    
+
     if (!confirm(`Remove URL: ${urlToRemove}?\n\nThis will also remove any elements discovered from this URL.`)) {
       return;
     }
 
     try {
       const updatedUrls = project.urls.filter(url => url.url !== urlToRemove);
-      
+
       await projectsAPI.update(projectId, {
         urls: updatedUrls.map(url => ({ url: url.url, title: url.title, description: url.description }))
       });
@@ -454,8 +491,38 @@ export function ProjectDetailsPage() {
       showSuccess('URL Removed', 'URL has been removed from the project.');
       loadProject(); // Reload to show updated URLs
     } catch (error) {
-      console.error('Failed to remove URL:', error);
+      logger.error('Failed to remove URL', error);
       showError('Failed to Remove URL', 'Please try again.');
+    }
+  };
+
+  const handleVerifyUrl = async (urlId: string) => {
+    if (!projectId) return;
+
+    setVerifyingUrl(urlId);
+    try {
+      const organizationId = localStorage.getItem('organizationId');
+      const response = await fetch(`http://localhost:3002/api/projects/urls/${urlId}/verify?organizationId=${organizationId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.accessible) {
+        showSuccess('URL Verified', result.message);
+        loadProject(); // Reload to show updated verification status
+      } else {
+        showError('URL Not Accessible', result.message);
+      }
+    } catch (error) {
+      logger.error('Failed to verify URL', error);
+      showError('Verification Failed', 'Could not verify URL. Please try again.');
+    } finally {
+      setVerifyingUrl(null);
     }
   };
 
@@ -468,10 +535,10 @@ export function ProjectDetailsPage() {
   const handleEditAuthentication = async (authFlow: any) => {
     try {
       // Fetch fresh auth flow data from database to ensure we have latest values
-      console.log('📥 Fetching latest auth flow data for edit...');
+      logger.debug('Fetching latest auth flow data for edit...');
       const response = await authFlowsAPI.getById(authFlow.id);
       const freshAuthFlow = response.data;
-      console.log('✅ Loaded fresh auth flow data:', freshAuthFlow);
+      logger.debug('Loaded fresh auth flow data', freshAuthFlow);
 
       setEditingAuthFlow({
         id: freshAuthFlow.id,
@@ -487,7 +554,7 @@ export function ProjectDetailsPage() {
       });
       setShowAuthModal(true);
     } catch (error) {
-      console.error('Failed to load auth flow for editing:', error);
+      logger.error('Failed to load auth flow for editing', error);
       showError('Load Failed', 'Failed to load authentication flow. Please try again.');
     }
   };
@@ -502,7 +569,7 @@ export function ProjectDetailsPage() {
       showSuccess('Authentication Deleted', `Successfully deleted authentication flow "${authFlowName}"`);
       loadAuthFlows(); // Reload auth flows
     } catch (error) {
-      console.error('Failed to delete auth flow:', error);
+      logger.error('Failed to delete auth flow', error);
       showError('Delete Failed', 'Failed to delete authentication flow. Please try again.');
     }
   };
@@ -598,421 +665,486 @@ export function ProjectDetailsPage() {
               to={`/projects/${project.id}/suites`}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              📦 Test Suites
+              Test Suites
             </Link>
             <Link
               to={`/projects/${project.id}/tests`}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
             >
-              📋 Individual Tests ({project._count.tests})
-            </Link>
-            <Link
-              to={`/projects/${project.id}/analyze`}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 relative"
-            >
-              🚀 Project Analysis
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 py-0.5 rounded-full text-[10px]">
-                NEW
-              </span>
+              Tests ({project._count.tests})
             </Link>
             {project.urls.length > 0 ? (
               <Link
                 to={`/projects/${project.id}/tests/new`}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
               >
-                ➕ Create Test
+                Create Test
               </Link>
             ) : (
               <button
                 onClick={() => setShowUrlManager(true)}
                 className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 font-medium"
               >
-                🚀 Setup Project
+                Setup Project
               </button>
             )}
           </div>
         </div>
 
-        {/* Project Stats - Contentful-style subtle improvements */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
-               onClick={() => setShowUrlManager(!showUrlManager)}>
-            <div className="text-xs font-semibold text-blue-900 uppercase tracking-wide">URLs</div>
-            <div className="text-2xl font-bold text-blue-600 mt-1">{project._count.urls}</div>
-            <div className="text-xs text-blue-700 mt-1">Click to manage</div>
+        {/* Project Stats */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <div
+            className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setActiveTab('urls')}
+          >
+            <div className="text-xs font-semibold text-blue-900 dark:text-blue-200 uppercase tracking-wide">URLs</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{project._count.urls}</div>
           </div>
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs font-semibold text-green-900 uppercase tracking-wide">Elements</div>
-            <div className="text-2xl font-bold text-green-600 mt-1">{project._count.elements}</div>
+          <div
+            className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setActiveTab('elements')}
+          >
+            <div className="text-xs font-semibold text-green-900 dark:text-green-200 uppercase tracking-wide">Elements</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{project._count.elements}</div>
           </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide">Tests</div>
-            <div className="text-2xl font-bold text-purple-600 mt-1">{project._count.tests}</div>
+          <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-purple-900 dark:text-purple-200 uppercase tracking-wide">Tests</div>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{project._count.tests}</div>
           </div>
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs font-semibold text-orange-900 uppercase tracking-wide">Analyzed</div>
-            <div className="text-2xl font-bold text-orange-600 mt-1">
+          <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-orange-900 dark:text-orange-200 uppercase tracking-wide">Analyzed</div>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
               {project.urls.filter(url => url.analyzed).length}
             </div>
           </div>
         </div>
 
-        {/* NEW: Empty Project Setup Guide */}
-        {project.urls.length === 0 && !showUrlManager && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 mb-8 text-center">
-            <div className="text-6xl mb-4">🚀</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Your New Project!</h2>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-              Your project has been created successfully. Now let's add some URLs and start discovering testable elements 
-              to build your automated test suite.
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+          <nav className="flex space-x-1" aria-label="Tabs">
+            {[
+              { id: 'overview', label: 'Overview' },
+              { id: 'sitemap', label: 'Site Map' },
+              { id: 'urls', label: 'URLs' },
+              { id: 'elements', label: 'Elements' },
+              { id: 'auth', label: 'Authentication' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`px-5 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-white dark:bg-gray-800 border-t border-l border-r border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 -mb-px'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {tab.label}
+                {tab.id === 'urls' && project._count.urls > 0 && (
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                    {project._count.urls}
+                  </span>
+                )}
+                {tab.id === 'elements' && project._count.elements > 0 && (
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                    {project._count.elements}
+                  </span>
+                )}
+                {tab.id === 'auth' && authFlows.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300">
+                    {authFlows.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Empty Project Setup Guide */}
+            {project.urls.length === 0 && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-8 mb-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Get Started</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+              Your project is ready. Add URLs and start discovering testable elements to build your automated test suite.
             </p>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
-                <div className="text-blue-600 text-3xl mb-3">1️⃣</div>
-                <h3 className="font-semibold text-gray-900 mb-2">Add URLs</h3>
-                <p className="text-sm text-gray-600">Start by adding the web pages you want to test</p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
+                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">1</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Add URLs</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Start by adding the web pages you want to test</p>
               </div>
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
-                <div className="text-blue-600 text-3xl mb-3">2️⃣</div>
-                <h3 className="font-semibold text-gray-900 mb-2">Analyze Pages</h3>
-                <p className="text-sm text-gray-600">Our AI discovers testable elements automatically</p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
+                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">2</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Analyze Pages</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Our AI discovers testable elements automatically</p>
               </div>
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-blue-100">
-                <div className="text-blue-600 text-3xl mb-3">3️⃣</div>
-                <h3 className="font-semibold text-gray-900 mb-2">Build Tests</h3>
-                <p className="text-sm text-gray-600">Use discovered elements to create automated tests</p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
+                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">3</div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Build Tests</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Use discovered elements to create automated tests</p>
               </div>
             </div>
-            
+
             <button
-              onClick={() => setShowUrlManager(true)}
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+              onClick={() => setActiveTab('urls')}
+              className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              🌐 Add Your First URL
+              Add Your First URL
             </button>
+          </div>
+            )}
+
+            {/* Analysis Controls - Only show when project has URLs */}
+            {project.urls.length > 0 && (
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Project Analysis</h3>
+
+                {/* Progress Bar */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Analysis Progress</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{currentAnalysisStep}</span>
+                  </div>
+                  <div
+                    className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 cursor-pointer"
+                    onDoubleClick={() => setShowAnalysisModal(true)}
+                    title="Double-click for details"
+                  >
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' :
+                        analysisProgressPercent === 100 ? 'bg-green-500' : 'bg-gray-400'
+                      }`}
+                      style={{ width: `${analysisProgressPercent}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Test Execution Stats */}
+                <div className="grid grid-cols-4 gap-3 mt-4">
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {testStats?.totalPassed ?? 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Passed</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                      {testStats?.totalFailed ?? 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Failed</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                      {testStats?.regressions ?? 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Regressions</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {testStats?.successRate ?? 0}%
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Success Rate</div>
+                  </div>
+                </div>
+                {testStats && testStats.totalExecutions === 0 && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+                    No test executions yet. Run tests to see statistics.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* NEW: URL Management Section */}
-        {showUrlManager && (
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 mb-8">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">URL Management</h3>
-                  <p className="text-sm opacity-90">Add and manage URLs for analysis</p>
-                </div>
-                <button
-                  onClick={() => setShowUrlManager(false)}
-                  className="text-white hover:text-gray-200"
-                >
-                  ✕
-                </button>
+        {/* Site Map Tab */}
+        {activeTab === 'sitemap' && (
+          <div>
+            {siteMapLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Loading site map...</span>
               </div>
-            </div>
-
-            <div className="p-6">
-              {/* Add URL Form */}
-              <div className="mb-6">
-                <div className="flex space-x-3">
-                  <div className="flex-1">
-                    <input
-                      type="url"
-                      placeholder="https://example.com/page-to-test"
-                      value={newUrl}
-                      onChange={(e) => setNewUrl(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-                    />
-                  </div>
+            ) : siteMapData && siteMapData.nodes.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Visual representation of your project's page structure
+                  </p>
                   <button
-                    onClick={handleAddUrl}
-                    disabled={addingUrl || !newUrl.trim()}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    onClick={() => setShowDiscoveryModal(true)}
+                    className="text-sm text-blue-600 hover:text-blue-800"
                   >
-                    {addingUrl ? (
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                    ) : (
-                      <span>+ Add URL</span>
-                    )}
+                    + Discover More Pages
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Add URLs to pages you want to test. Each URL will be analyzed to discover testable elements.
-                </p>
+                <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
+                  <SiteMapGraph
+                    nodes={siteMapData.nodes}
+                    edges={siteMapData.edges}
+                    className="w-full h-full"
+                  />
+                </div>
               </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </div>
+                <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Site Map Yet</h4>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  Discover pages automatically from a root URL to build your site map and visualize page relationships.
+                </p>
+                <button
+                  onClick={() => setShowDiscoveryModal(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Start Page Discovery
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-              {/* URLs List */}
+        {/* URLs Tab */}
+        {activeTab === 'urls' && (
+          <div className="space-y-6">
+            {/* Add URL Form */}
+            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+              <div className="flex space-x-3">
+                <div className="flex-1">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/page-to-test"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+                  />
+                </div>
+                <button
+                  onClick={handleAddUrl}
+                  disabled={addingUrl || !newUrl.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addingUrl ? 'Adding...' : '+ Add URL'}
+                </button>
+                <button
+                  onClick={() => setShowDiscoveryModal(true)}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Auto-Discover
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Add URLs manually or use Auto-Discover to find pages from a root URL.
+              </p>
+            </div>
+
+            {/* URLs List */}
+            {project.urls.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No URLs Added Yet</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Add your first URL or use Auto-Discover to get started</p>
+              </div>
+            ) : (
               <div className="space-y-3">
-                {project.urls.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <div className="text-4xl mb-2">🌐</div>
-                    <h4 className="text-lg font-medium text-gray-900 mb-1">No URLs Added Yet</h4>
-                    <p className="text-sm text-gray-600 mb-4">Add your first URL to start building your test library</p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                      💡 <strong>Tip:</strong> Start with your login page, dashboard, or main application pages
+                {/* Selective Analysis Controls */}
+                {project.urls.length > 1 && (
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedUrls.length === project.urls.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedUrls(project.urls.map(u => u.id));
+                          } else {
+                            setSelectedUrls([]);
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {selectedUrls.length > 0 ? `${selectedUrls.length} selected` : 'Select all'}
+                      </span>
                     </div>
+                    {selectedUrls.length > 0 && (
+                      <button
+                        onClick={handleAnalyzeSelected}
+                        disabled={analyzing}
+                        className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                      >
+                        {analyzing ? 'Analyzing...' : `Analyze Selected (${selectedUrls.length})`}
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    {/* Select All/None Buttons */}
-                    <div className="flex gap-2 mb-3">
-                      <button
-                        onClick={() => setSelectedUrls(project.urls.map(u => u.id))}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Select All
-                      </button>
-                      <button
-                        onClick={() => setSelectedUrls([])}
-                        className="text-sm text-gray-700 hover:text-gray-800 font-medium"
-                      >
-                        Deselect All
-                      </button>
-                    </div>
+                )}
 
-                    {/* URL List with Checkboxes */}
-                    {project.urls.map((url, index) => (
-                      <div key={url.id || index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-3 flex-1">
-                          {/* Checkbox for selection */}
+                {/* URL Cards */}
+                {project.urls.map((url) => (
+                  <div key={url.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3">
+                        {project.urls.length > 1 && (
                           <input
                             type="checkbox"
                             checked={selectedUrls.includes(url.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedUrls([...selectedUrls, url.id])
+                                setSelectedUrls([...selectedUrls, url.id]);
                               } else {
-                                setSelectedUrls(selectedUrls.filter(id => id !== url.id))
+                                setSelectedUrls(selectedUrls.filter(id => id !== url.id));
                               }
                             }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="w-4 h-4 text-blue-600 rounded mt-1"
                           />
-
-                          {/* Analysis status indicator */}
-                          <div className={`w-3 h-3 rounded-full ${url.analyzed ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-
-                          {/* URL display */}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900 break-all">{url.url}</p>
-                            <p className="text-xs text-gray-500">
-                              {url.analyzed ? `Analyzed ${url.analysisDate ? new Date(url.analysisDate).toLocaleDateString() : 'recently'}` : 'Not analyzed yet'}
-                            </p>
+                        )}
+                        <div>
+                          <a
+                            href={url.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline font-medium"
+                          >
+                            {url.url}
+                          </a>
+                          <div className="flex items-center gap-2 mt-1">
+                            {url.analyzed && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                                Analyzed
+                              </span>
+                            )}
+                            {url.verified && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                                Verified
+                              </span>
+                            )}
                           </div>
                         </div>
-
-                        {/* Delete button */}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleVerifyUrl(url.id)}
+                          disabled={verifyingUrl === url.id}
+                          className="text-xs text-gray-600 hover:text-blue-600 px-2 py-1"
+                        >
+                          {verifyingUrl === url.id ? 'Verifying...' : 'Verify'}
+                        </button>
                         <button
                           onClick={() => handleRemoveUrl(url.url)}
-                          className="px-3 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                          className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
                         >
                           Remove
                         </button>
                       </div>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              {project.urls.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      {project.urls.length} URL{project.urls.length !== 1 ? 's' : ''} • {project.urls.filter(url => url.analyzed).length} analyzed
                     </div>
-                    <button
-                      onClick={handleAnalyzeSelected}
-                      disabled={selectedUrls.length === 0 || analyzing}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                    >
-                      {analyzing ? 'Analyzing...' : `Analyze Selected (${selectedUrls.length})`}
-                    </button>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ANALYSIS CONTROLS - Contentful-style subtle improvements */}
-      <div className="mb-8">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Project Analysis</h3>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleClearElements}
-                disabled={analyzing || project.elements.length === 0}
-                className="bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 text-sm font-medium disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
-                title={project.elements.length === 0 ? "No elements to clear" : "Clear all elements for fresh analysis"}
-              >
-                🧹 Clear Elements
-              </button>
-              <button
-                onClick={handleAnalyzeProject}
-                disabled={analyzing}
-                className="bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:bg-gray-400 transition-colors shadow-sm"
-              >
-                🔍 {analyzing ? 'Analyzing...' : 'Analyze Project'}
-              </button>
-            </div>
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-700">Analysis Progress</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600 font-medium">{currentAnalysisStep}</span>
-                {(analyzing || analysisProgressPercent > 0) && (
-                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                    Double-click for details
-                  </span>
-                )}
-              </div>
-            </div>
-            <div 
-              className="w-full bg-gray-200 rounded-full h-3 shadow-inner cursor-pointer hover:shadow-md transition-shadow"
-              onDoubleClick={() => setShowAnalysisModal(true)}
-              title="Double-click to view detailed analysis progress"
-            >
-              <div 
-                className={`h-3 rounded-full transition-all duration-500 shadow-sm ${
-                  analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' : 
-                  analysisProgressPercent === 100 ? 'bg-green-500' : 'bg-gray-400'
-                }`}
-                style={{ width: `${analysisProgressPercent}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* COLLAPSIBLE SECTIONS - Contentful-style subtle improvements */}
-      <div className="space-y-6">
-        {/* Authentication Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="p-4">
-            <button
-              onClick={() => setShowAuthSetup(showAuthSetup ? null : 'toggle')}
-              className="w-full flex items-center justify-between text-left hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <span className="text-base font-semibold text-gray-700">🔐 Authentication</span>
-                {authFlows.length > 0 && (
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    {authFlows.length} flow{authFlows.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <svg
-                className={`w-5 h-5 text-gray-400 transition-transform ${
-                  showAuthSetup ? 'rotate-180' : ''
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            {showAuthSetup && (
-              <div className="mt-3 pt-3 border-t">
-                {authFlows.length > 0 ? (
-                  <div className="space-y-2">
-                    {authFlows.map((authFlow) => (
-                      <div key={authFlow.id} className="border rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-medium">{authFlow.name}</div>
-                            <div className="text-xs text-gray-500">
-                              Login URL: {authFlow.loginUrl}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => handleEditAuthentication(authFlow)}
-                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded"
-                              title="Edit authentication"
-                            >
-                              ✏️ Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAuthentication(authFlow.id, authFlow.name)}
-                              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 hover:bg-red-50 rounded"
-                              title="Delete authentication"
-                            >
-                              🗑️ Delete
-                            </button>
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                              Active
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-500 mb-2">No authentication configured</p>
-                    <button
-                      onClick={handleAddAuthentication}
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      + Add Authentication
-                    </button>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Element Library Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => setShowElementLibrary(!showElementLibrary)}
-                className="flex items-center space-x-3 text-lg font-semibold hover:text-gray-600 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
-              >
-                <span>📚 Element Library</span>
-                <svg
-                  className={`w-5 h-5 transition-transform ${showElementLibrary ? 'rotate-180' : ''} text-gray-400`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div className="text-sm text-gray-600 font-medium">
-                {filteredElements.length} element{filteredElements.length !== 1 ? 's' : ''}
+        {/* Elements Tab */}
+        {activeTab === 'elements' && (
+          <ElementLibraryPanel
+            elements={project.elements}
+            onSelectElement={(element) => logger.debug('Element selected', element)}
+            selectedElementType={selectedElementType}
+            selectedUrl={selectedUrl}
+            onElementTypeChange={setSelectedElementType}
+            onUrlChange={setSelectedUrl}
+            previewMode="auto"
+            showQuality={true}
+            compact={false}
+            isLoading={false}
+            setShowLivePicker={setShowLivePicker}
+            onAnalyzePages={handleAnalyzeProject}
+            onClearElements={handleClearElements}
+          />
+        )}
+
+        {/* Auth Tab */}
+        {activeTab === 'auth' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Authentication Flows</h3>
+                <p className="text-sm text-gray-600">Configure login credentials for testing authenticated pages</p>
               </div>
+              <button
+                onClick={handleAddAuthentication}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + Add Authentication
+              </button>
             </div>
+
+            {authFlows.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Authentication Configured</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  Add authentication to test pages that require login credentials
+                </p>
+                <button
+                  onClick={handleAddAuthentication}
+                  className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Setup Authentication
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {authFlows.map((authFlow) => (
+                  <div key={authFlow.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{authFlow.name}</div>
+                        <div className="text-sm text-gray-500">{authFlow.loginUrl}</div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleEditAuthentication(authFlow)}
+                          className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAuthentication(authFlow.id, authFlow.name)}
+                          className="text-sm text-red-600 hover:text-red-800 px-3 py-1"
+                        >
+                          Delete
+                        </button>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                          Active
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          
-          {showElementLibrary && (
-            <ElementLibraryPanel
-              elements={project.elements}
-              onSelectElement={(element) => console.log('Selected:', element)}
-              selectedElementType={selectedElementType}
-              selectedUrl={selectedUrl}
-              onElementTypeChange={setSelectedElementType}
-              onUrlChange={setSelectedUrl}
-              previewMode="auto"
-              showQuality={true}
-              compact={false}
-              isLoading={false}
-            />
-          )}
-        </div>
+        )}
       </div>
 
       {/* Technical Details Modal */}
@@ -1020,7 +1152,7 @@ export function ProjectDetailsPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">🔧 Technical Analysis Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Technical Analysis Details</h3>
               <button
                 onClick={() => setShowTechnicalDetails(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1032,8 +1164,8 @@ export function ProjectDetailsPage() {
             </div>
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               <div className="space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-sm mb-2">📊 Current Analysis Status</h4>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                  <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-white">Current Analysis Status</h4>
                   <div className="text-sm text-gray-700">
                     <p><span className="font-medium">Stage:</span> {currentAnalysisStep}</p>
                     <p><span className="font-medium">Progress:</span> {analysisProgressPercent}%</p>
@@ -1042,7 +1174,7 @@ export function ProjectDetailsPage() {
                     <p>
                       <span className="font-medium">Auto-Refresh:</span> 
                       {isAnalysisRunning ? (
-                        <span className="text-green-600 ml-1">🔄 Active (every 3s)</span>
+                        <span className="text-green-600 dark:text-green-400 ml-1">Active (every 3s)</span>
                       ) : (
                         <span className="text-gray-500 ml-1">Inactive</span>
                       )}
@@ -1050,8 +1182,8 @@ export function ProjectDetailsPage() {
                   </div>
                 </div>
                 
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-medium text-sm mb-2">🔍 Analysis Logs</h4>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-white">Analysis Logs</h4>
                   <div className="text-xs font-mono bg-white p-3 rounded border h-48 overflow-y-auto">
                     {analysisLogs.length > 0 ? (
                       <div className="space-y-1">
@@ -1080,7 +1212,7 @@ export function ProjectDetailsPage() {
                 </div>
                 
                 <div className="bg-green-50 rounded-lg p-4">
-                  <h4 className="font-medium text-sm mb-2">⚙️ Configuration</h4>
+                  <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-white">Configuration</h4>
                   <div className="text-sm text-gray-700 space-y-1">
                     <p><span className="font-medium">Project:</span> {project.name}</p>
                     <p><span className="font-medium">Authentication:</span> {authFlows.length > 0 ? `${authFlows.length} flow(s) configured` : 'None configured'}</p>
@@ -1113,6 +1245,19 @@ export function ProjectDetailsPage() {
           initialData={editingAuthFlow?.data}
         />
       )}
+
+      {/* Discovery Modal */}
+      <DiscoveryModal
+        isOpen={showDiscoveryModal}
+        onClose={() => setShowDiscoveryModal(false)}
+        projectId={projectId || ''}
+        initialUrl={project.urls[0]?.url || ''}
+        onDiscoveryComplete={(selectedUrlIds) => {
+          // Refresh the site map and project data
+          refetchSiteMap();
+          loadProject();
+        }}
+      />
     </div>
   );
 }

@@ -104,7 +104,7 @@ export function SelectorValidationPanel({
         <h3 className="text-lg font-medium text-gray-900">Selector Validation</h3>
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="px-3 py-1 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+          className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           {showAdvanced ? 'Simple' : 'Advanced'}
         </button>
@@ -273,8 +273,8 @@ function AdvancedValidationDetails({ result }: { result: SelectorValidationResul
   if (!result.qualityBreakdown) return null;
 
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded p-3">
-      <h4 className="text-sm font-medium text-gray-700 mb-3">Quality Breakdown</h4>
+    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-3">
+      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Quality Breakdown</h4>
       <div className="grid grid-cols-2 gap-3">
         <QualityMetricItem 
           label="Uniqueness" 
@@ -426,7 +426,7 @@ function QuickActionsSection({
           <button
             key={index}
             onClick={() => onSelectorSuggestion(item.selector)}
-            className="text-left px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+            className="text-left px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <div className="font-medium text-gray-700">{item.label}</div>
             <div className="font-mono text-gray-500">{item.selector}</div>

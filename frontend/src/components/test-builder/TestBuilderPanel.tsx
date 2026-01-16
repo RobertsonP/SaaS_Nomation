@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { projectsAPI, browserAPI } from '../../lib/api'
 import { BrowserPreview } from '../element-picker/BrowserPreview'
 import { LiveSessionBrowser } from '../execution/LiveSessionBrowser'
-import { 
+import { ProjectElement } from '../../types/element.types'
+import { TestStep } from '../../types/test.types'
+import { LiveExecutionModal } from '../execution/LiveExecutionModal'
+import { StepList } from './StepList'
+import { TemplateModal } from './TemplateModal'
+import { createLogger } from '../../lib/logger'
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -18,18 +24,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
-import { ProjectElement } from '../../types/element.types'
-import { SortableTestStep } from './SortableTestStep'
-import { DragOverlay } from './DragOverlay'
-import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 
-interface TestStep {
-  id: string
-  type: 'click' | 'type' | 'wait' | 'assert' | 'hover' | 'scroll' | 'select' | 'clear' | 'doubleclick' | 'rightclick' | 'press' | 'upload' | 'check' | 'uncheck'
-  selector: string
-  value?: string
-  description: string
-}
+const logger = createLogger('TestBuilderPanel')
 
 interface TestBuilderPanelProps {
   selectedElement?: ProjectElement
@@ -62,15 +58,15 @@ export function TestBuilderPanel({
   // Initialize steps with localStorage persistence
   const [steps, setSteps] = useState<TestStep[]>(() => {
     if (testId) {
-      const savedSteps = localStorage.getItem(`test-steps-${testId}`);
+      const savedSteps = localStorage.getItem(`nomation-test-steps-v1-${testId}`);
       if (savedSteps) {
         try {
           const parsedSteps = JSON.parse(savedSteps);
           // Always return saved steps if they exist (user has unsaved changes)
           return parsedSteps;
         } catch (e) {
-          console.warn('Failed to parse saved steps:', e);
-          localStorage.removeItem(`test-steps-${testId}`); // Clean up corrupted data
+          logger.warn('Failed to parse saved steps', e);
+          localStorage.removeItem(`nomation-test-steps-v1-${testId}`); // Clean up corrupted data
         }
       }
     }
@@ -101,11 +97,17 @@ export function TestBuilderPanel({
   const [browserSessionToken, setBrowserSessionToken] = useState<string | null>(null)
   const [currentBrowserUrl, setCurrentBrowserUrl] = useState<string>('')
 
+  // NEW: Video timestamp highlighting (for G1.3)
+  const [activeVideoStepId, setActiveVideoStepId] = useState<string | null>(null);
+  
+  // NEW: Template Modal State
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+
   // Save steps to localStorage whenever they change
   useEffect(() => {
     if (testId) {
       // Always save to localStorage, even if steps array is empty
-      localStorage.setItem(`test-steps-${testId}`, JSON.stringify(steps));
+      localStorage.setItem(`nomation-test-steps-v1-${testId}`, JSON.stringify(steps));
       // Check if steps are different from initial (has unsaved changes)
       const hasChanges = JSON.stringify(steps) !== JSON.stringify(initialSteps);
       setHasUnsavedChanges(hasChanges);
@@ -115,16 +117,20 @@ export function TestBuilderPanel({
   // NEW: Auto-add functionality for live element picker integration
   const _handleAutoAddTestStep = useCallback((element: ProjectElement, action?: string) => {
     if (!element || !element.selector) {
-      console.warn('Cannot auto-add test step: Invalid element data');
+      logger.warn('Cannot auto-add test step: Invalid element data');
       return;
     }
 
-    const actionType = action || getDefaultActionForElement(element.elementType);
+    // Validate and type-cast action parameter
+    const validTypes: TestStep['type'][] = ['click', 'type', 'wait', 'assert', 'hover', 'scroll', 'select', 'clear', 'doubleclick', 'rightclick', 'press', 'upload', 'check', 'uncheck', 'screenshot', 'navigate'];
+    const actionType: TestStep['type'] = (action && validTypes.includes(action as TestStep['type']))
+      ? action as TestStep['type']
+      : getDefaultActionForElement(element.elementType);
     const stepId = generateId();
 
     const newTestStep: TestStep = {
       id: stepId,
-      type: actionType as TestStep['type'],
+      type: actionType,
       selector: element.selector,
       value: actionType === 'type' ? '' : undefined, // Leave value empty for type actions
       description: `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} on ${element.description}`
@@ -138,21 +144,21 @@ export function TestBuilderPanel({
       );
       
       if (isDuplicate) {
-        console.log('🔄 Step already exists, highlighting existing step');
+        logger.debug('Step already exists, highlighting existing step');
         // Visual feedback for existing step
         showAutoAddNotification(element, actionType, true);
         return prevSteps;
       }
 
-      console.log(`✅ Auto-added test step: ${newTestStep.description}`);
+      logger.info(`Auto-added test step: ${newTestStep.description}`);
       // Show success notification with highlighting
       showAutoAddNotification(element, actionType, false);
       return [...prevSteps, newTestStep];
     });
-  }, [steps]);
+  }, []); // Empty deps: uses functional update pattern, doesn't need steps
 
   // Helper function to get default action for element type
-  const getDefaultActionForElement = (elementType: string): string => {
+  const getDefaultActionForElement = (elementType: string): TestStep['type'] => {
     switch (elementType) {
       case 'button': return 'click';
       case 'input': return 'type';
@@ -236,7 +242,7 @@ export function TestBuilderPanel({
     
     if (initialSteps.length > 0 && testId) {
       // Check if localStorage has data
-      const savedSteps = localStorage.getItem(`test-steps-${testId}`);
+      const savedSteps = localStorage.getItem(`nomation-test-steps-v1-${testId}`);
       if (!savedSteps) {
         // No localStorage data, use initialSteps (loaded from database)
         setSteps(initialSteps);
@@ -369,14 +375,14 @@ export function TestBuilderPanel({
 
     setExecutingStepId(step.id)
     try {
-      console.log(`🔴 Live executing step: ${step.description}`)
+      logger.debug(`Live executing step: ${step.description}`)
 
       // Use shared browser session approach (same as sequential execution)
       let sessionToken = browserSessionToken
 
       // If no active session, create one
       if (!sessionToken) {
-        console.log(`🌐 Creating browser session for single step execution...`)
+        logger.debug('Creating browser session for single step execution...')
         const project = await projectsAPI.getById(projectId)
         const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com'
 
@@ -387,7 +393,7 @@ export function TestBuilderPanel({
         // Navigate to starting URL
         await browserAPI.navigateSession(sessionToken!, url)
         setCurrentBrowserUrl(url)
-        console.log(`✅ Browser session created and navigated to: ${url}`)
+        logger.info(`Browser session created and navigated to: ${url}`)
       }
 
       // Convert test step to browser action format
@@ -413,7 +419,7 @@ export function TestBuilderPanel({
 
       // Execute action in shared browser session
       const response = await browserAPI.executeAction(sessionToken!, action)
-      console.log(`✅ Step executed:`, response)
+      logger.debug('Step executed', response)
       
       // Update frontend URL to match backend browser state
       const sessionInfo = await browserAPI.getSessionInfo(sessionToken!)
@@ -431,7 +437,7 @@ export function TestBuilderPanel({
       });
       setShowExecutionModal(true);
     } catch (error: any) {
-      console.error('Live step execution failed:', error)
+      logger.error('Live step execution failed', error)
       
       let errorMessage = 'Failed to execute step live. '
       if (error?.response?.status === 500) {
@@ -471,31 +477,31 @@ export function TestBuilderPanel({
     setShowSequentialExecutionModal(true)
 
     try {
-      console.log(`🚀 Starting sequential execution of ${steps.length} steps`)
+      logger.info(`Starting sequential execution of ${steps.length} steps`)
 
       // Get project data to extract starting URL
       const project = await projectsAPI.getById(projectId)
-      console.log('🔍 DEBUG URLs array:', project.data.urls?.[0])
+      logger.debug('URLs array:', project.data.urls?.[0])
       const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com'
-      console.log('🔍 DEBUG startingUrl type:', typeof url, 'value:', url)
+      logger.debug(`startingUrl type: ${typeof url}, value: ${url}`)
 
-      console.log(`📍 Starting URL: ${url}`)
+      logger.info(`Starting URL: ${url}`)
 
       // Set URL for browser execution view
       setExecutionStartingUrl(url)
       setCurrentBrowserUrl(url)
 
       // Create shared browser session for live execution
-      console.log(`🌐 Creating shared browser session...`)
+      logger.debug('Creating shared browser session...')
       const sessionResponse = await browserAPI.createSession(projectId)
       const sessionToken = sessionResponse.sessionToken
       setBrowserSessionToken(sessionToken)
-      console.log(`✅ Browser session created: ${sessionToken}`)
+      logger.info(`Browser session created: ${sessionToken}`)
 
       // Navigate to starting URL in the session
-      console.log(`🌍 Navigating session to: ${url}`)
+      logger.debug(`Navigating session to: ${url}`)
       await browserAPI.navigateSession(sessionToken, url)
-      console.log(`✅ Navigation completed`)
+      logger.debug('Navigation completed')
 
       const results: Array<{step: TestStep, result: any, success: boolean}> = []
 
@@ -504,8 +510,8 @@ export function TestBuilderPanel({
         const step = steps[i]
         setCurrentExecutingStepIndex(i)
         setCurrentExecutingStep(step)
-        
-        console.log(`🎯 Executing step ${i + 1}/${steps.length}:`, step.description)
+
+        logger.debug(`Executing step ${i + 1}/${steps.length}: ${step.description}`)
 
         try {
           // Convert test step to browser action format
@@ -531,7 +537,7 @@ export function TestBuilderPanel({
 
           // Execute action in shared browser session
           const response = await browserAPI.executeAction(sessionToken, action)
-          console.log(`✅ Step ${i + 1} completed:`, response)
+          logger.debug(`Step ${i + 1} completed`, response)
           
           // Update frontend URL to match backend browser state
           const sessionInfo = await browserAPI.getSessionInfo(sessionToken)
@@ -549,7 +555,7 @@ export function TestBuilderPanel({
           await new Promise(resolve => setTimeout(resolve, 1500))
 
         } catch (stepError: any) {
-          console.error(`❌ Step ${i + 1} failed:`, stepError)
+          logger.error(`Step ${i + 1} failed`, stepError)
           
           results.push({
             step: step,
@@ -563,7 +569,7 @@ export function TestBuilderPanel({
           )
           
           if (!shouldContinue) {
-            console.log('🛑 User chose to stop execution after failure')
+            logger.info('User chose to stop execution after failure')
             break
           }
         }
@@ -574,27 +580,27 @@ export function TestBuilderPanel({
       const successCount = results.filter(r => r.success).length
       const failureCount = results.length - successCount
 
-      console.log(`🏁 Sequential execution completed: ${successCount} success, ${failureCount} failures`)
+      logger.info(`Sequential execution completed: ${successCount} success, ${failureCount} failures`)
       
       // Show final summary
       if (failureCount === 0) {
-        alert(`🎉 All ${successCount} steps executed successfully!\\n\\nTest flow validation complete.`)
+        alert(`All ${successCount} steps executed successfully.\n\nTest flow validation complete.`)
       } else {
-        alert(`⚠️ Execution completed with mixed results:\\n\\n✅ ${successCount} steps succeeded\\n❌ ${failureCount} steps failed\\n\\nCheck the execution details for more information.`)
+        alert(`Execution completed with mixed results:\n\n${successCount} steps succeeded\n${failureCount} steps failed\n\nCheck the execution details for more information.`)
       }
 
     } catch (error: any) {
-      console.error('❌ Sequential execution failed:', error)
+      logger.error('Sequential execution failed', error)
       alert(`Sequential execution failed: ${error.message || 'Unknown error'}`)
     } finally {
       // Clean up browser session
       if (browserSessionToken) {
         try {
-          console.log(`🧹 Closing browser session: ${browserSessionToken}`)
+          logger.debug(`Closing browser session: ${browserSessionToken}`)
           await browserAPI.closeSession(browserSessionToken)
           setBrowserSessionToken(null)
         } catch (cleanupError) {
-          console.warn('Failed to close browser session:', cleanupError)
+          logger.warn('Failed to close browser session', cleanupError)
         }
       }
       
@@ -639,7 +645,7 @@ export function TestBuilderPanel({
                 </button>
               </div>
               
-              <div className="text-xs font-mono bg-gray-50 p-2 rounded text-gray-700 break-all mb-3">
+              <div className="text-xs font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded text-gray-700 dark:text-gray-300 break-all mb-3">
                 {selectedElement.selector}
               </div>
 
@@ -712,6 +718,14 @@ export function TestBuilderPanel({
               <h3 className="text-sm font-medium text-gray-900">Test Steps ({steps.length})</h3>
               <div className="flex space-x-2">
                 <button
+                  onClick={() => setShowTemplateModal(true)}
+                  disabled={isExecutingAllSteps}
+                  className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  title="Insert steps from template"
+                >
+                  Templates
+                </button>
+                <button
                   onClick={handleExecuteAllSteps}
                   disabled={steps.length === 0 || isExecutingAllSteps}
                   className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
@@ -745,33 +759,16 @@ export function TestBuilderPanel({
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="p-3">
               {steps.length > 0 ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2">
-                      {steps.map((step, index) => (
-                        <SortableTestStep
-                          key={step.id}
-                          step={step}
-                          index={index}
-                          onEdit={() => editStep(step)}
-                          onRemove={() => removeStep(step.id)}
-                          onLiveExecute={handleLiveExecuteStep}
-                          isExecuting={executingStepId === step.id}
-                          projectId={projectId}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                  <DragOverlay
-                    activeStep={activeStep}
-                    activeIndex={steps.findIndex(s => s.id === activeStep?.id)}
-                  />
-                </DndContext>
+                <StepList
+                  steps={steps}
+                  onStepsChange={setSteps}
+                  onEditStep={editStep}
+                  onRemoveStep={removeStep}
+                  onLiveExecuteStep={handleLiveExecuteStep}
+                  executingStepId={executingStepId}
+                  projectId={projectId}
+                  activeVideoStepId={activeVideoStepId} // Pass down for video highlighting
+                />
               ) : (
                 <div className="text-center py-8">
                   <div className="text-gray-400 text-2xl mb-2">📝</div>
@@ -801,7 +798,7 @@ export function TestBuilderPanel({
                 onSave?.(steps);
                 // Clear localStorage after saving
                 if (testId) {
-                  localStorage.removeItem(`test-steps-${testId}`);
+                  localStorage.removeItem(`nomation-test-steps-v1-${testId}`);
                 }
                 setHasUnsavedChanges(false);
               }}
@@ -819,13 +816,30 @@ export function TestBuilderPanel({
             </button>
             <button
               onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel
             </button>
           </div>
         </div>
       </div>
+
+      {/* Template Selection Modal */}
+      {showTemplateModal && (
+        <TemplateModal
+          onClose={() => setShowTemplateModal(false)}
+          onSelect={(templateSteps) => {
+            const newSteps = templateSteps.map(step => ({
+              id: generateId(),
+              type: step.type as TestStep['type'],
+              selector: step.selector,
+              value: step.value,
+              description: step.description
+            }));
+            setSteps([...steps, ...newSteps]);
+          }}
+        />
+      )}
 
       {/* Add/Edit Step Modal */}
       {showAddStep && (
@@ -906,7 +920,7 @@ export function TestBuilderPanel({
                 </button>
                 <button
                   onClick={cancelEdit}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1028,7 +1042,7 @@ export function TestBuilderPanel({
                           ? isSuccess
                             ? 'border-green-200 bg-green-50'
                             : 'border-red-200 bg-red-50'
-                          : 'border-gray-200 bg-gray-50'
+                          : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1077,7 +1091,7 @@ export function TestBuilderPanel({
         </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
               {!isExecutingAllSteps && sequentialExecutionResults.length > 0 && (
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('AnalysisProgressModal');
 
 interface AnalysisProgressEvent {
   projectId: string;
@@ -44,13 +47,13 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to analysis progress socket');
+      logger.debug('Connected to analysis progress socket');
       // Subscribe to this project's analysis updates
       newSocket.emit('subscribe-to-project', projectId);
     });
 
     newSocket.on('analysis-progress', (event: AnalysisProgressEvent) => {
-      console.log('Received progress event:', event);
+      logger.debug('Received progress event', event);
       
       setProgressEvents(prev => [...prev, event]);
       setCurrentStep(event.step);
@@ -86,22 +89,22 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
       // Enhanced error handling
       if (event.status === 'error') {
         setHasError(true);
-        console.error('Analysis error:', event.details);
+        logger.error('Analysis error', event.details);
       }
     });
 
     // Handle subscription to project updates
     newSocket.on('connect', () => {
-      console.log('Connected to analysis progress socket');
+      logger.debug('Connected to analysis progress socket');
       newSocket.emit('subscribe-to-project', projectId);
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Disconnected from analysis progress socket');
+      logger.debug('Disconnected from analysis progress socket');
     });
 
     newSocket.on('connect_error', (error) => {
-      console.warn('Analysis WebSocket connection failed - analysis progress will not be available:', error.message);
+      logger.warn('Analysis WebSocket connection failed - analysis progress will not be available', error.message);
       // Don't spam the console with repeated connection attempts
     });
 
@@ -174,7 +177,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         {/* Progress Log */}
         <div className="p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Progress Log</h3>
-          <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
             {progressEvents.length === 0 ? (
               <p className="text-gray-500 text-center py-8">
                 Waiting for analysis to start...
@@ -191,7 +194,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                         ? 'bg-green-50 border-green-400 text-green-800'
                         : event.status === 'started'
                         ? 'bg-blue-50 border-blue-400 text-blue-800'
-                        : 'bg-gray-50 border-gray-400 text-gray-700'
+                        : 'bg-gray-50 dark:bg-gray-800 border-gray-400 dark:border-gray-600 text-gray-700 dark:text-gray-300'
                     }`}
                   >
                     <div className="flex items-start justify-between">
@@ -293,7 +296,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
           <div className="flex items-center space-x-2">
             {!isCompleted && !hasError && (
               <>

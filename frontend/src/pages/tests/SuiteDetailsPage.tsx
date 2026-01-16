@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('SuiteDetailsPage')
 
 interface TestSuite {
   id: string
@@ -73,7 +76,7 @@ export function SuiteDetailsPage() {
       setTestSuite(suiteResponse.data)
       
     } catch (error) {
-      console.error('Failed to load data:', error)
+      logger.error('Failed to load data', error)
     } finally {
       setLoading(false)
     }
@@ -89,7 +92,7 @@ export function SuiteDetailsPage() {
       setShowAddTestModal(false)
       showSuccess('Tests Added', `${selectedTests.length} test(s) added to suite`)
     } catch (error) {
-      console.error('Failed to add tests to suite:', error)
+      logger.error('Failed to add tests to suite', error)
       showError('Add Tests Failed', 'Failed to add tests to suite')
     }
   }
@@ -110,12 +113,12 @@ export function SuiteDetailsPage() {
         steps: []
       })
 
-      console.log('✅ Test created:', createdTest.data.id)
+      logger.debug('Test created', createdTest.data.id)
 
       // Step 2: Add test to suite (THIS WAS MISSING!)
       await testSuitesAPI.addTests(testSuite.id, [createdTest.data.id])
 
-      console.log('✅ Test added to suite')
+      logger.debug('Test added to suite')
 
       // Step 3: Reload suite data (will now include the new test)
       await loadData()
@@ -131,7 +134,7 @@ export function SuiteDetailsPage() {
       showSuccess('Test Created', `Test "${newTest.name}" created and added to suite successfully`)
 
     } catch (error: any) {
-      console.error('❌ Failed to create test:', error)
+      logger.error('Failed to create test', error)
       showError('Failed to Create Test', error.response?.data?.message || 'An error occurred')
     }
   }
@@ -144,7 +147,7 @@ export function SuiteDetailsPage() {
       setTestSuite(response.data)
       showSuccess('Test Removed', 'Test removed from suite')
     } catch (error) {
-      console.error('Failed to remove test from suite:', error)
+      logger.error('Failed to remove test from suite', error)
       showError('Remove Failed', 'Failed to remove test from suite')
     }
   }
@@ -161,11 +164,11 @@ export function SuiteDetailsPage() {
           showSuccess('Suite Completed', `Test suite "${testSuite.name}" execution completed!`)
         })
         .catch((error) => {
-          console.error('Suite execution failed:', error)
+          logger.error('Suite execution failed', error)
           showError('Execution Failed', `Test suite "${testSuite.name}" execution failed`)
         })
     } catch (error) {
-      console.error('Failed to start suite execution:', error)
+      logger.error('Failed to start suite execution', error)
       showError('Execution Failed', 'Failed to start suite execution')
     }
   }

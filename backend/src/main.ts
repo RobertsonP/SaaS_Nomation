@@ -1,11 +1,52 @@
+// CRITICAL: Polyfill crypto for @nestjs/schedule in Docker environment
+import * as crypto from 'crypto';
+if (typeof (global as any).crypto === 'undefined') {
+  (global as any).crypto = crypto;
+}
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
+import { ensureUploadDirs } from './config/upload.config';
+import helmet from 'helmet';
+import { loggerConfig } from './config/logger.config';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
+  const app = await NestFactory.create(AppModule, {
+    logger: loggerConfig,
+    rawBody: true,
+  });
+
+  // Security headers via helmet.js
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: {
+      action: 'deny', // Prevent clickjacking
+    },
+    noSniff: true, // Prevent MIME type sniffing
+    xssFilter: true, // Enable XSS filter
+    referrerPolicy: {
+      policy: 'strict-origin-when-cross-origin',
+    },
+  }));
+
+  // Ensure upload directories exist
+  ensureUploadDirs();
+
   // ENTERPRISE-GRADE PAYLOAD CONFIGURATION
   // Support for large project uploads (Django, C#, Java, React, etc.) up to 1GB
   app.use(json({ 
@@ -26,12 +67,15 @@ async function bootstrap() {
   
   // Enable CORS for frontend
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
+    origin: true,
     credentials: true,
   });
   
   // Enable validation
   app.useGlobalPipes(new ValidationPipe());
+
+  // Global exception filter for consistent error responses
+  app.useGlobalFilters(new GlobalExceptionFilter());
   
   // Memory usage monitoring for large project processing
   process.on('memoryUsage', () => {

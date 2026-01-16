@@ -26,8 +26,8 @@
         .component-area h3 { font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
         .component-showcase { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
         
-        /* SHARED COMPONENT STYLES */
-        .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.875rem; border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px; }
+        /* SHARED COMPONENT STYLES - Compact design */
+        .btn { padding: 8px 16px; border-radius: 6px; font-weight: 500; font-size: 0.8125rem; border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
         .btn-primary { background-color: var(--accent-primary); color: white; border-color: var(--accent-primary); }
         .btn-primary:hover { background-color: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
         .btn-secondary { background-color: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color); }
@@ -36,7 +36,7 @@
         .btn-icon { padding: 8px; }
         .form-input { width: 100%; background-color: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; padding: 10px 12px; font-size: 0.875rem; }
         .form-label { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; display: block; }
-        /* Fix light grey form inputs - force dark text color on ALL form inputs */
+        /* Form inputs - light and dark mode support */
         input[type="text"],
         input[type="email"],
         input[type="password"],
@@ -46,35 +46,32 @@
         input[type="search"],
         select,
         textarea {
-          color: #111827 !important; /* gray-900 - dark text */
+          color: #111827; /* gray-900 in light mode */
         }
 
-        /* Fix ALL light grey text - make labels, descriptions, and helper text readable */
+        .dark input[type="text"],
+        .dark input[type="email"],
+        .dark input[type="password"],
+        .dark input[type="url"],
+        .dark input[type="tel"],
+        .dark input[type="number"],
+        .dark input[type="search"],
+        .dark select,
+        .dark textarea {
+          color: #e5e7eb; /* gray-200 in dark mode */
+          background-color: #1f2937; /* gray-800 */
+          border-color: #374151; /* gray-700 */
+        }
+
+        /* Labels - light and dark mode */
         label,
         .form-label {
-          color: #374151 !important; /* gray-700 - dark for labels */
+          color: #374151; /* gray-700 in light mode */
         }
 
-        /* Main body text and descriptions */
-        p,
-        .text-gray-600 {
-          color: #1f2937 !important; /* gray-800 - darker and more readable */
-        }
-
-        /* Helper text and secondary information */
-        .text-gray-500 {
-          color: #374151 !important; /* gray-700 - darker for better visibility */
-        }
-
-        /* Very light text (placeholder, hints) - upgrade to be more visible */
-        .text-gray-400 {
-          color: #4b5563 !important; /* gray-600 - significantly darker */
-        }
-
-        /* Muted and secondary text variations */
-        .text-muted,
-        .text-secondary {
-          color: #374151 !important; /* gray-700 - consistent with gray-500 override */
+        .dark label,
+        .dark .form-label {
+          color: #d1d5db; /* gray-300 in dark mode */
         }
         .status-badge { padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
         .badge-success { background-color: rgba(63, 185, 80, 0.1); color: var(--accent-success); }

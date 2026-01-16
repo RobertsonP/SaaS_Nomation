@@ -221,7 +221,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
                   ? 'border-blue-500 bg-blue-50'
                   : step.completed
                   ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 bg-gray-50'
+                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
               }`}
             >
               <div
@@ -276,7 +276,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
         <div className="flex items-center justify-between text-xs">
           <div className="text-gray-600">
             Step {currentStepIndex + 1} of {steps.length}

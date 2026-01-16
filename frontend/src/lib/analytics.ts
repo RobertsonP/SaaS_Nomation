@@ -1,4 +1,7 @@
 // Analytics service for tracking user behavior and feature usage
+import { createLogger } from './logger';
+
+const logger = createLogger('Analytics');
 
 interface AnalyticsEvent {
   event: string
@@ -16,7 +19,7 @@ class AnalyticsService {
   constructor() {
     // Enable analytics in production only
     this.isEnabled = import.meta.env.PROD
-    console.log(`Analytics ${this.isEnabled ? 'enabled' : 'disabled (development mode)'}`)
+    logger.debug(`Analytics ${this.isEnabled ? 'enabled' : 'disabled (development mode)'}`)
   }
 
   // Track custom events
@@ -47,9 +50,9 @@ class AnalyticsService {
       }
 
       // Log for debugging
-      console.log('📊 Analytics event:', analyticsEvent)
+      logger.debug('Analytics event', analyticsEvent)
     } else {
-      console.log('📊 Analytics event (dev mode):', analyticsEvent)
+      logger.debug('Analytics event (dev mode)', analyticsEvent)
     }
   }
 

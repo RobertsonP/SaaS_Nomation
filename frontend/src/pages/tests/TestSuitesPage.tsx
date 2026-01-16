@@ -3,6 +3,16 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { SuiteExecutionModal } from '../../components/test-suites/SuiteExecutionModal'
+import { TestStep } from '../../types/test.types'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('TestSuitesPage')
+
+// Suite execution progress type from modal callback
+interface SuiteExecutionProgress {
+  totalTests: number;
+  tests: Array<{ status: string }>;
+}
 
 interface TestSuite {
   id: string
@@ -28,7 +38,7 @@ interface Test {
   name: string
   description?: string
   status: string
-  steps: any[]
+  steps: TestStep[]
   createdAt: string
 }
 
@@ -78,7 +88,7 @@ export function TestSuitesPage() {
       setTestSuites(suitesResponse.data)
       
     } catch (error) {
-      console.error('Failed to load project and data:', error)
+      logger.error('Failed to load project and data:', error)
       showError('Loading Failed', 'Failed to load project data')
     } finally {
       setLoading(false)
@@ -100,7 +110,7 @@ export function TestSuitesPage() {
       showSuccess('Suite Created', `Test suite "${newSuite.name}" created successfully`)
       
     } catch (error) {
-      console.error('Failed to create test suite:', error)
+      logger.error('Failed to create test suite:', error)
       showError('Creation Failed', 'Failed to create test suite')
     }
   }
@@ -122,7 +132,7 @@ export function TestSuitesPage() {
       const executionResponse = await testSuitesAPI.execute(suiteId)
       const executionId = executionResponse.data.id
 
-      console.log(`🚀 Suite execution started with ID: ${executionId}`)
+      logger.info(`Suite execution started with ID: ${executionId}`)
 
       // Show execution modal with real execution ID
       setExecutingSuite({
@@ -133,15 +143,15 @@ export function TestSuitesPage() {
       })
 
     } catch (error) {
-      console.error('Failed to start test suite execution:', error)
+      logger.error('Failed to start test suite execution:', error)
       showError('Execution Failed', 'Failed to start test suite execution')
       setExecutingSuite(null)
     }
   }
 
-  const handleExecutionComplete = (results: any) => {
-    console.log('Suite execution completed:', results)
-    showSuccess('Suite Completed', `Test suite execution completed! ${results.tests.filter((t: any) => t.status === 'passed').length}/${results.totalTests} tests passed.`)
+  const handleExecutionComplete = (results: SuiteExecutionProgress) => {
+    logger.info('Suite execution completed:', results)
+    showSuccess('Suite Completed', `Test suite execution completed! ${results.tests.filter((t) => t.status === 'passed').length}/${results.totalTests} tests passed.`)
     // Refresh suite data to show latest execution
     loadProjectAndData()
   }

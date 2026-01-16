@@ -1,52 +1,30 @@
-# Backend Dockerfile for Nomation
+# Backend Dockerfile for Nomation - Optimized Multi-Stage Build
 FROM node:18-bullseye-slim AS base
 
-# Install system dependencies for Playwright and Prisma
+# Install ONLY essential system dependencies for Playwright
+# Reduced from 42 to 20 packages for smaller image size
 RUN apt-get update && apt-get install -y \
     chromium \
     curl \
     ca-certificates \
     fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libc6 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgbm1 \
-    libgcc1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
     libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libstdc++6 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrandr2 \
-    libxrender1 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libgbm1 \
     libxss1 \
-    libxtst6 \
-    lsb-release \
-    wget \
-    xdg-utils \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
     openssl \
     libssl-dev \
     xvfb \
     xauth \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/*
 
 # Set up virtual display for headless browser with frame capture
 ENV DISPLAY=:99
@@ -68,27 +46,15 @@ COPY prisma ./prisma/
 # Development stage
 FROM base AS development
 
-# Install all dependencies including dev dependencies
-RUN npm install
-
-# Generate Prisma client with correct binary target
-RUN npx prisma generate
-
-# Install Playwright dependencies and browsers
-RUN npx playwright install-deps chromium
-RUN npx playwright install chromium
-
-# Verify browser installation and location
-RUN npx playwright --version
-RUN ls -la /opt/playwright/ || echo "Playwright directory not found"
-RUN find /opt -name "*chrome*" -type f 2>/dev/null || echo "Chrome executables not found"
-
-# Copy source code
-COPY . .
+# Install all dependencies including dev dependencies (using npm ci for deterministic builds)
+RUN npm ci
 
 # Copy and set executable permissions for startup script
 COPY start-with-display.sh /usr/local/bin/start-with-display.sh
 RUN chmod +x /usr/local/bin/start-with-display.sh
+
+# Generate Prisma client with correct binary target (AFTER code copy)
+RUN npx prisma generate
 
 # Expose ports
 EXPOSE 3002
@@ -100,25 +66,51 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Default command (can be overridden in docker-compose)
 CMD ["/usr/local/bin/start-with-display.sh", "npm", "run", "dev"]
 
-# Production stage
+# Dependencies stage - separate layer for caching
+FROM base AS dependencies
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Build stage
+FROM base AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage - optimized final image
 FROM base AS production
+
+WORKDIR /app
 
 # Set NODE_ENV
 ENV NODE_ENV=production
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Copy package files
+COPY package*.json ./
 
-# Generate Prisma client
+# Copy production dependencies from dependencies stage
+COPY --from=dependencies /app/node_modules ./node_modules
+
+# Copy built application from build stage
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+
+# Generate Prisma client for production
 RUN npx prisma generate
 
-# Copy built application
-COPY dist ./dist
-COPY prisma ./prisma
+# Install Playwright browsers (required for test execution)
+RUN npx playwright install chromium
+
+# Copy startup script
+COPY start-with-display.sh /usr/local/bin/start-with-display.sh
+RUN chmod +x /usr/local/bin/start-with-display.sh
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+RUN addgroup --gid 1001 --system nodejs && \
+    adduser --uid 1001 --system --ingroup nodejs nestjs
 USER nestjs
 
 # Expose port
@@ -129,4 +121,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3002/health || exit 1
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["/usr/local/bin/start-with-display.sh", "node", "dist/main"]

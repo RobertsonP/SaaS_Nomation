@@ -3,7 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
-import { FolderUploadZone } from '../../components/project-upload/FolderUploadZone';
+import { AuthStep } from '../../types/api.types';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('ProjectsPage');
 
 interface Project {
   id: string;
@@ -20,19 +23,12 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
-  const [showFolderUpload, setShowFolderUpload] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({
-    stage: '',
-    progress: 0,
-    message: ''
-  });
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    urls: ['']
   });
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -45,9 +41,49 @@ export function ProjectsPage() {
     loginUrl: '',
     username: '',
     password: '',
-    steps: [] as Array<{ type: string; selector: string; description: string; value?: string }>
+    steps: [] as AuthStep[]
+  });
+  
+  // Tab state for creation modal
+  const [activeTab, setActiveTab] = useState<'manual' | 'github'>('manual');
+  // GitHub form state
+  const [githubData, setGithubData] = useState({
+    repoUrl: '',
+    token: ''
   });
 
+
+  const handleGitHubSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isCreating) return;
+
+    try {
+      setIsCreating(true);
+
+      // Import from GitHub (clones and analyzes)
+      const response = await projectsAPI.importGitHub(githubData.repoUrl, githubData.token);
+
+      // Reset and navigate
+      setGithubData({ repoUrl: '', token: '' });
+      setShowForm(false);
+      
+      const projectName = response.data?.name || response.project?.name || 'Project';
+      const projectId = response.data?.id || response.project?.id;
+
+      showSuccess('Project Created', `Successfully imported project "${projectName}" from GitHub.`);
+      if (projectId) {
+        navigate(`/projects/${projectId}`);
+      } else {
+        loadProjects();
+      }
+
+    } catch (error) {
+      logger.error('Failed to import from GitHub', error);
+      showError('Import Failed', 'Failed to import repository. Check URL and token.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   useEffect(() => {
     loadProjects();
@@ -58,97 +94,48 @@ export function ProjectsPage() {
       const response = await projectsAPI.getAll();
       setProjects(response.data);
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      logger.error('Failed to load projects', error);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (isCreating) return; // Prevent multiple submissions
-    
+
     try {
       setIsCreating(true);
-      
-      // Simplified creation: Just create the project with basic info
-      setUploadProgress({
-        stage: 'creation',
-        progress: 50,
-        message: 'Creating project...'
-      });
-      
+
       const projectData = {
         name: formData.name,
         description: formData.description,
-        urls: [] // Start with empty URLs - will be added later
+        urls: formData.urls.filter(url => url.trim()).map(url => ({
+          url: url,
+          title: 'Page',
+          description: 'Project URL'
+        }))
       };
-      
+
       const response = await projectsAPI.create(projectData);
       const createdProject = response.data;
-      
-      // Complete
-      setUploadProgress({
-        stage: 'complete',
-        progress: 100,
-        message: 'Project created successfully!'
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Reset form and close
-      setFormData({ name: '', description: '' });
+      setFormData({ name: '', description: '', urls: [''] });
       setShowForm(false);
-      
+
       // Show success notification
       showSuccess('Project Created', `Successfully created project "${formData.name}". You can now add URLs and analyze pages in the project details.`);
-      
+
       // Navigate to the created project
       navigate(`/projects/${createdProject.id}`);
-      
+
     } catch (error) {
-      console.error('Failed to create project:', error);
+      logger.error('Failed to create project', error);
       showError('Creation Failed', 'Failed to create project. Please try again.');
     } finally {
       setIsCreating(false);
-      setUploadProgress({ stage: '', progress: 0, message: '' });
     }
   };
-
-  // NEW: Folder upload handlers
-  const handleFolderUpload = async (files: any[]) => {
-    setUploadedFiles(files);
-    console.log(`Received ${files.length} files for analysis`);
-    
-    try {
-      setIsAnalyzing(true);
-      
-      // Use server-side analysis instead of client-side
-      const response = await projectsAPI.analyzeProjectFolder(files);
-      
-      showSuccess('Project Created!', `Successfully created project "${response.project.name}" with ${response.analysis.elements.length} elements discovered from your code.`);
-      
-      // Reset upload state and navigate
-      setShowFolderUpload(false);
-      setUploadedFiles([]);
-      setIsAnalyzing(false);
-      
-      navigate(`/projects/${response.project.id}`);
-      
-    } catch (error) {
-      console.error('Failed to create project from upload:', error);
-      showError('Creation Failed', 'Failed to create project from uploaded files. Please try again.');
-      setIsAnalyzing(false);
-    }
-  };
-
-  const handleCancelUpload = () => {
-    setShowFolderUpload(false);
-    setUploadedFiles([]);
-    setIsAnalyzing(false);
-  };
-
-  // URL management removed - now handled in project details page
-
 
   // Delete project function
   const handleDeleteProject = async (projectId: string, projectName: string) => {
@@ -161,7 +148,7 @@ export function ProjectsPage() {
       loadProjects();
       showSuccess('Project Deleted', `Successfully deleted project "${projectName}"`);
     } catch (error) {
-      console.error('Failed to delete project:', error);
+      logger.error('Failed to delete project', error);
       showError('Delete Failed', 'Failed to delete project. Please try again.');
     }
   };
@@ -205,7 +192,7 @@ export function ProjectsPage() {
       loadProjects();
       showSuccess('Project Updated', `Successfully updated project "${editFormData.name}"`);
     } catch (error) {
-      console.error('Failed to update project:', error);
+      logger.error('Failed to update project', error);
       showError('Update Failed', 'Failed to update project. Please try again.');
     } finally {
       setIsUpdating(false);
@@ -236,6 +223,31 @@ export function ProjectsPage() {
     });
   };
 
+  // URL helper functions for manual creation form
+  const addUrlField = () => {
+    setFormData({
+      ...formData,
+      urls: [...formData.urls, '']
+    });
+  };
+
+  const removeUrlField = (index: number) => {
+    const newUrls = formData.urls.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      urls: newUrls.length > 0 ? newUrls : ['']
+    });
+  };
+
+  const updateUrl = (index: number, value: string) => {
+    const newUrls = [...formData.urls];
+    newUrls[index] = value;
+    setFormData({
+      ...formData,
+      urls: newUrls
+    });
+  };
+
   const handleShowAuthSetup = async (projectId: string) => {
     setShowAuthSetup(projectId);
     
@@ -247,7 +259,7 @@ export function ProjectsPage() {
       if (existingAuthFlows && existingAuthFlows.length > 0) {
         // Load existing auth flow data
         const authFlow = existingAuthFlows[0]; // Use first auth flow
-        console.log('Loading existing auth flow:', authFlow);
+        logger.debug('Loading existing auth flow', authFlow);
         
         setAuthFormData({
           name: authFlow.name || '',
@@ -275,7 +287,7 @@ export function ProjectsPage() {
         });
       }
     } catch (error) {
-      console.error('Failed to load existing auth flow:', error);
+      logger.error('Failed to load existing auth flow', error);
       // Fallback to empty form if API call fails
       setAuthFormData({
         name: '',
@@ -329,7 +341,7 @@ export function ProjectsPage() {
       setShowAuthSetup(null);
       showSuccess('Authentication Setup', 'Authentication flow saved successfully');
     } catch (error) {
-      console.error('Failed to save auth flow:', error);
+      logger.error('Failed to save auth flow', error);
       showError('Save Failed', 'Failed to save authentication flow. Please try again.');
     }
   };
@@ -355,104 +367,226 @@ export function ProjectsPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Projects</h1>
-        <div className="flex space-x-3">
-          <button
-            onClick={() => setShowFolderUpload(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
-          >
-            <span>📁</span>
-            <span>Upload Folder</span>
-          </button>
-          <button
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Projects</h1>
+        <button
             onClick={() => setShowForm(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Create Project
           </button>
-        </div>
       </div>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-lg font-semibold mb-4">Create New Project</h2>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-start space-x-3">
-              <div className="text-blue-600 text-2xl">🚀</div>
-              <div>
-                <h3 className="text-blue-800 font-medium text-sm mb-1">Simplified Project Creation</h3>
-                <p className="text-blue-700 text-sm mb-2">
-                  Just provide a name and description to get started. You'll add URLs and analyze pages after creation.
-                </p>
-                <ul className="text-xs text-blue-600 space-y-1">
-                  <li>• Quick project setup in seconds</li>
-                  <li>• Add URLs and analyze pages later in project details</li>
-                  <li>• Upload files or use live element picker when ready</li>
-                </ul>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create New Project</h2>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
+                >
+                  ×
+                </button>
               </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+                <button
+                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
+                    activeTab === 'manual'
+                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  onClick={() => setActiveTab('manual')}
+                >
+                  Manual Setup
+                </button>
+                <button
+                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
+                    activeTab === 'github'
+                      ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  onClick={() => setActiveTab('github')}
+                >
+                  GitHub Import
+                </button>
+              </div>
+
+              {/* Manual Tab Content */}
+              {activeTab === 'manual' && (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                    <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      Create a project and add URLs to analyze. Best for testing live websites.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Project Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g., My E-commerce Site"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Description (optional)
+                    </label>
+                    <textarea
+                      placeholder="Brief description..."
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Website URLs (optional)
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      Add URLs to analyze and test. You can also add them later.
+                    </p>
+                    {formData.urls.map((url, index) => (
+                      <div key={index} className="flex items-center space-x-2 mb-2">
+                        <input
+                          type="url"
+                          placeholder="https://example.com"
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={url}
+                          onChange={(e) => updateUrl(index, e.target.value)}
+                        />
+                        {formData.urls.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeUrlField(index)}
+                            className="bg-red-500 text-white px-2 py-2 rounded-md hover:bg-red-600 text-sm"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addUrlField}
+                      className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm mt-2"
+                    >
+                      + Add URL
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowForm(false)}
+                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isCreating || !formData.name.trim()}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    >
+                      {isCreating ? 'Creating...' : 'Create Project'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* GitHub Tab Content */}
+              {activeTab === 'github' && (
+                <form onSubmit={handleGitHubSubmit} className="space-y-4">
+                  <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
+                    <p className="text-purple-700 dark:text-purple-300 text-sm">
+                      Clone a public or private repository. We'll analyze the code structure to build your test project.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Repository URL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://github.com/username/repo"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={githubData.repoUrl}
+                      onChange={(e) => setGithubData({...githubData, repoUrl: e.target.value})}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Personal Access Token (Optional)
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="ghp_xxxxxxxxxxxx"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={githubData.token}
+                      onChange={(e) => setGithubData({...githubData, token: e.target.value})}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Required only for private repositories.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowForm(false)}
+                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isCreating || !githubData.repoUrl.trim()}
+                      className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center"
+                    >
+                      {isCreating ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Importing...
+                        </>
+                      ) : (
+                        'Import Repository'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Project Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g., My E-commerce Site, Admin Dashboard, User Portal"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-              />
-              <p className="text-xs text-gray-500 mt-1">Choose a descriptive name for your testing project</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Description (optional)
-              </label>
-              <textarea
-                placeholder="Brief description of what this project tests..."
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-              <p className="text-xs text-gray-500 mt-1">Optional: Describe the purpose or scope of this project</p>
-            </div>
-            
-            <div className="flex space-x-4 pt-4">
-              <button
-                type="submit"
-                disabled={isCreating || !formData.name.trim()}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              >
-                {isCreating ? 'Creating...' : 'Create Project'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {projects.map((project) => {
           return (
-            <div 
-              key={project.id} 
-              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
+            <div
+              key={project.id}
+              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow hover:shadow-lg dark:shadow-gray-900/50 transition-shadow cursor-pointer border border-transparent dark:border-gray-700"
               onDoubleClick={() => navigate(`/projects/${project.id}`)}
             >
               {/* Project Header with Analysis and Delete Buttons */}
               <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-semibold flex-1">{project.name}</h3>
+                <h3 className="text-lg font-semibold flex-1 text-gray-900 dark:text-white">{project.name}</h3>
                 <div className="flex space-x-2">
                   <button
                     onClick={(e) => {
@@ -477,24 +611,24 @@ export function ProjectsPage() {
                 </div>
               </div>
 
-              <p className="text-gray-600 mb-2">{project.description}</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-2">{project.description}</p>
               <div className="mb-4">
                 {project.urls && project.urls.length > 0 ? (
                   <div className="space-y-1">
                     {project.urls.slice(0, 2).map((url, index) => (
-                      <p key={url.id || index} className="text-sm text-blue-600 truncate">{url.url}</p>
+                      <p key={url.id || index} className="text-sm text-blue-600 dark:text-blue-400 truncate">{url.url}</p>
                     ))}
                     {project.urls.length > 2 && (
-                      <p className="text-xs text-gray-500">+ {project.urls.length - 2} more URLs</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">+ {project.urls.length - 2} more URLs</p>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                     <div className="flex items-center space-x-2">
-                      <div className="text-yellow-600">⚠️</div>
+                      <div className="text-yellow-600 dark:text-yellow-400">⚠️</div>
                       <div>
-                        <p className="text-sm font-medium text-yellow-800">Setup Required</p>
-                        <p className="text-xs text-yellow-700">Add URLs and analyze pages to get started</p>
+                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Setup Required</p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400">Add URLs and analyze pages to get started</p>
                       </div>
                     </div>
                   </div>
@@ -503,7 +637,7 @@ export function ProjectsPage() {
 
               {/* Project Stats */}
               <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-3 text-sm text-gray-500">
+                <div className="flex items-center space-x-3 text-sm text-gray-500 dark:text-gray-400">
                   <span>{project._count.tests} tests</span>
                   {project._count.elements !== undefined && (
                     <>
@@ -512,7 +646,7 @@ export function ProjectsPage() {
                     </>
                   )}
                 </div>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
                   {new Date(project.createdAt).toLocaleDateString()}
                 </span>
               </div>
@@ -540,7 +674,7 @@ export function ProjectsPage() {
                       to={`/projects/${project.id}`}
                       className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 text-center text-sm font-medium"
                     >
-                      🚀 Setup Project
+                      Setup Project
                     </Link>
                     <Link
                       to={`/projects/${project.id}/tests`}
@@ -558,10 +692,10 @@ export function ProjectsPage() {
 
       {projects.length === 0 && !showForm && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg mb-4">No projects yet</p>
+          <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">No projects yet</p>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+            className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
           >
             Create Your First Project
           </button>
@@ -837,162 +971,6 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* Simplified Project Creation Progress Modal */}
-      {isCreating && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="text-center space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-center space-x-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                    <svg className="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">Creating Project</h3>
-                    <p className="text-sm text-gray-600">Quick setup - just the essentials</p>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div 
-                    className="bg-green-600 h-3 rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${uploadProgress.progress}%` }}
-                  />
-                </div>
-
-                {/* Progress Text */}
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-900 mb-1">
-                    {uploadProgress.progress}% Complete
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {uploadProgress.message}
-                  </p>
-                </div>
-
-                {/* Simplified Stage Indicators */}
-                <div className="flex justify-center space-x-8 text-xs text-gray-500">
-                  <div className={`flex flex-col items-center space-y-1 ${
-                    ['creation', 'complete'].includes(uploadProgress.stage)
-                      ? 'text-green-600' : 'text-gray-400'
-                  }`}>
-                    <div className={`w-4 h-4 rounded-full ${
-                      ['creation', 'complete'].includes(uploadProgress.stage)
-                        ? 'bg-green-600' : 'bg-gray-300'
-                    }`} />
-                    <span>Create</span>
-                  </div>
-                  <div className={`flex flex-col items-center space-y-1 ${
-                    ['complete'].includes(uploadProgress.stage)
-                      ? 'text-green-600' : 'text-gray-400'
-                  }`}>
-                    <div className={`w-4 h-4 rounded-full ${
-                      ['complete'].includes(uploadProgress.stage)
-                        ? 'bg-green-600' : 'bg-gray-300'
-                    }`} />
-                    <span>Ready</span>
-                  </div>
-                </div>
-
-                {/* Tips */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-left">
-                  <h4 className="text-sm font-medium text-green-800 mb-1">🚀 What's next?</h4>
-                  <ul className="text-xs text-green-700 space-y-1">
-                    <li>• Add URLs to your project</li>
-                    <li>• Analyze pages to discover elements</li>
-                    <li>• Upload source code files (optional)</li>
-                    <li>• Start building your tests</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Folder Upload Modal */}
-      {showFolderUpload && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">📁 Upload Project Folder</h2>
-                  <p className="text-sm opacity-90">
-                    Upload your project files for automatic analysis and element discovery
-                  </p>
-                </div>
-                <button
-                  onClick={handleCancelUpload}
-                  className="text-white hover:text-gray-200 text-2xl font-bold p-2 rounded-full hover:bg-black hover:bg-opacity-20 transition-colors"
-                  aria-label="Close modal"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {!uploadedFiles.length ? (
-                <FolderUploadZone
-                  onFolderUploaded={handleFolderUpload}
-                  className="w-full"
-                />
-              ) : isAnalyzing ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-6">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                    <svg className="animate-spin h-8 w-8 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-xl font-semibold text-gray-900">🔍 Analyzing Your Project</h3>
-                    <p className="text-gray-600 max-w-md">
-                      Our intelligent system is analyzing your {uploadedFiles.length} files to detect framework type, discover UI elements, and create your project...
-                    </p>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg">
-                    <h4 className="text-sm font-medium text-blue-800 mb-2">🧠 What we're doing:</h4>
-                    <ul className="text-sm text-blue-700 space-y-1">
-                      <li>• Detecting framework (React, Vue, Angular, HTML)</li>
-                      <li>• Extracting UI elements and selectors</li>
-                      <li>• Discovering page structures and URLs</li>
-                      <li>• Creating your project with discovered elements</li>
-                    </ul>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between">
-              <div className="text-sm text-gray-600">
-                {uploadedFiles.length > 0 && (
-                  <span>📂 {uploadedFiles.length} files uploaded</span>
-                )}
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleCancelUpload}
-                  disabled={isAnalyzing}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAnalyzing ? 'Analyzing...' : 'Cancel'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
       <LoadingModal
         isOpen={isUpdating || isCreating}
         message={isCreating ? "Creating Project" : "Updating Project"}
