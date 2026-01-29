@@ -1,6 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Normalize URL for comparison to prevent duplicates
+ * - Removes trailing slashes
+ * - Normalizes 127.0.0.1 to localhost
+ * - Removes www. prefix
+ * - Lowercases for comparison
+ */
+function normalizeUrlForComparison(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    let normalized = urlObj.origin + urlObj.pathname;
+
+    // Remove trailing slash (except for root path)
+    if (normalized.endsWith('/') && normalized !== urlObj.origin + '/') {
+      normalized = normalized.slice(0, -1);
+    }
+
+    // Normalize 127.0.0.1 to localhost
+    normalized = normalized.replace('://127.0.0.1', '://localhost');
+
+    // Remove www.
+    normalized = normalized.replace('://www.', '://');
+
+    // Lowercase for case-insensitive comparison
+    return normalized.toLowerCase();
+  } catch {
+    return url.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -138,11 +168,13 @@ export class ProjectsService {
         select: { id: true, url: true }
       });
 
-      const currentUrlMap = new Map(currentUrls.map(u => [u.url, u.id]));
-      const newUrlSet = new Set(data.urls.map(u => u.url));
+      // Use normalized URL comparison to prevent duplicates with trailing slashes
+      const currentUrlMap = new Map(currentUrls.map(u => [normalizeUrlForComparison(u.url), u.id]));
+      const currentUrlOriginalMap = new Map(currentUrls.map(u => [normalizeUrlForComparison(u.url), u.url]));
+      const newUrlSet = new Set(data.urls.map(u => normalizeUrlForComparison(u.url)));
 
-      const urlsToDelete = currentUrls.filter(u => !newUrlSet.has(u.url));
-      const urlsToAdd = data.urls.filter(u => !currentUrlMap.has(u.url));
+      const urlsToDelete = currentUrls.filter(u => !newUrlSet.has(normalizeUrlForComparison(u.url)));
+      const urlsToAdd = data.urls.filter(u => !currentUrlMap.has(normalizeUrlForComparison(u.url)));
 
       if (urlsToDelete.length > 0) {
         await this.prisma.projectUrl.deleteMany({

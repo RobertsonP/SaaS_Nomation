@@ -61,6 +61,7 @@ export class DiscoveryService {
       return (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
+        hostname === 'host.docker.internal' ||
         hostname.startsWith('192.168.') ||
         hostname.startsWith('10.') ||
         hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) !== null
@@ -68,6 +69,29 @@ export class DiscoveryService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Translate localhost URLs to Docker-accessible addresses when running in Docker
+   * This allows users to enter http://localhost:3001 and have it work from inside Docker
+   */
+  private translateLocalhostForDocker(url: string): string {
+    const isDocker = process.env.RUNNING_IN_DOCKER === 'true';
+    if (!isDocker) return url;
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+        // Use host.docker.internal to reach the host machine from inside Docker
+        parsed.hostname = 'host.docker.internal';
+        const translatedUrl = parsed.toString();
+        this.logger.log(`Translated localhost URL for Docker: ${url} → ${translatedUrl}`);
+        return translatedUrl;
+      }
+    } catch {
+      // Invalid URL, return as-is
+    }
+    return url;
   }
 
   /**
@@ -148,8 +172,11 @@ export class DiscoveryService {
     });
 
     try {
+      // Translate localhost to Docker-accessible address if running in Docker
+      const translatedRootUrl = this.translateLocalhostForDocker(rootUrl);
+
       // Normalize root URL
-      const baseUrl = this.normalizeBaseUrl(rootUrl);
+      const baseUrl = this.normalizeBaseUrl(translatedRootUrl);
       const baseDomain = new URL(baseUrl).hostname;
       const isLocal = this.isLocalAddress(baseUrl);
 
@@ -319,9 +346,14 @@ export class DiscoveryService {
       }
 
       // Create PageRelationships
+      // Note: URLs need to be normalized for lookup since urlToId uses normalized URLs
       for (const rel of relationships) {
-        const sourceId = urlToId.get(rel.sourceUrl);
-        const targetId = urlToId.get(rel.targetUrl);
+        const normalizedSource = this.normalizeUrl(rel.sourceUrl);
+        const normalizedTarget = this.normalizeUrl(rel.targetUrl);
+
+        // Try normalized URL first, then fall back to raw URL
+        const sourceId = urlToId.get(normalizedSource) || urlToId.get(rel.sourceUrl);
+        const targetId = urlToId.get(normalizedTarget) || urlToId.get(rel.targetUrl);
 
         if (sourceId && targetId && sourceId !== targetId) {
           try {

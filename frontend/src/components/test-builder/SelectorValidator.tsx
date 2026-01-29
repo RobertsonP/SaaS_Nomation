@@ -71,13 +71,13 @@ export function SelectorValidator({
         </div>
       ) : validationResult ? (
         <div className={`p-3 rounded-md border ${
-          validationResult.isValid 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-red-50 border-red-200'
+          validationResult.isValid
+            ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <div className={`flex items-center font-medium ${
-              validationResult.isValid ? 'text-green-800' : 'text-red-800'
+              validationResult.isValid ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'
             }`}>
               {validationResult.isValid ? (
                 <>
@@ -98,8 +98,8 @@ export function SelectorValidator({
             
             {validationResult.isValid && (
               <div className="flex items-center">
-                <div className="w-20 h-2 bg-gray-200 rounded-full mr-2 overflow-hidden">
-                  <div 
+                <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mr-2 overflow-hidden">
+                  <div
                     className={`h-full transition-all duration-300 ${
                       validationResult.qualityScore > 0.7 ? 'bg-green-500' :
                       validationResult.qualityScore > 0.4 ? 'bg-yellow-500' :
@@ -108,7 +108,7 @@ export function SelectorValidator({
                     style={{ width: `${validationResult.qualityScore * 100}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-600 font-medium">
+                <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
                   {Math.round(validationResult.qualityScore * 100)}% quality
                 </span>
               </div>
@@ -117,11 +117,11 @@ export function SelectorValidator({
           
           {validationResult.suggestions && validationResult.suggestions.length > 0 && (
             <div className="mt-2">
-              <div className="text-xs font-medium text-gray-700 mb-1">Suggestions:</div>
+              <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Suggestions:</div>
               <div className="space-y-1">
                 {validationResult.suggestions.map((suggestion, index) => (
-                  <div key={index} className="text-xs text-gray-600 flex items-start">
-                    <span className="text-gray-400 mr-1">•</span>
+                  <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-start">
+                    <span className="text-gray-400 dark:text-gray-500 mr-1">•</span>
                     <span>{suggestion}</span>
                   </div>
                 ))}
@@ -131,13 +131,13 @@ export function SelectorValidator({
 
           {/* Quality explanation */}
           {validationResult.isValid && (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               {validationResult.qualityScore > 0.7 ? (
-                <span className="text-green-600">✓ High quality selector - stable and reliable</span>
+                <span className="text-green-600 dark:text-green-400">✓ High quality selector - stable and reliable</span>
               ) : validationResult.qualityScore > 0.4 ? (
-                <span className="text-yellow-600">⚠ Medium quality - may need improvement</span>
+                <span className="text-yellow-600 dark:text-yellow-400">⚠ Medium quality - may need improvement</span>
               ) : (
-                <span className="text-red-600">⚠ Low quality - consider using more stable attributes</span>
+                <span className="text-red-600 dark:text-red-400">⚠ Low quality - consider using more stable attributes</span>
               )}
             </div>
           )}

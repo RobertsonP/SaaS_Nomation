@@ -123,21 +123,21 @@ export function TestConfigurationModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 {isEdit ? 'Edit Test Configuration' : 'Configure New Test'}
               </h2>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Set up your test details and starting conditions
               </p>
             </div>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -151,14 +151,14 @@ export function TestConfigurationModal({
           <div className="space-y-6">
             {/* Project Info */}
             {project && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-medium text-blue-900 mb-1">Project</h3>
-                    <p className="text-blue-800">{project.name}</p>
+                    <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">Project</h3>
+                    <p className="text-blue-800 dark:text-blue-300">{project.name}</p>
                   </div>
                   {isEdit && (
-                    <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    <div className="text-xs text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
                       ✏️ Editing Configuration
                     </div>
                   )}
@@ -168,51 +168,51 @@ export function TestConfigurationModal({
 
             {/* Test Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Test Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={testName}
                 onChange={(e) => setTestName(e.target.value)}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                  errors.name ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter a descriptive name for your test"
                 autoFocus
               />
               {errors.name && (
-                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
               )}
             </div>
 
             {/* Test Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Test Description
               </label>
               <textarea
                 value={testDescription}
                 onChange={(e) => setTestDescription(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 rows={3}
                 placeholder="Describe what this test does (optional)"
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Provide a clear description of what this test validates
               </p>
             </div>
 
             {/* Starting URL */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Starting URL <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedStartingUrl}
                 onChange={(e) => setSelectedStartingUrl(e.target.value)}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.startingUrl ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                  errors.startingUrl ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-300 dark:border-gray-600'
                 }`}
               >
                 <option value="">Select the starting page for this test...</option>
@@ -223,9 +223,9 @@ export function TestConfigurationModal({
                 ))}
               </select>
               {errors.startingUrl && (
-                <p className="mt-1 text-sm text-red-600">{errors.startingUrl}</p>
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.startingUrl}</p>
               )}
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Choose which page the test should start from
               </p>
             </div>
@@ -244,11 +244,11 @@ export function TestConfigurationModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200">
+        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-500">
-              Press <kbd className="px-1 py-0.5 bg-gray-100 border rounded text-xs">Esc</kbd> to cancel, 
-              <kbd className="px-1 py-0.5 bg-gray-100 border rounded text-xs ml-1">Ctrl+Enter</kbd> to save
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 border dark:border-gray-600 rounded text-xs">Esc</kbd> to cancel,
+              <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 border dark:border-gray-600 rounded text-xs ml-1">Ctrl+Enter</kbd> to save
             </div>
             <div className="flex space-x-3">
               <button

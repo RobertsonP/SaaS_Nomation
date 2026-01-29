@@ -3,6 +3,9 @@ import { useEffect } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { ProjectsProvider } from './contexts/ProjectsContext'
+import { DiscoveryProvider } from './contexts/DiscoveryContext'
+import { DiscoveryFloatingIndicator } from './components/discovery/DiscoveryFloatingIndicator'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -133,10 +136,15 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <NotificationProvider>
-            <RouterProvider router={router} />
-            <NotificationContainer />
-          </NotificationProvider>
+          <ProjectsProvider>
+            <NotificationProvider>
+              <DiscoveryProvider>
+                <RouterProvider router={router} />
+                <NotificationContainer />
+                <DiscoveryFloatingIndicator />
+              </DiscoveryProvider>
+            </NotificationProvider>
+          </ProjectsProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

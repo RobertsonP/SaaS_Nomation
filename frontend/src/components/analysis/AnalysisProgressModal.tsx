@@ -130,21 +130,21 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">
               Analyzing Project: {projectName}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Real-time progress updates
             </p>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ml-4 flex-shrink-0"
             title="Close (analysis will continue in background)"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,13 +154,13 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="p-6 border-b">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-            <span className="text-sm text-gray-500">{overallProgress}%</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Progress</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{overallProgress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+            <div
               className={`h-3 rounded-full transition-all duration-300 ${
                 hasError ? 'bg-red-500' : isCompleted ? 'bg-green-500' : 'bg-blue-500'
               }`}
@@ -168,18 +168,18 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
             />
           </div>
           {currentStep && (
-            <p className="text-sm text-gray-600 mt-2">
-              Current step: <span className="font-medium">{currentStep.replace('_', ' ')}</span>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Current step: <span className="font-medium text-gray-900 dark:text-white">{currentStep.replace('_', ' ')}</span>
             </p>
           )}
         </div>
 
         {/* Progress Log */}
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Progress Log</h3>
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+        <div className="p-6 flex-1 overflow-hidden flex flex-col min-h-0">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex-shrink-0">Progress Log</h3>
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 flex-1 overflow-y-auto">
             {progressEvents.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
                 Waiting for analysis to start...
               </p>
             ) : (
@@ -189,11 +189,11 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                     key={index}
                     className={`p-3 rounded-lg border-l-4 ${
                       event.status === 'error'
-                        ? 'bg-red-50 border-red-400 text-red-800'
+                        ? 'bg-red-50 dark:bg-red-900/30 border-red-400 dark:border-red-600 text-red-800 dark:text-red-300'
                         : event.status === 'completed'
-                        ? 'bg-green-50 border-green-400 text-green-800'
+                        ? 'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-800 dark:text-green-300'
                         : event.status === 'started'
-                        ? 'bg-blue-50 border-blue-400 text-blue-800'
+                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-300'
                         : 'bg-gray-50 dark:bg-gray-800 border-gray-400 dark:border-gray-600 text-gray-700 dark:text-gray-300'
                     }`}
                   >
@@ -209,7 +209,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                             {event.step.replace('_', ' ').toUpperCase()}
                           </span>
                           {event.progress && (
-                            <span className="text-xs bg-white px-2 py-1 rounded">
+                            <span className="text-xs bg-white dark:bg-gray-700 dark:text-gray-200 px-2 py-1 rounded">
                               {event.progress.current}/{event.progress.total}
                             </span>
                           )}
@@ -219,13 +219,13 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                           <div className="mt-2">
                             {/* Enhanced error details display for categorized errors */}
                             {event.status === 'error' && event.details.error && (
-                              <div className="bg-red-50 border border-red-200 rounded p-2 mb-2">
-                                <div className="text-xs font-medium text-red-800 mb-1">Error Details:</div>
-                                <div className="text-xs text-red-700">{event.details.error}</div>
+                              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded p-2 mb-2">
+                                <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-1">Error Details:</div>
+                                <div className="text-xs text-red-700 dark:text-red-400">{event.details.error}</div>
                                 {event.details.suggestions && event.details.suggestions.length > 0 && (
                                   <div className="mt-2">
-                                    <div className="text-xs font-medium text-red-800 mb-1">Suggestions:</div>
-                                    <ul className="text-xs text-red-700 list-disc list-inside space-y-1">
+                                    <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-1">Suggestions:</div>
+                                    <ul className="text-xs text-red-700 dark:text-red-400 list-disc list-inside space-y-1">
                                       {event.details.suggestions.map((suggestion: string, idx: number) => (
                                         <li key={idx}>{suggestion}</li>
                                       ))}
@@ -237,30 +237,30 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                             
                             {/* Progress details for successful steps */}
                             {event.status !== 'error' && (event.details.url || event.details.elementCount !== undefined) && (
-                              <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded p-2 mb-2 overflow-hidden">
                                 {event.details.url && (
-                                  <div className="text-xs text-blue-700">
+                                  <div className="text-xs text-blue-700 dark:text-blue-300 truncate">
                                     <span className="font-medium">URL:</span> {event.details.url}
                                   </div>
                                 )}
                                 {event.details.elementCount !== undefined && (
-                                  <div className="text-xs text-blue-700">
+                                  <div className="text-xs text-blue-700 dark:text-blue-300">
                                     <span className="font-medium">Elements found:</span> {event.details.elementCount}
                                   </div>
                                 )}
                                 {event.details.authFlow && (
-                                  <div className="text-xs text-blue-700">
+                                  <div className="text-xs text-blue-700 dark:text-blue-300">
                                     <span className="font-medium">Auth flow:</span> {event.details.authFlow}
                                   </div>
                                 )}
                                 {event.details.retryCount !== undefined && event.details.retryCount > 0 && (
-                                  <div className="text-xs text-orange-700 mt-1">
-                                    <span className="font-medium">Retries:</span> {event.details.retryCount} 
+                                  <div className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                                    <span className="font-medium">Retries:</span> {event.details.retryCount}
                                     <span className="ml-2">Duration: {Math.round(event.details.totalDuration/1000)}s</span>
                                   </div>
                                 )}
                                 {event.details.recommendations && event.details.recommendations.length > 0 && (
-                                  <div className="text-xs text-blue-700 mt-1">
+                                  <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                                     <span className="font-medium">Recommendations:</span>
                                     <ul className="list-disc list-inside mt-1 space-y-1">
                                       {event.details.recommendations.slice(0, 2).map((rec: string, idx: number) => (
@@ -274,10 +274,10 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                             
                             {/* Full details toggle for debugging */}
                             <details className="mt-2">
-                              <summary className="text-xs cursor-pointer text-gray-600">
+                              <summary className="text-xs cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
                                 View raw details
                               </summary>
-                              <pre className="mt-1 text-xs bg-white p-2 rounded overflow-x-auto max-h-32">
+                              <pre className="mt-1 text-xs bg-white dark:bg-gray-800 dark:text-gray-300 p-2 rounded overflow-auto max-h-32 break-words whitespace-pre-wrap">
                                 {JSON.stringify(event.details, null, 2)}
                               </pre>
                             </details>
@@ -296,12 +296,12 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
           <div className="flex items-center space-x-2">
             {!isCompleted && !hasError && (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                <span className="text-sm text-gray-600">Analysis in progress...</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">Analysis in progress...</span>
               </>
             )}
             {isCompleted && (
@@ -311,7 +311,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <span className="text-sm text-green-600">Analysis completed successfully!</span>
+                <span className="text-sm text-green-600 dark:text-green-400">Analysis completed successfully!</span>
               </>
             )}
             {hasError && (
@@ -321,7 +321,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <span className="text-sm text-red-600">Analysis encountered errors</span>
+                <span className="text-sm text-red-600 dark:text-red-400">Analysis encountered errors</span>
               </>
             )}
           </div>

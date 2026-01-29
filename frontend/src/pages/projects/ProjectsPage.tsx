@@ -2,25 +2,26 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useProjects } from '../../contexts/ProjectsContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
 import { AuthStep } from '../../types/api.types';
 import { createLogger } from '../../lib/logger';
 
 const logger = createLogger('ProjectsPage');
 
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  urls: Array<{ id: string; url: string; title?: string; description?: string }>;
-  createdAt: string;
-  _count: { tests: number; elements?: number };
-}
+// Type alias for project data from context
+type Project = ReturnType<typeof import('../../contexts/ProjectsContext').useProjects>['projects'][0];
 
 export function ProjectsPage() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { projects, loading, refreshProjects, removeProjectFromCache } = useProjects();
+
+  // Safety refresh on mount - ensures projects are loaded after navigation
+  useEffect(() => {
+    logger.debug('ProjectsPage mounted - triggering refresh');
+    refreshProjects();
+  }, [refreshProjects]);
   const [showForm, setShowForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
   const [isCreating, setIsCreating] = useState(false);
@@ -74,7 +75,7 @@ export function ProjectsPage() {
       if (projectId) {
         navigate(`/projects/${projectId}`);
       } else {
-        loadProjects();
+        refreshProjects();
       }
 
     } catch (error) {
@@ -82,19 +83,6 @@ export function ProjectsPage() {
       showError('Import Failed', 'Failed to import repository. Check URL and token.');
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
-    try {
-      const response = await projectsAPI.getAll();
-      setProjects(response.data);
-    } catch (error) {
-      logger.error('Failed to load projects', error);
     }
   };
 
@@ -145,7 +133,7 @@ export function ProjectsPage() {
 
     try {
       await projectsAPI.delete(projectId);
-      loadProjects();
+      refreshProjects();
       showSuccess('Project Deleted', `Successfully deleted project "${projectName}"`);
     } catch (error) {
       logger.error('Failed to delete project', error);
@@ -189,7 +177,7 @@ export function ProjectsPage() {
       await projectsAPI.update(showEditForm, updateData);
       setEditFormData({ name: '', description: '', urls: [''] });
       setShowEditForm(null);
-      loadProjects();
+      refreshProjects();
       showSuccess('Project Updated', `Successfully updated project "${editFormData.name}"`);
     } catch (error) {
       logger.error('Failed to update project', error);
@@ -591,19 +579,19 @@ export function ProjectsPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleStartEdit(project);
+                      navigate(`/projects/${project.id}`);
                     }}
-                    className="px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
-                    title="Edit project details and URLs"
+                    className="px-3 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    title="View and edit project details"
                   >
-                    ✏️ Edit
+                    ✏️ Open
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent double-click navigation
                       handleDeleteProject(project.id, project.name);
                     }}
-                    className="px-3 py-1 text-xs rounded-full bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
+                    className="px-3 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors"
                     title="Delete project"
                   >
                     🗑️ Delete
@@ -647,7 +635,7 @@ export function ProjectsPage() {
                   )}
                 </div>
                 <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {new Date(project.createdAt).toLocaleDateString()}
+                  {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}
                 </span>
               </div>
 
@@ -678,7 +666,7 @@ export function ProjectsPage() {
                     </Link>
                     <Link
                       to={`/projects/${project.id}/tests`}
-                      className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-center text-sm"
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-center text-sm"
                     >
                       View ({project._count.tests})
                     </Link>

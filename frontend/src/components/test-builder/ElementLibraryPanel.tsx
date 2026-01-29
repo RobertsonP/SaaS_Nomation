@@ -1,5 +1,14 @@
+import { useState } from 'react';
 import { ProjectElement } from '../../types/element.types';
 import { ElementVisualPreview } from '../shared/ElementVisualPreview';
+import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
+
+interface ProjectUrl {
+  id: string;
+  url: string;
+  title?: string;
+  analyzed: boolean;
+}
 
 interface ElementLibraryPanelProps {
   elements: ProjectElement[];
@@ -13,8 +22,11 @@ interface ElementLibraryPanelProps {
   showQuality?: boolean;
   compact?: boolean;
   setShowLivePicker: (show: boolean) => void;
-  onAnalyzePages?: () => void;  // Analyze button handler
+  onAnalyzePages?: () => void;  // Analyze ALL button handler (legacy)
+  onAnalyzeSelected?: (urlIds: string[]) => void;  // Analyze selected URLs handler
   onClearElements?: () => void; // Clear all elements handler
+  projectUrls?: ProjectUrl[];  // Project URLs for selective analysis
+  isAnalyzing?: boolean;       // Whether analysis is in progress
 }
 
 // Simple element type icons
@@ -46,9 +58,9 @@ function EnhancedElementCard({
   compact?: boolean;
 }) {
   const getQualityColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600 bg-green-100';
-    if (confidence >= 0.6) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+    if (confidence >= 0.8) return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50';
+    if (confidence >= 0.6) return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/50';
+    return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50';
   };
 
   const getQualityLabel = (confidence: number) => {
@@ -59,7 +71,7 @@ function EnhancedElementCard({
 
   return (
     <div
-      className={`border rounded-lg hover:shadow-md cursor-pointer transition-all bg-white ${
+      className={`border dark:border-gray-700 rounded-lg hover:shadow-md cursor-pointer transition-all bg-white dark:bg-gray-900 ${
         compact ? 'p-2' : 'p-3'
       }`}
       onClick={() => onSelect(element)}
@@ -70,10 +82,10 @@ function EnhancedElementCard({
           {getElementTypeIcon(element.elementType)}
         </span>
         <div className="flex-1 min-w-0">
-          <p className={`font-medium text-gray-900 truncate ${compact ? 'text-xs' : 'text-sm'}`}>
+          <p className={`font-medium text-gray-900 dark:text-gray-100 truncate ${compact ? 'text-xs' : 'text-sm'}`}>
             {element.description}
           </p>
-          <p className={`text-gray-500 capitalize ${compact ? 'text-xs' : 'text-xs'}`}>
+          <p className={`text-gray-500 dark:text-gray-400 capitalize ${compact ? 'text-xs' : 'text-xs'}`}>
             {element.elementType}
           </p>
         </div>
@@ -92,7 +104,7 @@ function EnhancedElementCard({
       )}
 
       {/* Selector */}
-      <div className={`bg-gray-100 p-2 rounded font-mono text-gray-700 truncate ${
+      <div className={`bg-gray-100 dark:bg-gray-800 p-2 rounded font-mono text-gray-700 dark:text-gray-300 truncate ${
         compact ? 'text-xs' : 'text-xs'
       }`}>
         {element.selector}
@@ -138,8 +150,30 @@ export function ElementLibraryPanel({
   compact = false,
   setShowLivePicker,
   onAnalyzePages,
-  onClearElements
+  onAnalyzeSelected,
+  onClearElements,
+  projectUrls = [],
+  isAnalyzing = false
 }: ElementLibraryPanelProps) {
+  // State for URL picker modal
+  const [showUrlPicker, setShowUrlPicker] = useState(false);
+
+  // Handle analyze button click - show URL picker if we have URLs, otherwise use legacy handler
+  const handleAnalyzeClick = () => {
+    if (projectUrls.length > 0 && onAnalyzeSelected) {
+      setShowUrlPicker(true);
+    } else if (onAnalyzePages) {
+      onAnalyzePages();
+    }
+  };
+
+  // Handle analyze from URL picker
+  const handleAnalyzeFromPicker = (urlIds: string[]) => {
+    if (onAnalyzeSelected) {
+      onAnalyzeSelected(urlIds);
+      setShowUrlPicker(false);
+    }
+  };
 
   // Filter elements based on type and URL
   const filteredElements = elements.filter(element => {
@@ -157,7 +191,7 @@ export function ElementLibraryPanel({
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading elements...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading elements...</p>
         </div>
       </div>
     );
@@ -166,7 +200,7 @@ export function ElementLibraryPanel({
   if (elements.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-center text-gray-500">
+        <div className="text-center text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-4">🔍</div>
           <p>No elements found</p>
           <p className="text-sm">Use Live Element Picker to select website elements</p>
@@ -178,18 +212,23 @@ export function ElementLibraryPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Fixed Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200">
+      <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Elements ({filteredElements.length})
           </h3>
           <div className="flex gap-2">
-            {onAnalyzePages && (
+            {(onAnalyzePages || onAnalyzeSelected) && (
               <button
-                onClick={onAnalyzePages}
-                className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
+                onClick={handleAnalyzeClick}
+                disabled={isAnalyzing}
+                className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+                  isAnalyzing
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
-                🔍 Analyze Pages
+                {isAnalyzing ? '⏳ Analyzing...' : '🔍 Analyze Pages'}
               </button>
             )}
             <button
@@ -209,19 +248,19 @@ export function ElementLibraryPanel({
             )}
           </div>
         </div>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Click any element to add it to your test
         </p>
       </div>
 
       {/* Compact Filters - Single Row */}
       {(onElementTypeChange || onUrlChange) && elements.length > 0 && (
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 flex gap-2">
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex gap-2">
           {onElementTypeChange && (
             <select
               value={selectedElementType}
               onChange={(e) => onElementTypeChange(e.target.value)}
-              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {elementTypes.map((type) => (
                 <option key={type} value={type}>
@@ -235,7 +274,7 @@ export function ElementLibraryPanel({
             <select
               value={selectedUrl}
               onChange={(e) => onUrlChange(e.target.value)}
-              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {sourceUrls.map((urlId) => (
                 <option key={urlId} value={urlId}>
@@ -267,19 +306,28 @@ export function ElementLibraryPanel({
         {filteredElements.length === 0 && elements.length > 0 && (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🔍</div>
-            <p className="text-gray-500">No elements match the current filters</p>
+            <p className="text-gray-500 dark:text-gray-400">No elements match the current filters</p>
             <button
               onClick={() => {
                 onElementTypeChange?.('all');
                 onUrlChange?.('all');
               }}
-              className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+              className="mt-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
             >
               Clear all filters
             </button>
           </div>
         )}
       </div>
+
+      {/* URL Picker Modal for selective analysis */}
+      <AnalyzeUrlsModal
+        isOpen={showUrlPicker}
+        onClose={() => setShowUrlPicker(false)}
+        projectUrls={projectUrls}
+        onAnalyze={handleAnalyzeFromPicker}
+        isAnalyzing={isAnalyzing}
+      />
     </div>
   );
 }

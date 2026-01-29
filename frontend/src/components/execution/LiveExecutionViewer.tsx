@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../lib/api';
+import { io, Socket } from 'socket.io-client';
 import { createLogger } from '../../lib/logger';
 
 const logger = createLogger('LiveExecutionViewer');
@@ -57,7 +58,9 @@ export function LiveExecutionViewer({
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showViewport, setShowViewport] = useState(true);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [queueStatus, setQueueStatus] = useState<{ position: number; waiting: boolean } | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (isOpen && testId) {
@@ -69,38 +72,222 @@ export function LiveExecutionViewer({
     };
   }, [isOpen, testId]);
 
+  const setupSocketIO = useCallback(() => {
+    // Connect to Socket.IO for real-time execution updates
+    const socket = io('http://localhost:3002/execution-progress', {
+      transports: ['websocket'],
+      autoConnect: true,
+    });
+
+    socket.on('connect', () => {
+      logger.debug('Socket.IO connected for live execution');
+      // Subscribe to this execution's updates if we have a job ID
+      if (jobId) {
+        socket.emit('subscribe-to-execution', { jobId, testId });
+      }
+    });
+
+    socket.on('execution-queued', (data: { jobId: string; position: number }) => {
+      logger.debug('Execution queued', data);
+      setQueueStatus({ position: data.position, waiting: true });
+    });
+
+    socket.on('execution-started', (data: { jobId: string; executionId: string; totalSteps: number }) => {
+      logger.debug('Execution started', data);
+      setQueueStatus(null);
+      setExecutionData(prev => ({
+        executionId: data.executionId,
+        testId: testId,
+        testName: testName,
+        status: 'running',
+        currentStepIndex: 0,
+        totalSteps: data.totalSteps,
+        startedAt: new Date().toISOString(),
+        steps: prev?.steps || []
+      }));
+    });
+
+    socket.on('step-started', (data: { stepIndex: number; step: any }) => {
+      logger.debug('Step started', data);
+      setExecutionData(prev => {
+        if (!prev) return prev;
+        const steps = [...prev.steps];
+        // Ensure the step exists in the array
+        while (steps.length <= data.stepIndex) {
+          steps.push({
+            id: `step-${steps.length}`,
+            stepIndex: steps.length,
+            type: 'unknown',
+            selector: '',
+            description: 'Loading...',
+            status: 'pending'
+          });
+        }
+        steps[data.stepIndex] = {
+          ...steps[data.stepIndex],
+          id: data.step?.id || `step-${data.stepIndex}`,
+          type: data.step?.type || 'unknown',
+          selector: data.step?.selector || '',
+          description: data.step?.description || 'Executing...',
+          status: 'running',
+          startedAt: new Date().toISOString()
+        };
+        return {
+          ...prev,
+          currentStepIndex: data.stepIndex,
+          steps
+        };
+      });
+    });
+
+    socket.on('step-completed', (data: { stepIndex: number; status: string; screenshot?: string; error?: string; duration?: number }) => {
+      logger.debug('Step completed', data);
+      setExecutionData(prev => {
+        if (!prev) return prev;
+        const steps = [...prev.steps];
+        if (steps[data.stepIndex]) {
+          steps[data.stepIndex] = {
+            ...steps[data.stepIndex],
+            status: data.status === 'passed' ? 'passed' : data.status === 'failed' ? 'failed' : 'pending',
+            screenshot: data.screenshot,
+            error: data.error,
+            duration: data.duration,
+            completedAt: new Date().toISOString()
+          };
+        }
+        return {
+          ...prev,
+          currentScreenshot: data.screenshot || prev.currentScreenshot,
+          steps
+        };
+      });
+    });
+
+    socket.on('viewport-update', (data: { screenshot: string; viewport?: { width: number; height: number; url: string } }) => {
+      setExecutionData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentScreenshot: data.screenshot,
+          browserViewport: data.viewport || prev.browserViewport
+        };
+      });
+    });
+
+    socket.on('execution-completed', (data: { status: string; duration: number; results: any[] }) => {
+      logger.debug('Execution completed', data);
+      setIsExecuting(false);
+      setExecutionData(prev => {
+        if (!prev) return prev;
+        const finalData = {
+          ...prev,
+          status: data.status === 'passed' ? 'passed' : 'failed' as const,
+          duration: data.duration,
+          completedAt: new Date().toISOString()
+        };
+        onExecutionComplete?.(finalData);
+        return finalData;
+      });
+    });
+
+    socket.on('execution-failed', (data: { error: string; duration?: number }) => {
+      logger.error('Execution failed', data);
+      setIsExecuting(false);
+      setError(data.error);
+      setExecutionData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: 'failed',
+          duration: data.duration
+        };
+      });
+    });
+
+    socket.on('disconnect', () => {
+      logger.debug('Socket.IO disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      logger.warn('Socket.IO connection error', error.message);
+      // Don't show error to user - the execution may still complete via API
+    });
+
+    socketRef.current = socket;
+    return socket;
+  }, [jobId, testId, testName, onExecutionComplete]);
+
   const startExecution = async () => {
     try {
       setIsExecuting(true);
       setError(null);
+      setQueueStatus(null);
+      setExecutionData(null);
 
-      // Initialize WebSocket connection for real-time updates (optional)
-      // setupWebSocket();
+      // Setup Socket.IO for real-time updates
+      const socket = setupSocketIO();
 
-      // Start the execution using the API - this now returns complete results
+      // Start the execution using the API
+      // The API may return immediately with a job ID, or wait and return results
       const response = await api.post(`/api/execution/test/${testId}/run-live`);
       const execution = response.data;
 
-      // Map the execution results to our live execution format
+      // Check if we got a job ID (queued) or immediate results
+      if (execution.jobId && !execution.results) {
+        // Execution is queued - wait for Socket.IO updates
+        setJobId(execution.jobId);
+        setQueueStatus({ position: execution.position || 1, waiting: true });
+
+        // Subscribe to this execution's updates
+        socket.emit('subscribe-to-execution', { jobId: execution.jobId, testId });
+
+        // Initialize empty execution data with pending steps
+        if (execution.totalSteps) {
+          const pendingSteps: LiveExecutionStep[] = [];
+          for (let i = 0; i < execution.totalSteps; i++) {
+            pendingSteps.push({
+              id: `step-${i}`,
+              stepIndex: i,
+              type: execution.steps?.[i]?.type || 'unknown',
+              selector: execution.steps?.[i]?.selector || '',
+              description: execution.steps?.[i]?.description || `Step ${i + 1}`,
+              status: 'pending'
+            });
+          }
+          setExecutionData({
+            executionId: execution.jobId,
+            testId: testId,
+            testName: testName,
+            status: 'initializing',
+            currentStepIndex: 0,
+            totalSteps: execution.totalSteps,
+            startedAt: new Date().toISOString(),
+            steps: pendingSteps
+          });
+        }
+        return; // Wait for WebSocket updates
+      }
+
+      // We got immediate results - execution completed synchronously
       const executionResults = execution.results || [];
 
       setExecutionData({
-        executionId: execution.id,
+        executionId: execution.id || execution.executionId,
         testId: testId,
         testName: testName,
         status: execution.status === 'passed' ? 'passed' : execution.status === 'failed' ? 'failed' : 'running',
-        currentStepIndex: executionResults.length,
+        currentStepIndex: executionResults.length > 0 ? executionResults.length - 1 : 0,
         totalSteps: executionResults.length,
-        startedAt: execution.startedAt,
+        startedAt: execution.startedAt || new Date().toISOString(),
         completedAt: execution.completedAt,
         duration: execution.duration,
         steps: executionResults.map((result: any, index: number) => ({
           id: result.step || `step-${index}`,
           stepIndex: index,
-          type: result.step,
-          selector: result.selector,
+          type: result.type || result.step || 'unknown',
+          selector: result.selector || '',
           value: result.value,
-          description: result.description,
+          description: result.description || `Step ${index + 1}`,
           status: result.status === 'passed' ? 'passed' : result.status === 'failed' ? 'failed' : 'pending',
           screenshot: result.screenshot,
           error: result.error,
@@ -113,109 +300,16 @@ export function LiveExecutionViewer({
       setIsExecuting(false);
 
       // Call completion callback if provided
-      if (onExecutionComplete) {
+      if (onExecutionComplete && execution.status) {
         onExecutionComplete(execution);
       }
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error starting execution';
       setError(errorMessage);
       setIsExecuting(false);
+      logger.error('Execution start failed', err);
     }
-  };
-
-  const setupWebSocket = () => {
-    try {
-      const wsUrl = `ws://localhost:3002/execution/${testId}/live`;
-      wsRef.current = new WebSocket(wsUrl);
-
-      wsRef.current.onopen = () => {
-        logger.debug('Live execution WebSocket connected');
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const update = JSON.parse(event.data);
-          handleExecutionUpdate(update);
-        } catch (parseError) {
-          logger.error('Failed to parse WebSocket message', parseError);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        logger.error('WebSocket error', error);
-        setError('Live connection lost. Execution may still be running in background.');
-      };
-
-      wsRef.current.onclose = () => {
-        logger.debug('WebSocket connection closed');
-      };
-
-    } catch (error) {
-      logger.error('Failed to setup WebSocket', error);
-    }
-  };
-
-  const handleExecutionUpdate = (update: any) => {
-    setExecutionData(prev => {
-      if (!prev) return null;
-
-      let updatedData = { ...prev };
-
-      switch (update.type) {
-        case 'execution_started':
-          updatedData.status = 'running';
-          break;
-
-        case 'step_started':
-          updatedData.currentStepIndex = update.stepIndex;
-          updatedData.steps = prev.steps.map((step, index) => 
-            index === update.stepIndex 
-              ? { ...step, status: 'running', startedAt: update.timestamp }
-              : step
-          );
-          break;
-
-        case 'step_completed':
-          updatedData.steps = prev.steps.map((step, index) => 
-            index === update.stepIndex 
-              ? { 
-                  ...step, 
-                  status: update.status,
-                  completedAt: update.timestamp,
-                  duration: update.duration,
-                  screenshot: update.screenshot,
-                  error: update.error
-                }
-              : step
-          );
-          break;
-
-        case 'viewport_update':
-          updatedData.currentScreenshot = update.screenshot;
-          updatedData.browserViewport = update.viewport;
-          break;
-
-        case 'execution_completed':
-          updatedData.status = update.status;
-          updatedData.duration = update.duration;
-          setIsExecuting(false);
-          onExecutionComplete?.(updatedData);
-          break;
-
-        case 'execution_failed':
-          updatedData.status = 'failed';
-          updatedData.duration = update.duration;
-          setError(update.error || 'Execution failed');
-          setIsExecuting(false);
-          break;
-
-        default:
-          logger.warn('Unknown update type', update.type);
-      }
-
-      return updatedData;
-    });
   };
 
   const stopExecution = async () => {
@@ -223,16 +317,21 @@ export function LiveExecutionViewer({
       if (executionData?.executionId) {
         await api.post(`/api/execution/${executionData.executionId}/stop`);
       }
+      if (jobId) {
+        await api.post(`/api/execution/job/${jobId}/cancel`).catch(() => {});
+      }
     } catch (error) {
       logger.error('Failed to stop execution', error);
     }
   };
 
   const cleanup = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
+    setJobId(null);
+    setQueueStatus(null);
   };
 
   const handleClose = () => {
@@ -369,6 +468,21 @@ export function LiveExecutionViewer({
 
             {/* Steps List */}
             <div className="flex-1 overflow-y-auto">
+              {/* Queue Status Display */}
+              {queueStatus?.waiting && (
+                <div className="p-4 bg-yellow-50 border-b border-yellow-200">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-pulse">⏳</div>
+                    <div>
+                      <div className="text-sm font-medium text-yellow-800">Queued for Execution</div>
+                      <div className="text-xs text-yellow-600">
+                        Position #{queueStatus.position} in queue. Waiting for browser...
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {executionData?.steps.length ? (
                 <div className="p-3 space-y-2">
                   {executionData.steps.map((step, index) => (
@@ -379,7 +493,7 @@ export function LiveExecutionViewer({
                         step.status === 'passed' ? 'bg-green-50 border-green-200' :
                         step.status === 'failed' ? 'bg-red-50 border-red-200' :
                         'bg-gray-50 border-gray-200'
-                      } ${index === executionData.currentStepIndex ? 'ring-2 ring-blue-300' : ''}`}
+                      } ${index === executionData.currentStepIndex && step.status === 'running' ? 'ring-2 ring-blue-300' : ''}`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <div className="text-xs font-medium text-gray-500">
@@ -387,35 +501,35 @@ export function LiveExecutionViewer({
                         </div>
                         <div className="text-xs">
                           {step.status === 'pending' && '⏸️'}
-                          {step.status === 'running' && '▶️'}
+                          {step.status === 'running' && <span className="animate-pulse">▶️</span>}
                           {step.status === 'passed' && '✅'}
                           {step.status === 'failed' && '❌'}
                           {step.status === 'skipped' && '⏭️'}
                         </div>
                       </div>
-                      
+
                       <div className="text-sm font-medium text-gray-900 mb-1">
                         {step.description}
                       </div>
-                      
+
                       {step.selector && (
-                        <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700 mb-1">
+                        <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700 mb-1 truncate" title={step.selector}>
                           {step.selector}
                         </div>
                       )}
-                      
+
                       {step.value && (
                         <div className="text-xs text-blue-600">
                           Value: "{step.value}"
                         </div>
                       )}
-                      
+
                       {step.error && (
                         <div className="text-xs text-red-600 mt-1">
                           Error: {step.error}
                         </div>
                       )}
-                      
+
                       {step.duration && (
                         <div className="text-xs text-gray-500 mt-1">
                           Duration: {(step.duration / 1000).toFixed(1)}s
@@ -426,8 +540,18 @@ export function LiveExecutionViewer({
                 </div>
               ) : (
                 <div className="p-6 text-center text-gray-500">
-                  <div className="text-2xl mb-2">⏳</div>
-                  <p>Loading test steps...</p>
+                  {isExecuting ? (
+                    <>
+                      <div className="text-2xl mb-2 animate-spin">⚙️</div>
+                      <p>Initializing execution...</p>
+                      <p className="text-xs mt-1">Setting up browser environment</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl mb-2">⏳</div>
+                      <p>Loading test steps...</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

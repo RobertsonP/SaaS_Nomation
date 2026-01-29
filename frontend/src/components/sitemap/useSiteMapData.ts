@@ -122,8 +122,10 @@ export function useDiscovery(projectId: string | undefined) {
       const response = await projectsAPI.getDiscoveryProgress(projectId);
       setProgress(response);
       return response;
-    } catch {
-      return null;
+    } catch (err) {
+      // Re-throw to allow caller to implement backoff
+      // 429 errors and other API errors should trigger backoff in the caller
+      throw err;
     }
   }, [projectId]);
 

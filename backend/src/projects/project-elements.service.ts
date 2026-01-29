@@ -149,6 +149,8 @@ export class ProjectElementsService {
 
   async storeProjectElements(projectId: string, elements: DetectedElement[], sourceUrlId?: string) {
     try {
+      console.log(`💾 Attempting to store ${elements.length} elements for project ${projectId}`);
+
       const elementsToStore = elements.map(element => {
         const screenshot = element.attributes?.screenshot || null;
 
@@ -173,7 +175,6 @@ export class ProjectElementsService {
         };
       });
 
-      console.log(`💾 Attempting to store ${elements.length} elements for project ${projectId}`);
       console.log(`📊 Element discoveryState breakdown:`,
         elementsToStore.reduce((acc, el) => {
           const state = el.discoveryState || 'null';
@@ -182,18 +183,80 @@ export class ProjectElementsService {
         }, {} as Record<string, number>)
       );
 
-      const result = await this.prisma.projectElement.createMany({
-        data: elementsToStore,
-        skipDuplicates: true
-      });
+      // Use upsert logic to update existing elements instead of creating duplicates
+      // This prevents element count from exploding on re-analysis
+      let created = 0;
+      let updated = 0;
 
-      const actuallyStored = result.count;
-      const duplicatesSkipped = elements.length - actuallyStored;
+      for (const element of elementsToStore) {
+        try {
+          await this.prisma.projectElement.upsert({
+            where: {
+              projectId_selector_sourceUrlId: {
+                projectId: element.projectId,
+                selector: element.selector,
+                sourceUrlId: element.sourceUrlId || ''
+              }
+            },
+            create: element,
+            update: {
+              // Update fields that might change between analyses
+              elementType: element.elementType,
+              description: element.description,
+              confidence: element.confidence,
+              attributes: element.attributes,
+              screenshot: element.screenshot,
+              discoveryState: element.discoveryState,
+              discoveryTrigger: element.discoveryTrigger,
+              sourcePageTitle: element.sourcePageTitle,
+              sourceUrlPath: element.sourceUrlPath,
+              requiresAuth: element.requiresAuth,
+              isModal: element.isModal,
+              updatedAt: new Date()
+            }
+          });
+          created++; // Count as created for logging (upsert is atomic)
+        } catch (upsertError) {
+          // Handle case where sourceUrlId might be null (use different unique key)
+          if (element.sourceUrlId === null) {
+            try {
+              // For null sourceUrlId, try to find and update by projectId + selector
+              const existing = await this.prisma.projectElement.findFirst({
+                where: {
+                  projectId: element.projectId,
+                  selector: element.selector,
+                  sourceUrlId: null
+                }
+              });
 
-      console.log(`✅ Successfully stored ${actuallyStored} elements for project ${projectId}`);
-      if (duplicatesSkipped > 0) {
-        console.warn(`⚠️ ${duplicatesSkipped} elements were skipped as duplicates`);
+              if (existing) {
+                await this.prisma.projectElement.update({
+                  where: { id: existing.id },
+                  data: {
+                    elementType: element.elementType,
+                    description: element.description,
+                    confidence: element.confidence,
+                    attributes: element.attributes,
+                    screenshot: element.screenshot,
+                    discoveryState: element.discoveryState,
+                    updatedAt: new Date()
+                  }
+                });
+                updated++;
+              } else {
+                await this.prisma.projectElement.create({ data: element });
+                created++;
+              }
+            } catch (fallbackError) {
+              console.warn(`⚠️ Failed to store element ${element.selector}:`, fallbackError.message);
+            }
+          } else {
+            console.warn(`⚠️ Failed to upsert element ${element.selector}:`, upsertError.message);
+          }
+        }
       }
+
+      console.log(`✅ Successfully stored elements for project ${projectId}: ${created} created/updated`);
     } catch (error) {
       console.error('Failed to store project elements:', error);
       throw error;

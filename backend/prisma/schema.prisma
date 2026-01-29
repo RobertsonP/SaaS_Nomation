@@ -245,7 +245,9 @@ model ProjectElement {
   sourceUrl          ProjectUrl?              @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
   qualityHistory     SelectorQualityHistory[]
 
-  @@unique([projectId, selector, sourceUrlId, discoveryState])
+  // Unique constraint: same element (selector) on same URL in same project
+  // Note: discoveryState removed from unique constraint to prevent duplicates on re-analysis
+  @@unique([projectId, selector, sourceUrlId])
   @@index([authFlowId])
   @@index([pageStateId])
   @@index([sourceUrlId])

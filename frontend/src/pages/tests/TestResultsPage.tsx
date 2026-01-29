@@ -106,11 +106,16 @@ export function TestResultsPage() {
         executionAPI.getResults(testId!)
       ])
       setTest(testResponse.data)
-      setExecutions(executionsResponse.data)
-      
+
+      // API returns {success: true, results: [...]} or direct array
+      const executionResults = Array.isArray(executionsResponse.data)
+        ? executionsResponse.data
+        : (executionsResponse.data?.results || [])
+      setExecutions(executionResults)
+
       // Auto-select latest execution if none selected
-      if (!selectedExecution && executionsResponse.data.length > 0) {
-        setSelectedExecution(executionsResponse.data[0])
+      if (!selectedExecution && executionResults.length > 0) {
+        setSelectedExecution(executionResults[0])
       }
     } catch (error: any) {
       logger.error('Failed to load test results', error)

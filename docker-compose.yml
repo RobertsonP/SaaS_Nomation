@@ -68,6 +68,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=development
+      - RUNNING_IN_DOCKER=true
       - DATABASE_URL=${DATABASE_URL:-postgresql://nomation_user:nomation_password@postgres:5432/nomation}
       - JWT_SECRET=nomation-secret-key-2024-ultra-secure-development-only
       - PORT=3002
@@ -105,7 +106,7 @@ services:
         condition: service_healthy
     networks:
       - nomation-network
-    command: bash -c "/usr/local/bin/start-with-display.sh bash -c 'npx prisma generate && npx prisma db push && npm run dev'"
+    command: bash -c "/usr/local/bin/start-with-display.sh bash -c 'npx prisma generate && npx prisma db push --accept-data-loss && npm run dev'"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3002/health || exit 1"]
       interval: 30s

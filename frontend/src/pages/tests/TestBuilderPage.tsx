@@ -243,8 +243,8 @@ export function TestBuilderPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading test builder...</div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="text-lg text-gray-900 dark:text-white">Loading test builder...</div>
       </div>
     )
   }
@@ -267,9 +267,9 @@ export function TestBuilderPage() {
 
       {/* Main Test Builder Interface */}
       {configurationComplete && (
-        <div className="h-screen flex flex-col">
+        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
           {/* Minimal Header - Editable name + edit button */}
-          <div className="bg-white border-b border-gray-200 px-4 py-2 flex-shrink-0">
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 flex-1">
                 {isEditingName ? (
@@ -281,7 +281,7 @@ export function TestBuilderPage() {
                       onKeyDown={handleNameKeyPress}
                       onBlur={handleSaveNameEdit}
                       autoFocus
-                      className="text-lg font-medium text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none min-w-0 flex-1"
+                      className="text-lg font-medium text-gray-900 dark:text-white bg-transparent border-b-2 border-blue-500 focus:outline-none min-w-0 flex-1"
                       placeholder="Enter test name"
                     />
                     <div className="flex items-center space-x-1">
@@ -303,7 +303,7 @@ export function TestBuilderPage() {
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2 group">
-                    <h1 className="text-lg font-medium text-gray-900">
+                    <h1 className="text-lg font-medium text-gray-900 dark:text-white">
                       {testName}
                     </h1>
                     <button
@@ -318,7 +318,7 @@ export function TestBuilderPage() {
               </div>
               <button
                 onClick={handleEditConfiguration}
-                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Edit Config
               </button>
@@ -343,13 +343,13 @@ export function TestBuilderPage() {
       {/* Navigation Blocking Modal */}
       {blocker.state === "blocked" && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
                 ⚠️ Unsaved Changes
               </h3>
-              <p className="text-gray-600 mb-6">
-                You have unsaved changes that will be lost if you leave this page. 
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                You have unsaved changes that will be lost if you leave this page.
                 Would you like to save your test before leaving?
               </p>
               <div className="flex space-x-3">
@@ -388,7 +388,7 @@ export function TestBuilderPage() {
                 </button>
                 <button
                   onClick={() => blocker.reset()}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>

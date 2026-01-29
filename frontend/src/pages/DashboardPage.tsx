@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
-import { projectsAPI } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
+import { useProjects } from '../contexts/ProjectsContext'
 import { OnboardingWizard } from '../components/onboarding/OnboardingWizard'
 import { 
   Layout, 
@@ -16,15 +16,6 @@ import {
   Zap
 } from 'lucide-react'
 
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  url: string;
-  createdAt: string;
-  _count: { tests: number };
-}
-
 interface DashboardStats {
   totalProjects: number;
   totalTests: number;
@@ -34,38 +25,26 @@ interface DashboardStats {
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
   const [showWizard, setShowWizard] = useState(false)
   const { user } = useAuth()
+  const { projects, loading, refreshProjects } = useProjects()
 
-  const loadDashboardData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const response = await projectsAPI.getAll()
-      const projectData = response.data
-      setProjects(projectData)
-
-      if (projectData.length === 0) {
-        setShowWizard(true)
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Reload data every time this page becomes active (location.key changes on navigation)
+  // Safety refresh on mount - ensures projects are fresh on dashboard
   useEffect(() => {
-    loadDashboardData()
-  }, [location.key, loadDashboardData])
+    refreshProjects()
+  }, [refreshProjects])
+
+  // Show wizard if no projects (only check once loading is complete)
+  useEffect(() => {
+    if (!loading && projects.length === 0) {
+      setShowWizard(true)
+    }
+  }, [loading, projects.length])
 
   // Calculate stats from projects data
   const stats = useMemo(() => {
     const totalProjects = projects.length;
-    const totalTests = projects.reduce((sum: number, project: Project) => sum + (project._count?.tests || 0), 0);
+    const totalTests = projects.reduce((sum, project) => sum + (project._count?.tests || 0), 0);
     return {
       totalProjects,
       totalTests,
@@ -163,7 +142,7 @@ export function DashboardPage() {
                       <div className="flex items-center space-x-3 text-xs text-gray-400 dark:text-gray-500">
                         <span className="flex items-center"><Zap className="w-3 h-3 mr-1" /> {project._count.tests} tests</span>
                         <span>•</span>
-                        <span>Updated {new Date(project.createdAt).toLocaleDateString()}</span>
+                        <span>Updated {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}</span>
                       </div>
                     </div>
                   ))}
@@ -223,7 +202,7 @@ export function DashboardPage() {
         <OnboardingWizard
           onComplete={() => {
             setShowWizard(false);
-            loadDashboardData();
+            refreshProjects();
           }}
           onClose={() => setShowWizard(false)}
         />

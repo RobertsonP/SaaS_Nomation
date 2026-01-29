@@ -24,6 +24,39 @@ interface TestStep {
   timeout?: number;
 }
 
+/**
+ * Normalize URL for Docker execution
+ * Converts localhost URLs to host.docker.internal so browser inside Docker can reach host machine
+ */
+function normalizeUrlForDocker(url: string): string {
+  if (!url) return url;
+
+  try {
+    // Add protocol if missing
+    let normalizedUrl = url;
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'http://' + normalizedUrl;
+    }
+
+    const urlObj = new URL(normalizedUrl);
+
+    // Convert localhost/127.0.0.1 to host.docker.internal for Docker compatibility
+    if (urlObj.hostname === 'localhost' || urlObj.hostname === '127.0.0.1') {
+      urlObj.hostname = 'host.docker.internal';
+      return urlObj.toString();
+    }
+
+    return normalizedUrl;
+  } catch {
+    // If URL parsing fails, try simple string replacement
+    return url
+      .replace(/^localhost:/, 'http://host.docker.internal:')
+      .replace(/^127\.0\.0\.1:/, 'http://host.docker.internal:')
+      .replace('://localhost:', '://host.docker.internal:')
+      .replace('://127.0.0.1:', '://host.docker.internal:');
+  }
+}
+
 @Processor('test-execution')
 export class ExecutionQueueProcessor {
   constructor(
@@ -62,7 +95,7 @@ export class ExecutionQueueProcessor {
         },
       });
 
-      // Send WebSocket event: Test started
+      // Send WebSocket event: Test started (generic event)
       this.progressGateway.sendTestStarted(execution.id, testId, test.name);
 
       // Update job progress
@@ -113,13 +146,13 @@ export class ExecutionQueueProcessor {
             const authFlow: LoginFlow = {
               id: authFlowData.id,
               name: authFlowData.name,
-              loginUrl: authFlowData.loginUrl,
+              loginUrl: normalizeUrlForDocker(authFlowData.loginUrl),
               steps: Array.isArray(authFlowData.steps) ? authFlowData.steps as unknown as LoginFlow['steps'] : [],
               credentials: typeof authFlowData.credentials === 'object' ? authFlowData.credentials as unknown as LoginFlow['credentials'] : { username: '', password: '' }
             };
 
             const authResult = await this.unifiedAuthService.authenticateForUrl(
-              test.startingUrl,
+              normalizeUrlForDocker(test.startingUrl),
               authFlow,
               browser
             );
@@ -151,8 +184,9 @@ export class ExecutionQueueProcessor {
             throw authError;
           }
         } else {
-          console.log(`🔍 [Job ${job.id}] Executing without authentication for URL: ${test.startingUrl}`);
-          await page.goto(test.startingUrl);
+          const dockerUrl = normalizeUrlForDocker(test.startingUrl);
+          console.log(`🔍 [Job ${job.id}] Executing without authentication for URL: ${test.startingUrl} → ${dockerUrl}`);
+          await page.goto(dockerUrl);
         }
 
         await job.progress(30);
@@ -172,6 +206,10 @@ export class ExecutionQueueProcessor {
 
         // Execute test steps
         const steps = test.steps as unknown as TestStep[];
+
+        // Send LiveExecutionViewer-compatible execution started event
+        this.progressGateway.sendExecutionStartedEvent(execution.id, steps.length, test.name);
+
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
 
@@ -180,7 +218,10 @@ export class ExecutionQueueProcessor {
           await job.progress(stepProgress);
 
           try {
+            // Generic event
             this.progressGateway.sendStepStarted(execution.id, i, steps.length, step.description);
+            // LiveExecutionViewer event
+            this.progressGateway.sendStepStartedEvent(execution.id, i, step);
 
             const result = await this.executeStepWithRetry(page, step, execution.id, i, steps.length);
 
@@ -200,7 +241,25 @@ export class ExecutionQueueProcessor {
               timestamp: new Date(),
             });
 
+            // Generic event
             this.progressGateway.sendStepCompleted(execution.id, i, steps.length, step.description);
+            // LiveExecutionViewer event with screenshot
+            this.progressGateway.sendStepCompletedEvent(
+              execution.id,
+              i,
+              'passed',
+              stepScreenshot ? `data:image/png;base64,${stepScreenshot}` : undefined,
+              undefined,
+              result.duration
+            );
+            // Viewport update with screenshot
+            if (stepScreenshot) {
+              this.progressGateway.sendViewportUpdate(
+                execution.id,
+                `data:image/png;base64,${stepScreenshot}`,
+                { width: 1920, height: 1080, url: test.startingUrl }
+              );
+            }
 
           } catch (error) {
             success = false;
@@ -221,7 +280,24 @@ export class ExecutionQueueProcessor {
               timestamp: new Date(),
             });
 
+            // Generic event
             this.progressGateway.sendStepFailed(execution.id, i, steps.length, step.description, error.message);
+            // LiveExecutionViewer event
+            this.progressGateway.sendStepCompletedEvent(
+              execution.id,
+              i,
+              'failed',
+              errorScreenshot ? `data:image/png;base64,${errorScreenshot}` : undefined,
+              error.message
+            );
+            // Viewport update with error screenshot
+            if (errorScreenshot) {
+              this.progressGateway.sendViewportUpdate(
+                execution.id,
+                `data:image/png;base64,${errorScreenshot}`,
+                { width: 1920, height: 1080, url: test.startingUrl }
+              );
+            }
 
             break;
           }
@@ -290,11 +366,15 @@ export class ExecutionQueueProcessor {
           },
         });
 
-        // Send WebSocket event: Test completed or failed
+        // Send WebSocket event: Test completed or failed (generic events)
         if (success) {
           this.progressGateway.sendTestCompleted(execution.id, testId, test.name, duration);
+          // LiveExecutionViewer event
+          this.progressGateway.sendExecutionCompletedEvent(execution.id, 'passed', duration, results);
         } else {
           this.progressGateway.sendTestFailed(execution.id, testId, test.name, errorMsg || 'Unknown error');
+          // LiveExecutionViewer event
+          this.progressGateway.sendExecutionFailedEvent(execution.id, errorMsg || 'Unknown error', duration);
         }
 
         await job.progress(100);
@@ -539,9 +619,10 @@ export class ExecutionQueueProcessor {
         return { success: true, action: 'uncheck', selector: step.selector };
 
       case 'navigate':
-        await page.goto(step.value || '', { waitUntil: 'domcontentloaded', timeout });
+        const navigateUrl = normalizeUrlForDocker(step.value || '');
+        await page.goto(navigateUrl, { waitUntil: 'domcontentloaded', timeout });
         await this.smartWaitService.waitForNetworkIdle(page, 2000).catch(() => {});
-        return { success: true, action: 'navigate', url: step.value };
+        return { success: true, action: 'navigate', url: navigateUrl };
 
       case 'scroll':
         await locator.scrollIntoViewIfNeeded({ timeout });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
@@ -6,11 +6,71 @@ import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgres
 import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 import { ProjectElement } from '../../types/element.types';
-import { io, Socket } from 'socket.io-client';
 import { createLogger } from '../../lib/logger';
+import { useProjectWebSocket, useUrlManagement } from './hooks';
+import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
 
 const logger = createLogger('ProjectDetails');
+
+/**
+ * Normalize URL by adding protocol if missing
+ * Uses http:// for localhost/127.0.0.1/private IPs, https:// for all others
+ */
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+
+  // Already has protocol
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // Check if it's a local/private address that should use http://
+  const localPatterns = [
+    /^localhost(:\d+)?/i,
+    /^127\.0\.0\.1(:\d+)?/,
+    /^192\.168\.\d+\.\d+(:\d+)?/,
+    /^10\.\d+\.\d+\.\d+(:\d+)?/,
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?/,
+    /^0\.0\.0\.0(:\d+)?/,
+  ];
+
+  const isLocal = localPatterns.some(pattern => pattern.test(trimmed));
+  const protocol = isLocal ? 'http://' : 'https://';
+
+  return protocol + trimmed;
+}
+
+/**
+ * Normalize URL for comparison to prevent duplicates
+ * - Removes trailing slashes
+ * - Normalizes 127.0.0.1 to localhost
+ * - Removes www. prefix
+ * - Lowercases for comparison
+ */
+function normalizeUrlForComparison(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    let normalized = urlObj.origin + urlObj.pathname;
+
+    // Remove trailing slash (except for root path)
+    if (normalized.endsWith('/') && normalized !== urlObj.origin + '/') {
+      normalized = normalized.slice(0, -1);
+    }
+
+    // Normalize 127.0.0.1 to localhost
+    normalized = normalized.replace('://127.0.0.1', '://localhost');
+
+    // Remove www.
+    normalized = normalized.replace('://www.', '://');
+
+    // Lowercase for case-insensitive comparison
+    return normalized.toLowerCase();
+  } catch {
+    return url.toLowerCase().replace(/\/+$/, '');
+  }
+}
 
 interface ProjectUrl {
   id: string;
@@ -39,6 +99,7 @@ interface Project {
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { showSuccess, showError } = useNotification();
+  const { minimizeDiscovery } = useDiscoveryContext();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sitemap' | 'urls' | 'elements' | 'auth'>('overview');
@@ -46,26 +107,22 @@ export function ProjectDetailsPage() {
   const [selectedUrl, setSelectedUrl] = useState<string>('all');
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]); // URL IDs for selective analysis
 
-  // NEW: URL Management State
+  // URL Management State
   const [showUrlManager, setShowUrlManager] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
-  const [addingUrl, setAddingUrl] = useState(false);
-  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
-  
-  // ENHANCED: Add authentication and analysis state
+
+  // Authentication and analysis state
   const [authFlows, setAuthFlows] = useState<any[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState<string>('');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showLivePicker, setShowLivePicker] = useState(false);
-  
-  // NEW: Analysis dashboard state
+  const [elementsKey, setElementsKey] = useState(0);
+
+  // Analysis dashboard state
   const [showAnalysisDashboard, setShowAnalysisDashboard] = useState(false);
   const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
   const [analysisMetrics, setAnalysisMetrics] = useState<any>(null);
 
-  // NEW: Test execution stats state
+  // Test execution stats state
   const [testStats, setTestStats] = useState<{
     totalExecutions: number;
     totalPassed: number;
@@ -73,31 +130,73 @@ export function ProjectDetailsPage() {
     regressions: number;
     successRate: number;
   } | null>(null);
-  
-  // NEW: Auth setup state for collapsible section
-  const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
 
-  // Authentication modal state
+  // Auth setup state
+  const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [editingAuthFlow, setEditingAuthFlow] = useState<{id: string; data: any} | null>(null);
 
   // Site Map state
   const [showSiteMap, setShowSiteMap] = useState(false);
   const [showDiscoveryModal, setShowDiscoveryModal] = useState(false);
-
-  // Fetch site map data
   const { data: siteMapData, loading: siteMapLoading, refetch: refetchSiteMap } = useSiteMapData(projectId);
 
-  // NEW: Progress and technical details state
+  // Technical details state
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-  const [currentAnalysisStep, setCurrentAnalysisStep] = useState('Ready');
-  const [analysisProgressPercent, setAnalysisProgressPercent] = useState(100);
-  const [analysisLogs, setAnalysisLogs] = useState<Array<{timestamp: string, level: string, message: string}>>([]);
-  
-  // NEW: WebSocket and auto-refresh state
-  const socketRef = useRef<Socket | null>(null);
-  const [isAnalysisRunning, setIsAnalysisRunning] = useState(false);
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load project function (memoized for hooks)
+  const loadProject = useCallback(async () => {
+    try {
+      const response = await projectsAPI.getById(projectId!);
+      setProject(response.data);
+    } catch (error) {
+      logger.error('Failed to load project', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  // Load analysis dashboard data
+  const loadAnalysisDashboard = useCallback(() => {
+    loadAnalysisHistory();
+    loadAnalysisMetrics();
+  }, []);
+
+  // WebSocket hook for real-time analysis updates
+  const {
+    isAnalysisRunning,
+    analyzing,
+    currentAnalysisStep,
+    analysisProgressPercent,
+    analysisLogs,
+    setAnalyzing,
+    setCurrentAnalysisStep,
+  } = useProjectWebSocket({
+    projectId,
+    projectName: project?.name,
+    onProjectReload: loadProject,
+    onElementsKeyIncrement: () => setElementsKey(prev => prev + 1),
+    onAnalysisDashboardReload: loadAnalysisDashboard,
+    showAnalysisDashboard,
+    showError,
+  });
+
+  // URL management hook
+  const {
+    newUrl,
+    setNewUrl,
+    addingUrl,
+    verifyingUrl,
+    handleAddUrl,
+    handleRemoveUrl,
+    handleVerifyUrl,
+  } = useUrlManagement({
+    projectId,
+    projectUrls: project?.urls || [],
+    onProjectReload: loadProject,
+    showSuccess,
+    showError,
+  });
 
   useEffect(() => {
     loadProject();
@@ -107,201 +206,7 @@ export function ProjectDetailsPage() {
       loadAnalysisHistory();
       loadAnalysisMetrics();
     }
-  }, [projectId, showAnalysisDashboard]);
-
-  // NEW: WebSocket connection and auto-refresh setup
-  useEffect(() => {
-    if (!projectId) return;
-
-    // Initialize WebSocket connection for real-time updates
-    const initializeWebSocket = () => {
-      try {
-        socketRef.current = io('http://localhost:3002/analysis-progress', {
-          transports: ['websocket', 'polling'],
-          timeout: 10000,
-        });
-
-        const socket = socketRef.current;
-
-        socket.on('connect', () => {
-          logger.debug('WebSocket connected for auto-refresh');
-          socket.emit('subscribe-to-project', projectId);
-        });
-
-        socket.on('subscription-confirmed', (data) => {
-          logger.debug('Subscribed to project updates', data);
-        });
-
-        // Listen for analysis events and trigger auto-refresh
-        socket.on('analysis-started', (data) => {
-          logger.info('Analysis started, enabling auto-refresh');
-          setIsAnalysisRunning(true);
-          setAnalyzing(true);
-          setCurrentAnalysisStep('Initializing...');
-          setAnalysisProgressPercent(0);
-          
-          // Add log entry
-          const timestamp = new Date().toLocaleTimeString();
-          setAnalysisLogs(prev => [...prev, {
-            timestamp,
-            level: 'INFO',
-            message: `Analysis started for project: ${project?.name || 'Unknown'}`
-          }]);
-          
-          startAutoRefresh();
-        });
-
-        socket.on('analysis-progress', (data) => {
-          logger.debug('Analysis progress update', data);
-          
-          // Enhanced step display with URL extraction for cleaner progress info
-          let stepMessage = data.message || 'Processing...';
-          if (stepMessage.includes('Analyzing URL') || stepMessage.includes('elements from')) {
-            // Extract domain for cleaner display
-            const urlMatch = stepMessage.match(/https?:\/\/([^\/]+)/);
-            if (urlMatch) {
-              const domain = urlMatch[1].replace('www.', '');
-              if (stepMessage.includes('Analyzing URL')) {
-                const urlCountMatch = stepMessage.match(/URL (\d+\/\d+)/);
-                stepMessage = `Analyzing ${domain}${urlCountMatch ? ` (${urlCountMatch[1]})` : ''}...`;
-              } else if (stepMessage.includes('elements from')) {
-                const elementsMatch = stepMessage.match(/(\d+) elements/);
-                if (elementsMatch) {
-                  stepMessage = `✅ Found ${elementsMatch[1]} elements on ${domain}`;
-                }
-              }
-            }
-          }
-          setCurrentAnalysisStep(stepMessage);
-          
-          // Check if progress data is available - backend sends it as data.progress.current/total/percentage
-          if (data.progress && data.progress.current !== undefined && data.progress.total !== undefined) {
-            const progress = data.progress.percentage || Math.round((data.progress.current / data.progress.total) * 100);
-            setAnalysisProgressPercent(progress);
-            logger.debug(`Progress updated: ${progress}% (${data.progress.current}/${data.progress.total})`);
-          } else if (data.current !== undefined && data.total !== undefined) {
-            // Fallback for direct current/total values (if any)
-            const progress = Math.round((data.current / data.total) * 100);
-            setAnalysisProgressPercent(progress);
-            logger.debug(`Progress updated (fallback): ${progress}% (${data.current}/${data.total})`);
-          } else {
-            logger.warn('No progress data available in event', data);
-          }
-          
-          // Add log entry
-          const timestamp = new Date().toLocaleTimeString();
-          setAnalysisLogs(prev => [...prev, {
-            timestamp,
-            level: 'PROGRESS',
-            message: data.message || 'Processing...'
-          }]);
-          
-          // Refresh project data during analysis
-          loadProject();
-        });
-
-        socket.on('analysis-completed', async (data) => {
-          logger.info('Analysis completed, disabling auto-refresh');
-          setIsAnalysisRunning(false);
-          setAnalyzing(false);
-          setCurrentAnalysisStep('Complete');
-          setAnalysisProgressPercent(100);
-
-          // Add log entry
-          const timestamp = new Date().toLocaleTimeString();
-          setAnalysisLogs(prev => [...prev, {
-            timestamp,
-            level: 'SUCCESS',
-            message: `Analysis completed successfully. Found ${data.totalElements || 0} elements.`
-          }]);
-
-          // CRITICAL FIX: Load project data BEFORE stopping auto-refresh
-          // This ensures element library gets the latest data
-          await loadProject();
-          if (showAnalysisDashboard) {
-            loadAnalysisHistory();
-            loadAnalysisMetrics();
-          }
-
-          // THEN stop auto-refresh (after data is loaded)
-          stopAutoRefresh();
-        });
-
-        socket.on('analysis-error', (data) => {
-          logger.error('Analysis error', data);
-          setIsAnalysisRunning(false);
-          setAnalyzing(false);
-          setCurrentAnalysisStep('Error occurred');
-          
-          // Add log entry
-          const timestamp = new Date().toLocaleTimeString();
-          setAnalysisLogs(prev => [...prev, {
-            timestamp,
-            level: 'ERROR',
-            message: `Analysis failed: ${data.message || 'Unknown error'}`
-          }]);
-          
-          stopAutoRefresh();
-          showError('Analysis Error', data.message || 'Analysis failed');
-        });
-
-        socket.on('disconnect', () => {
-          logger.debug('WebSocket disconnected');
-          stopAutoRefresh();
-        });
-
-        socket.on('connect_error', (error) => {
-          logger.warn('Real-time analysis WebSocket connection failed - live updates will not be available', error.message);
-          // Continue without real-time updates
-        });
-
-      } catch (error) {
-        logger.error('Failed to initialize WebSocket', error);
-      }
-    };
-
-    initializeWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-      stopAutoRefresh();
-    };
-  }, [projectId]);
-
-  // Auto-refresh functionality
-  const startAutoRefresh = () => {
-    // Clear any existing interval
-    stopAutoRefresh();
-    
-    // Start auto-refresh every 3 seconds during analysis
-    autoRefreshIntervalRef.current = setInterval(() => {
-      if (isAnalysisRunning) {
-        logger.debug('Auto-refreshing project data...');
-        loadProject();
-      }
-    }, 3000);
-  };
-
-  const stopAutoRefresh = () => {
-    if (autoRefreshIntervalRef.current) {
-      clearInterval(autoRefreshIntervalRef.current);
-      autoRefreshIntervalRef.current = null;
-    }
-  };
-
-  const loadProject = async () => {
-    try {
-      const response = await projectsAPI.getById(projectId!);
-      setProject(response.data);
-    } catch (error) {
-      logger.error('Failed to load project', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [projectId, showAnalysisDashboard, loadProject]);
 
   const loadTestStats = async () => {
     try {
@@ -349,9 +254,16 @@ export function ProjectDetailsPage() {
   const handleAnalyzeSelected = async () => {
     if (!projectId || selectedUrls.length === 0) return;
 
+    // Show progress modal FIRST and wait for WebSocket connection
+    setShowAnalysisModal(true);
     setAnalyzing(true);
+
+    // Wait for WebSocket to connect before starting analysis
+    // This ensures the modal is ready to receive events
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     try {
-      // Call API with selected URL IDs
+      // Call API with selected URL IDs - now events will be captured
       const result = await analyzeProjectPages(projectId, selectedUrls);
 
       showSuccess('Analysis Complete', `Analyzed ${selectedUrls.length} URL(s)`);
@@ -359,6 +271,8 @@ export function ProjectDetailsPage() {
       // Reload project data
       setTimeout(() => {
         loadProject();
+        // Force element library to re-render with new data
+        setElementsKey(prev => prev + 1);
         setSelectedUrls([]); // Clear selection
       }, 2000);
 
@@ -374,14 +288,22 @@ export function ProjectDetailsPage() {
   const handleAnalyzeProject = async () => {
     if (!projectId) return;
 
+    // Show progress modal FIRST and wait for WebSocket connection
+    setShowAnalysisModal(true);
+
+    // Wait for WebSocket to connect before starting analysis
+    // This ensures the modal is ready to receive events
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     try {
       // Start the analysis - the progress will be tracked via WebSocket
-      // Modal only opens on progress bar double-click
       const result = await analyzeProjectPages(projectId);
 
       // Reload project to show updated elements after analysis
       setTimeout(() => {
         loadProject();
+        // Force element library to re-render with new data
+        setElementsKey(prev => prev + 1);
       }, 2000);
 
     } catch (error) {
@@ -403,6 +325,8 @@ export function ProjectDetailsPage() {
     setShowAnalysisModal(false);
     // Reload project to ensure we have the latest data
     loadProject();
+    // Force element library to re-render with new data
+    setElementsKey(prev => prev + 1);
   };
 
   // NEW: Handle clearing all elements
@@ -433,96 +357,6 @@ export function ProjectDetailsPage() {
       showError('Clear Error', 'Failed to clear project elements');
     } finally {
       setAnalyzing(false);
-    }
-  };
-
-  // NEW: URL Management Functions
-  const handleAddUrl = async () => {
-    if (!projectId || !newUrl.trim()) return;
-    
-    setAddingUrl(true);
-    try {
-      // Validate URL format
-      const urlToAdd = newUrl.trim();
-      if (!urlToAdd.startsWith('http://') && !urlToAdd.startsWith('https://')) {
-        showError('Invalid URL', 'Please enter a valid URL starting with http:// or https://');
-        return;
-      }
-
-      // Check if URL already exists
-      if (project?.urls.some(url => url.url === urlToAdd)) {
-        showError('Duplicate URL', 'This URL is already added to the project');
-        return;
-      }
-
-      // Add URL to project
-      const currentUrls = project?.urls || [];
-      const updatedUrls = [...currentUrls, { url: urlToAdd, title: 'Page', description: 'Project URL' }];
-      
-      await projectsAPI.update(projectId, {
-        urls: updatedUrls
-      });
-
-      setNewUrl('');
-      showSuccess('URL Added', 'URL has been added to the project. Run analysis to discover elements.');
-      loadProject(); // Reload to show updated URLs
-    } catch (error) {
-      logger.error('Failed to add URL', error);
-      showError('Failed to Add URL', 'Please try again.');
-    } finally {
-      setAddingUrl(false);
-    }
-  };
-
-  const handleRemoveUrl = async (urlToRemove: string) => {
-    if (!projectId || !project) return;
-
-    if (!confirm(`Remove URL: ${urlToRemove}?\n\nThis will also remove any elements discovered from this URL.`)) {
-      return;
-    }
-
-    try {
-      const updatedUrls = project.urls.filter(url => url.url !== urlToRemove);
-
-      await projectsAPI.update(projectId, {
-        urls: updatedUrls.map(url => ({ url: url.url, title: url.title, description: url.description }))
-      });
-
-      showSuccess('URL Removed', 'URL has been removed from the project.');
-      loadProject(); // Reload to show updated URLs
-    } catch (error) {
-      logger.error('Failed to remove URL', error);
-      showError('Failed to Remove URL', 'Please try again.');
-    }
-  };
-
-  const handleVerifyUrl = async (urlId: string) => {
-    if (!projectId) return;
-
-    setVerifyingUrl(urlId);
-    try {
-      const organizationId = localStorage.getItem('organizationId');
-      const response = await fetch(`http://localhost:3002/api/projects/urls/${urlId}/verify?organizationId=${organizationId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      const result = await response.json();
-
-      if (result.accessible) {
-        showSuccess('URL Verified', result.message);
-        loadProject(); // Reload to show updated verification status
-      } else {
-        showError('URL Not Accessible', result.message);
-      }
-    } catch (error) {
-      logger.error('Failed to verify URL', error);
-      showError('Verification Failed', 'Could not verify URL. Please try again.');
-    } finally {
-      setVerifyingUrl(null);
     }
   };
 
@@ -764,304 +598,49 @@ export function ProjectDetailsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Empty Project Setup Guide */}
-            {project.urls.length === 0 && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-8 mb-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Get Started</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
-              Your project is ready. Add URLs and start discovering testable elements to build your automated test suite.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
-                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">1</div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Add URLs</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Start by adding the web pages you want to test</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
-                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">2</div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Analyze Pages</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Our AI discovers testable elements automatically</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-blue-100 dark:border-gray-700">
-                <div className="text-blue-600 dark:text-blue-400 text-2xl font-bold mb-3">3</div>
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Build Tests</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Use discovered elements to create automated tests</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setActiveTab('urls')}
-              className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Add Your First URL
-            </button>
-          </div>
-            )}
-
-            {/* Analysis Controls - Only show when project has URLs */}
-            {project.urls.length > 0 && (
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Project Analysis</h3>
-
-                {/* Progress Bar */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Analysis Progress</span>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">{currentAnalysisStep}</span>
-                  </div>
-                  <div
-                    className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 cursor-pointer"
-                    onDoubleClick={() => setShowAnalysisModal(true)}
-                    title="Double-click for details"
-                  >
-                    <div
-                      className={`h-2 rounded-full transition-all duration-500 ${
-                        analyzing && analysisProgressPercent < 100 ? 'bg-blue-500' :
-                        analysisProgressPercent === 100 ? 'bg-green-500' : 'bg-gray-400'
-                      }`}
-                      style={{ width: `${analysisProgressPercent}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Test Execution Stats */}
-                <div className="grid grid-cols-4 gap-3 mt-4">
-                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-green-200 dark:border-green-800">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {testStats?.totalPassed ?? 0}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Passed</div>
-                  </div>
-                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                      {testStats?.totalFailed ?? 0}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Failed</div>
-                  </div>
-                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-orange-200 dark:border-orange-800">
-                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                      {testStats?.regressions ?? 0}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Regressions</div>
-                  </div>
-                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {testStats?.successRate ?? 0}%
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Success Rate</div>
-                  </div>
-                </div>
-                {testStats && testStats.totalExecutions === 0 && (
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
-                    No test executions yet. Run tests to see statistics.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          <ProjectOverviewTab
+            project={project}
+            testStats={testStats}
+            analyzing={analyzing}
+            currentAnalysisStep={currentAnalysisStep}
+            analysisProgressPercent={analysisProgressPercent}
+            onSetActiveTab={setActiveTab}
+            onShowAnalysisModal={() => setShowAnalysisModal(true)}
+          />
         )}
 
         {/* Site Map Tab */}
         {activeTab === 'sitemap' && (
-          <div>
-            {siteMapLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600">Loading site map...</span>
-              </div>
-            ) : siteMapData && siteMapData.nodes.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Visual representation of your project's page structure
-                  </p>
-                  <button
-                    onClick={() => setShowDiscoveryModal(true)}
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    + Discover More Pages
-                  </button>
-                </div>
-                <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
-                  <SiteMapGraph
-                    nodes={siteMapData.nodes}
-                    edges={siteMapData.edges}
-                    className="w-full h-full"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                  </svg>
-                </div>
-                <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Site Map Yet</h4>
-                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                  Discover pages automatically from a root URL to build your site map and visualize page relationships.
-                </p>
-                <button
-                  onClick={() => setShowDiscoveryModal(true)}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Start Page Discovery
-                </button>
-              </div>
-            )}
-          </div>
+          <ProjectSiteMapTab
+            siteMapData={siteMapData}
+            siteMapLoading={siteMapLoading}
+            onShowDiscoveryModal={() => setShowDiscoveryModal(true)}
+          />
         )}
 
         {/* URLs Tab */}
         {activeTab === 'urls' && (
-          <div className="space-y-6">
-            {/* Add URL Form */}
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-              <div className="flex space-x-3">
-                <div className="flex-1">
-                  <input
-                    type="url"
-                    placeholder="https://example.com/page-to-test"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-                  />
-                </div>
-                <button
-                  onClick={handleAddUrl}
-                  disabled={addingUrl || !newUrl.trim()}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {addingUrl ? 'Adding...' : '+ Add URL'}
-                </button>
-                <button
-                  onClick={() => setShowDiscoveryModal(true)}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Auto-Discover
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Add URLs manually or use Auto-Discover to find pages from a root URL.
-              </p>
-            </div>
-
-            {/* URLs List */}
-            {project.urls.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No URLs Added Yet</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Add your first URL or use Auto-Discover to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Selective Analysis Controls */}
-                {project.urls.length > 1 && (
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedUrls.length === project.urls.length}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedUrls(project.urls.map(u => u.id));
-                          } else {
-                            setSelectedUrls([]);
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {selectedUrls.length > 0 ? `${selectedUrls.length} selected` : 'Select all'}
-                      </span>
-                    </div>
-                    {selectedUrls.length > 0 && (
-                      <button
-                        onClick={handleAnalyzeSelected}
-                        disabled={analyzing}
-                        className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
-                      >
-                        {analyzing ? 'Analyzing...' : `Analyze Selected (${selectedUrls.length})`}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* URL Cards */}
-                {project.urls.map((url) => (
-                  <div key={url.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3">
-                        {project.urls.length > 1 && (
-                          <input
-                            type="checkbox"
-                            checked={selectedUrls.includes(url.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUrls([...selectedUrls, url.id]);
-                              } else {
-                                setSelectedUrls(selectedUrls.filter(id => id !== url.id));
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 rounded mt-1"
-                          />
-                        )}
-                        <div>
-                          <a
-                            href={url.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline font-medium"
-                          >
-                            {url.url}
-                          </a>
-                          <div className="flex items-center gap-2 mt-1">
-                            {url.analyzed && (
-                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                                Analyzed
-                              </span>
-                            )}
-                            {url.verified && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                                Verified
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleVerifyUrl(url.id)}
-                          disabled={verifyingUrl === url.id}
-                          className="text-xs text-gray-600 hover:text-blue-600 px-2 py-1"
-                        >
-                          {verifyingUrl === url.id ? 'Verifying...' : 'Verify'}
-                        </button>
-                        <button
-                          onClick={() => handleRemoveUrl(url.url)}
-                          className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ProjectUrlsTab
+            project={project}
+            newUrl={newUrl}
+            setNewUrl={setNewUrl}
+            addingUrl={addingUrl}
+            verifyingUrl={verifyingUrl}
+            selectedUrls={selectedUrls}
+            setSelectedUrls={setSelectedUrls}
+            analyzing={analyzing}
+            onAddUrl={handleAddUrl}
+            onRemoveUrl={handleRemoveUrl}
+            onVerifyUrl={handleVerifyUrl}
+            onAnalyzeSelected={handleAnalyzeSelected}
+            onShowDiscoveryModal={() => setShowDiscoveryModal(true)}
+          />
         )}
 
         {/* Elements Tab */}
         {activeTab === 'elements' && (
           <ElementLibraryPanel
+            key={elementsKey}
             elements={project.elements}
             onSelectElement={(element) => logger.debug('Element selected', element)}
             selectedElementType={selectedElementType}
@@ -1074,76 +653,40 @@ export function ProjectDetailsPage() {
             isLoading={false}
             setShowLivePicker={setShowLivePicker}
             onAnalyzePages={handleAnalyzeProject}
+            onAnalyzeSelected={async (urlIds) => {
+              // Update selectedUrls state and trigger analysis
+              setSelectedUrls(urlIds);
+              // Show progress modal and wait for WebSocket connection
+              setShowAnalysisModal(true);
+              setAnalyzing(true);
+              await new Promise(resolve => setTimeout(resolve, 500));
+              try {
+                await analyzeProjectPages(projectId!, urlIds);
+                setTimeout(() => {
+                  loadProject();
+                  setElementsKey(prev => prev + 1);
+                  setSelectedUrls([]);
+                }, 2000);
+              } catch (error: any) {
+                logger.error('Analysis error', error);
+              } finally {
+                setAnalyzing(false);
+              }
+            }}
             onClearElements={handleClearElements}
+            projectUrls={project.urls}
+            isAnalyzing={analyzing}
           />
         )}
 
         {/* Auth Tab */}
         {activeTab === 'auth' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Authentication Flows</h3>
-                <p className="text-sm text-gray-600">Configure login credentials for testing authenticated pages</p>
-              </div>
-              <button
-                onClick={handleAddAuthentication}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                + Add Authentication
-              </button>
-            </div>
-
-            {authFlows.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Authentication Configured</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                  Add authentication to test pages that require login credentials
-                </p>
-                <button
-                  onClick={handleAddAuthentication}
-                  className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Setup Authentication
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {authFlows.map((authFlow) => (
-                  <div key={authFlow.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{authFlow.name}</div>
-                        <div className="text-sm text-gray-500">{authFlow.loginUrl}</div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleEditAuthentication(authFlow)}
-                          className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAuthentication(authFlow.id, authFlow.name)}
-                          className="text-sm text-red-600 hover:text-red-800 px-3 py-1"
-                        >
-                          Delete
-                        </button>
-                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                          Active
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ProjectAuthTab
+            authFlows={authFlows}
+            onAddAuthentication={handleAddAuthentication}
+            onEditAuthentication={handleEditAuthentication}
+            onDeleteAuthentication={handleDeleteAuthentication}
+          />
         )}
       </div>
 
@@ -1250,6 +793,10 @@ export function ProjectDetailsPage() {
       <DiscoveryModal
         isOpen={showDiscoveryModal}
         onClose={() => setShowDiscoveryModal(false)}
+        onMinimize={() => {
+          minimizeDiscovery();
+          setShowDiscoveryModal(false);
+        }}
         projectId={projectId || ''}
         initialUrl={project.urls[0]?.url || ''}
         onDiscoveryComplete={(selectedUrlIds) => {

@@ -260,4 +260,97 @@ export class ExecutionProgressGateway implements OnGatewayConnection, OnGatewayD
       },
     });
   }
+
+  // ============================================================================
+  // DIRECT EVENT METHODS (for LiveExecutionViewer frontend compatibility)
+  // These emit specific event names that the frontend listens for
+  // ============================================================================
+
+  /**
+   * Emit execution-queued event to frontend
+   */
+  sendExecutionQueued(executionId: string, position: number, jobId?: string) {
+    console.log(`📡 [LIVE] Execution queued: ${executionId}, position: ${position}`);
+    this.server.to(`execution-${executionId}`).emit('execution-queued', {
+      jobId: jobId || executionId,
+      position
+    });
+  }
+
+  /**
+   * Emit execution-started event to frontend
+   */
+  sendExecutionStartedEvent(executionId: string, totalSteps: number, testName?: string) {
+    console.log(`📡 [LIVE] Execution started: ${executionId}, totalSteps: ${totalSteps}`);
+    this.server.to(`execution-${executionId}`).emit('execution-started', {
+      jobId: executionId,
+      executionId,
+      totalSteps,
+      testName
+    });
+  }
+
+  /**
+   * Emit step-started event to frontend (LiveExecutionViewer compatible)
+   */
+  sendStepStartedEvent(executionId: string, stepIndex: number, step: any) {
+    console.log(`📡 [LIVE] Step ${stepIndex + 1} started: ${step?.description || step?.type || 'unknown'}`);
+    this.server.to(`execution-${executionId}`).emit('step-started', {
+      stepIndex,
+      step: {
+        id: step?.id || `step-${stepIndex}`,
+        type: step?.type || 'unknown',
+        selector: step?.selector || '',
+        value: step?.value,
+        description: step?.description || `Step ${stepIndex + 1}`
+      }
+    });
+  }
+
+  /**
+   * Emit step-completed event to frontend (LiveExecutionViewer compatible)
+   */
+  sendStepCompletedEvent(executionId: string, stepIndex: number, status: 'passed' | 'failed', screenshot?: string, error?: string, duration?: number) {
+    console.log(`📡 [LIVE] Step ${stepIndex + 1} completed: ${status}`);
+    this.server.to(`execution-${executionId}`).emit('step-completed', {
+      stepIndex,
+      status,
+      screenshot,
+      error,
+      duration
+    });
+  }
+
+  /**
+   * Emit viewport-update event to frontend (for live browser view)
+   */
+  sendViewportUpdate(executionId: string, screenshot: string, viewport?: { width: number; height: number; url: string }) {
+    this.server.to(`execution-${executionId}`).emit('viewport-update', {
+      screenshot,
+      viewport
+    });
+  }
+
+  /**
+   * Emit execution-completed event to frontend
+   */
+  sendExecutionCompletedEvent(executionId: string, status: 'passed' | 'failed', duration: number, results?: any[]) {
+    console.log(`📡 [LIVE] Execution completed: ${executionId}, status: ${status}`);
+    this.server.to(`execution-${executionId}`).emit('execution-completed', {
+      status,
+      duration,
+      results: results || []
+    });
+  }
+
+  /**
+   * Emit execution-failed event to frontend
+   */
+  sendExecutionFailedEvent(executionId: string, error: string, duration?: number) {
+    console.log(`📡 [LIVE] Execution failed: ${executionId}, error: ${error}`);
+    this.server.to(`execution-${executionId}`).emit('execution-failed', {
+      error,
+      duration
+    });
+  }
 }

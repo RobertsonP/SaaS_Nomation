@@ -49,7 +49,7 @@ interface Project {
 }
 
 export function TestSuitesPage() {
-  const { id: projectId } = useParams<{ id: string }>()
+  const { projectId } = useParams<{ projectId: string }>()
   const { showSuccess, showError } = useNotification()
   
   // Type guard to check if item is TestSuiteTest

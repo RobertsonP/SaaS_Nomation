@@ -8,7 +8,10 @@
     "build": "nest build",
     "test": "npx jest",
     "test:watch": "jest --watch",
-    "test:api": "jest --testPathPattern=test/api"
+    "test:api": "jest --testPathPattern=test/api",
+    "e2e": "playwright test",
+    "e2e:debug": "playwright test --debug",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",

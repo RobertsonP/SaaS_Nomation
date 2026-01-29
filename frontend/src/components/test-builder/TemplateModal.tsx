@@ -78,17 +78,17 @@ export function TemplateModal({ onSelect, onClose }: TemplateModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-900">Choose a Template</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Choose a Template</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl">×</button>
         </div>
 
-        <div className="p-4 bg-blue-50 border-b border-blue-100 flex gap-2">
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex gap-2">
           <input
             type="url"
             placeholder="Paste page URL to auto-detect template..."
-            className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             value={detectUrl}
             onChange={(e) => setDetectUrl(e.target.value)}
           />
@@ -111,21 +111,21 @@ export function TemplateModal({ onSelect, onClose }: TemplateModalProps) {
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {templates.map((template, index) => (
-                <div 
+                <div
                   key={index}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md cursor-pointer transition-all"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md cursor-pointer transition-all bg-white dark:bg-gray-800"
                   onClick={() => {
                     onSelect(template.steps);
                     onClose();
                   }}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-lg text-gray-900">{template.name}</h3>
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{template.name}</h3>
+                    <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full">
                       {template.steps.length} steps
                     </span>
                   </div>
-                  <p className="text-gray-600 text-sm mb-3">{template.description}</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{template.description}</p>
                   
                   <div className="bg-gray-50 dark:bg-gray-800 rounded p-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
                     {template.steps.slice(0, 3).map((step, i) => (
