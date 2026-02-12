@@ -6,30 +6,20 @@ import { QualityIndicator } from './QualityIndicator';
 interface ElementPreviewCardProps {
   element: ProjectElement;
   onSelectElement: (element: ProjectElement) => void;
-  onRequestScreenshot?: (elementId: string, selector: string, url: string) => Promise<string>;
   isLiveMode?: boolean;
   onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
-  // Phase 2: Enhanced preview options
-  previewMode?: 'css' | 'screenshot' | 'auto';
   showQuality?: boolean;
   compact?: boolean;
 }
 
-export function ElementPreviewCard({ 
-  element, 
-  onSelectElement, 
-  onRequestScreenshot,
+export function ElementPreviewCard({
+  element,
+  onSelectElement,
   isLiveMode,
   onPerformAction,
-  // Phase 2: New props with defaults
-  previewMode = 'auto',
   showQuality = true,
   compact = false
 }: ElementPreviewCardProps) {
-  const [screenshot, setScreenshot] = useState<string | null>(
-    element.screenshot || null
-  );
-  const [loadingScreenshot, setLoadingScreenshot] = useState(false);
   const [showFullSelector, setShowFullSelector] = useState(false);
 
   const getElementTypeColor = (type: string) => {
@@ -39,102 +29,59 @@ export function ElementPreviewCard({
       case 'link': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'form': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'table': return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'text': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const getElementIcon = (type: string) => {
-    switch (type) {
-      case 'button': return '🔘';
-      case 'input': return '📝';
-      case 'link': return '🔗';
-      case 'form': return '📋';
-      case 'navigation': return '🧭';
-      case 'text': return '📄';
-      default: return '📦';
-    }
-  };
-
   const getDiscoveryStateBadge = (discoveryState?: string) => {
     if (!discoveryState) return null;
-    
-    const stateConfig = {
-      static: { color: 'bg-gray-100 text-gray-800', icon: '📄', label: 'Static' },
-      after_login: { color: 'bg-blue-100 text-blue-800', icon: '🔐', label: 'After Login' },
-      login_page: { color: 'bg-indigo-100 text-indigo-800', icon: '🔑', label: 'Login Page' },
-      after_interaction: { color: 'bg-green-100 text-green-800', icon: '👆', label: 'Interactive' },
-      modal: { color: 'bg-purple-100 text-purple-800', icon: '🪟', label: 'Modal' },
-      hover: { color: 'bg-yellow-100 text-yellow-800', icon: '🎯', label: 'Hover' }
+
+    const stateConfig: Record<string, { color: string; label: string }> = {
+      static: { color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', label: 'Static' },
+      after_login: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300', label: 'After Login' },
+      login_page: { color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300', label: 'Login Page' },
+      after_interaction: { color: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300', label: 'Interactive' },
+      modal: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300', label: 'Modal' },
+      hover: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300', label: 'Hover' },
     };
-    
-    const config = stateConfig[discoveryState as keyof typeof stateConfig];
+
+    const config = stateConfig[discoveryState];
     if (!config) return null;
-    
+
     return (
-      <span className={`px-1 py-0.5 text-xs rounded whitespace-nowrap ${config.color}`}>
-        {config.icon} {config.label}
+      <span className={`px-1.5 py-0.5 text-xs rounded ${config.color}`}>
+        {config.label}
       </span>
     );
   };
 
-  const handleScreenshotRequest = async () => {
-    if (!onRequestScreenshot || !element.sourceUrl) return;
-    
-    setLoadingScreenshot(true);
-    try {
-      const screenshotBase64 = await onRequestScreenshot(
-        element.id,
-        element.selector,
-        element.sourceUrl.url
-      );
-      setScreenshot(screenshotBase64);
-    } catch (error) {
-      console.error('Failed to capture screenshot:', error);
-    } finally {
-      setLoadingScreenshot(false);
-    }
-  };
-
   const handleLiveAction = (action: string) => {
     if (!onPerformAction) return;
-    
-    const actionMap = {
+
+    const actionMap: Record<string, { type: string; selector: string; value?: string }> = {
       click: { type: 'click', selector: element.selector },
       hover: { type: 'hover', selector: element.selector },
-      type: { type: 'type', selector: element.selector, value: 'test input' }
+      type: { type: 'type', selector: element.selector, value: 'test input' },
     };
-    
-    const actionConfig = actionMap[action as keyof typeof actionMap];
+
+    const actionConfig = actionMap[action];
     if (actionConfig) {
       onPerformAction(actionConfig);
     }
   };
 
   const attributes = element.attributes as any;
-  const reliabilityScore = attributes?.selectorReliabilityScore || 0;
   const validatedSelectors = attributes?.validatedSelectors || [];
   const isShared = attributes?.isSharedElement;
-  
-  // Phase 2: Determine which preview method to use
-  const shouldUseCSSPreview = () => {
-    if (previewMode === 'css') return true;
-    if (previewMode === 'screenshot') return false;
-    // Auto mode: use CSS if available, fallback to screenshot
-    return !!(element.attributes?.cssInfo?.isVisible !== false);
-  };
-  
-  const useCSSPreview = shouldUseCSSPreview();
-  
-  // Debug logs removed to reduce console spam
 
   return (
-    <div className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-md transition-all duration-200">
       {/* Visual Preview Section */}
       <div className="relative">
-        {useCSSPreview && element.attributes?.cssInfo ? (
-          // Phase 2: CSS-first preview with quality integration
-          <div className="bg-gray-50 dark:bg-gray-800 p-2">
+        {element.attributes?.cssInfo ? (
+          <div className="bg-gray-50 dark:bg-gray-900 p-2">
             <CSSPreviewRenderer
               element={element}
               mode={compact ? 'compact' : 'detailed'}
@@ -142,79 +89,31 @@ export function ElementPreviewCard({
               interactive={false}
               className="max-h-32 mx-auto"
             />
-            <div className="text-xs text-gray-500 text-center mt-1">
-              CSS Preview {element.attributes?.cssInfo?.isVisible === false ? '(Hidden Element)' : ''}
-            </div>
-          </div>
-        ) : screenshot ? (
-          // Fallback: Screenshot preview
-          <div className="bg-gray-50 dark:bg-gray-800 p-2">
-            <img 
-              src={`data:image/png;base64,${screenshot}`}
-              alt={`Preview of ${element.description}`}
-              className="max-w-full h-auto max-h-32 mx-auto rounded border shadow-sm"
-              style={{ imageRendering: 'crisp-edges' }}
-            />
-            <div className="text-xs text-gray-500 text-center mt-1">
-              Screenshot Preview
-            </div>
           </div>
         ) : (
-          // No preview available - show icon and capture option
-          <div className="bg-gray-100 p-4 flex flex-col items-center justify-center min-h-24">
-            <div className="text-2xl mb-1">{getElementIcon(element.elementType)}</div>
-            <div className="text-xs text-gray-500 text-center mb-2">No preview available</div>
-            <button
-              onClick={handleScreenshotRequest}
-              disabled={loadingScreenshot || !onRequestScreenshot}
-              className="px-3 py-1.5 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={!onRequestScreenshot ? 'Screenshot capture not available' : 'Capture element preview from live page'}
-            >
-              {loadingScreenshot ? (
-                <>
-                  <span className="inline-block animate-spin mr-1">⏳</span>
-                  Capturing...
-                </>
-              ) : (
-                <>
-                  📸 Capture Preview
-                </>
-              )}
-            </button>
-            {onRequestScreenshot && (
-              <div className="text-xs text-gray-400 text-center mt-1">
-                Click to capture live element screenshot
-              </div>
-            )}
+          <div className="bg-gray-50 dark:bg-gray-900 p-4 flex flex-col items-center justify-center min-h-16">
+            <div className="text-sm text-gray-400 dark:text-gray-500">
+              {element.elementType || 'Element'}
+            </div>
           </div>
         )}
-        
+
         {/* Quality Score Indicator */}
         <div className="absolute top-2 right-2 z-10 max-w-[calc(100%-1rem)]">
-          {showQuality && element.overallQuality !== undefined ? (
-            // Phase 2: Use quality indicator
-            <QualityIndicator 
+          {showQuality && element.overallQuality !== undefined && (
+            <QualityIndicator
               element={element}
               mode="badge"
               className="text-xs"
             />
-          ) : (
-            // Fallback: Legacy reliability score
-            <div className={`px-1 py-0.5 text-xs rounded whitespace-nowrap ${
-              reliabilityScore > 0.8 ? 'bg-green-100 text-green-800' :
-              reliabilityScore > 0.5 ? 'bg-yellow-100 text-yellow-800' :
-              'bg-red-100 text-red-800'
-            }`}>
-              {Math.round(reliabilityScore * 100)}%
-            </div>
           )}
         </div>
 
         {/* Shared Element Indicator */}
         {isShared && (
           <div className="absolute top-2 left-2 z-10">
-            <span className="px-1 py-0.5 text-xs bg-purple-100 text-purple-800 rounded whitespace-nowrap">
-              🔗 Shared
+            <span className="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 rounded">
+              Shared
             </span>
           </div>
         )}
@@ -222,71 +121,49 @@ export function ElementPreviewCard({
 
       {/* Element Information */}
       <div className="p-3">
-        {/* Header with Element Type and Confidence */}
+        {/* Header with Element Type */}
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <span className={`px-2 py-1 text-xs rounded border ${getElementTypeColor(element.elementType)}`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2 py-0.5 text-xs rounded border ${getElementTypeColor(element.elementType)}`}>
               {element.elementType}
             </span>
-            <span className="text-xs text-gray-500">
-              {Math.round(element.confidence * 100)}%
-            </span>
+            {attributes?.discoveryState && getDiscoveryStateBadge(attributes.discoveryState)}
           </div>
         </div>
 
         {/* Description */}
-        <h3 
-          className="font-medium text-sm mb-2 cursor-pointer hover:text-blue-600 transition-colors"
+        <h3
+          className="font-medium text-sm mb-2 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-gray-900 dark:text-white"
           onClick={() => onSelectElement(element)}
           title="Click to use in test"
         >
           {element.description}
         </h3>
 
-        {/* Discovery State Badge */}
-        {attributes?.discoveryState && (
-          <div className="mb-2">
-            {getDiscoveryStateBadge(attributes.discoveryState)}
-          </div>
-        )}
-
         {/* Selector Information */}
         <div className="space-y-1">
           <div className="text-xs">
-            <span className="text-gray-500">Primary:</span>
-            <code 
-              className="ml-1 bg-gray-100 px-1 rounded text-xs font-mono cursor-pointer hover:bg-gray-200"
+            <code
+              className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
               onClick={() => setShowFullSelector(!showFullSelector)}
-              title="Click to toggle full view"
+              title="Click to toggle full selector"
             >
-              {showFullSelector ? element.selector : 
-               (element.selector.length > 30 ? element.selector.substring(0, 30) + '...' : element.selector)}
+              {showFullSelector ? element.selector :
+               (element.selector.length > 35 ? element.selector.substring(0, 35) + '...' : element.selector)}
             </code>
           </div>
 
-          {/* Validated Selectors Count */}
           {validatedSelectors.length > 1 && (
-            <div className="text-xs text-gray-500">
-              +{validatedSelectors.length - 1} fallback selector{validatedSelectors.length > 2 ? 's' : ''}
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              +{validatedSelectors.length - 1} alternative{validatedSelectors.length > 2 ? 's' : ''}
             </div>
           )}
         </div>
 
         {/* Element Text */}
         {attributes?.text && (
-          <div className="text-xs text-gray-500 mt-2 truncate">
-            Text: "{attributes.text}"
-          </div>
-        )}
-
-        {/* Element Properties */}
-        {(attributes?.id || attributes?.className || attributes?.dataTestId) && (
-          <div className="text-xs text-gray-400 mt-2 space-y-1">
-            {attributes.id && <div>ID: {attributes.id}</div>}
-            {attributes.dataTestId && <div>Test ID: {attributes.dataTestId}</div>}
-            {attributes.className && (
-              <div>Classes: {(attributes.className || '').toString().split(' ').slice(0, 3).join(' ')}</div>
-            )}
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 truncate">
+            "{attributes.text}"
           </div>
         )}
 
@@ -299,18 +176,6 @@ export function ElementPreviewCard({
             Use in Test
           </button>
 
-          {/* CRITICAL FIX: Always show preview button elegantly */}
-          {onRequestScreenshot && (
-            <button
-              onClick={handleScreenshotRequest}
-              disabled={loadingScreenshot}
-              className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
-              title={screenshot ? 'Refresh element preview' : 'Capture element preview'}
-            >
-              {loadingScreenshot ? 'Capturing...' : screenshot ? '🔄 Refresh' : '📸 Preview'}
-            </button>
-          )}
-
           {/* Live Mode Actions */}
           {isLiveMode && onPerformAction && (
             <>
@@ -319,22 +184,22 @@ export function ElementPreviewCard({
                 className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
                 title="Click this element in live browser"
               >
-                Live Click
+                Click
               </button>
               <button
                 onClick={() => handleLiveAction('hover')}
                 className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                title="Hover over this element in live browser"
+                title="Hover over this element"
               >
-                Live Hover
+                Hover
               </button>
               {element.elementType === 'input' && (
                 <button
                   onClick={() => handleLiveAction('type')}
                   className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                  title="Type in this element in live browser"
+                  title="Type in this element"
                 >
-                  Live Type
+                  Type
                 </button>
               )}
             </>

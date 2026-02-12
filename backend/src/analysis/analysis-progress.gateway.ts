@@ -69,15 +69,8 @@ export class AnalysisProgressGateway implements OnGatewayConnection, OnGatewayDi
   // Send progress update to all clients watching this project
   sendProgressUpdate(event: AnalysisProgressEvent) {
     console.log(`📡 Broadcasting progress: ${event.step} - ${event.message}`);
-    
-    // Send to all clients watching this project
-    this.clientProjectMap.forEach((watchedProjectId, clientId) => {
-      if (watchedProjectId === event.projectId) {
-        this.server.to(clientId).emit('analysis-progress', event);
-      }
-    });
-    
-    // Also send to project-specific room
+
+    // Send to project-specific room (clients join on subscribe)
     this.server.to(`project-${event.projectId}`).emit('analysis-progress', event);
   }
 

@@ -19,11 +19,13 @@ export function CSSPreviewRenderer({
   className = ''
 }: CSSPreviewRendererProps) {
   const cssInfo = element.attributes?.cssInfo;
-  
+  const resolvedColors = element.attributes?.resolvedColors;
+  const visualDescription = element.attributes?.visualDescription;
+
   // Enhanced CSS data validation - be more permissive to show visual previews
   const hasUsableCSSData = cssInfo && (
     cssInfo.backgroundColor ||
-    cssInfo.color || 
+    cssInfo.color ||
     cssInfo.border ||
     cssInfo.fontSize ||
     cssInfo.fontFamily ||
@@ -44,24 +46,31 @@ export function CSSPreviewRenderer({
     );
   }
 
-  // Generate preview styles based on CSS data
-  const previewStyle = generatePreviewStyle(cssInfo, mode);
+  // Generate preview styles based on CSS data, preferring resolvedColors
+  const previewStyle = generatePreviewStyle(cssInfo, mode, resolvedColors);
   const containerStyle = generateContainerStyle(mode);
 
   return (
-    <div 
+    <div
       className={`css-preview-container ${className}`}
       style={containerStyle}
       onClick={() => interactive && onClick?.(element)}
     >
       {/* Main preview element */}
-      <div 
+      <div
         className="css-preview-element"
         style={previewStyle}
-        title={`${element.elementType}: ${element.description}`}
+        title={visualDescription || `${element.elementType}: ${element.description}`}
       >
         {renderElementContent(element, cssInfo, mode)}
       </div>
+
+      {/* Visual description subtitle */}
+      {visualDescription && mode === 'detailed' && (
+        <div className="text-xs text-gray-500 italic truncate mt-1" style={{ maxWidth: '200px' }}>
+          {visualDescription}
+        </div>
+      )}
       
       {/* Quality indicators */}
       {showQuality && element.overallQuality !== undefined && (
@@ -82,7 +91,11 @@ export function CSSPreviewRenderer({
 }
 
 // Generate CSS styles for preview element
-function generatePreviewStyle(cssInfo: CSSProperties, mode: string): React.CSSProperties {
+function generatePreviewStyle(
+  cssInfo: CSSProperties,
+  mode: string,
+  resolvedColors?: { backgroundColor: string; color: string; borderColor?: string }
+): React.CSSProperties {
   // Enhanced color handling with robust fallbacks
   const getValidColor = (color: string | undefined, fallback: string) => {
     if (!color || 
@@ -137,9 +150,13 @@ function generatePreviewStyle(cssInfo: CSSProperties, mode: string): React.CSSPr
   };
 
   const baseStyle: React.CSSProperties = {
-    // Core visual properties with robust fallbacks
-    backgroundColor: getValidBackground(cssInfo.backgroundColor),
-    color: getValidColor(cssInfo.color, '#212529'),
+    // Core visual properties — prefer resolvedColors (walked up parent chain, never transparent)
+    backgroundColor: resolvedColors
+      ? getValidBackground(resolvedColors.backgroundColor)
+      : getValidBackground(cssInfo.backgroundColor),
+    color: resolvedColors
+      ? getValidColor(resolvedColors.color, '#212529')
+      : getValidColor(cssInfo.color, '#212529'),
     fontSize: cssInfo.fontSize || '14px',
     fontFamily: cssInfo.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontWeight: cssInfo.fontWeight || 'normal',
@@ -252,125 +269,187 @@ function generateContainerStyle(mode: string): React.CSSProperties {
   }
 }
 
-// Render element content based on type and CSS data
-function renderElementContent(element: ProjectElement, _cssInfo: CSSProperties, mode: string): React.ReactNode {
+// SVG icon components for professional appearance
+function TypeIcon({ type, size = 14 }: { type: string; size?: number }) {
+  const s = size;
+  switch (type) {
+    case 'button':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="8" rx="2" /><line x1="5" y1="8" x2="11" y2="8" /></svg>;
+    case 'input':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="4" width="14" height="8" rx="1" /><line x1="4" y1="6" x2="4" y2="10" strokeLinecap="round" /></svg>;
+    case 'link': case 'a':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 10L10 6M10 6H7M10 6V9" strokeLinecap="round" strokeLinejoin="round" /><rect x="2" y="2" width="12" height="12" rx="2" /></svg>;
+    case 'form':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><line x1="5" y1="5" x2="11" y2="5" /><line x1="5" y1="8" x2="9" y2="8" /><line x1="5" y1="11" x2="8" y2="11" /></svg>;
+    case 'navigation': case 'nav':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="3" y1="4" x2="13" y2="4" strokeLinecap="round" /><line x1="3" y1="8" x2="13" y2="8" strokeLinecap="round" /><line x1="3" y1="12" x2="13" y2="12" strokeLinecap="round" /></svg>;
+    case 'table':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="1" /><line x1="2" y1="6" x2="14" y2="6" /><line x1="2" y1="10" x2="14" y2="10" /><line x1="6" y1="2" x2="6" y2="14" /><line x1="10" y1="2" x2="10" y2="14" /></svg>;
+    case 'select': case 'dropdown':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="12" height="10" rx="1" /><path d="M6 8L8 10L10 8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+    case 'checkbox':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="10" height="10" rx="1" /><path d="M5 8L7 10L11 6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+    case 'radio':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg>;
+    case 'img': case 'image':
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="12" height="10" rx="1" /><circle cx="5.5" cy="6.5" r="1" fill="currentColor" /><path d="M2 11L5 8L8 10L11 7L14 10" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+    default:
+      return <svg width={s} height={s} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5" /></svg>;
+  }
+}
+
+// Render element content based on type and CSS data, using actual captured colors
+function renderElementContent(element: ProjectElement, cssInfo: CSSProperties, mode: string): React.ReactNode {
   const text = element.attributes?.text || '';
   const placeholder = element.attributes?.type === 'input' ? (element.attributes as any)?.placeholder : '';
   const elementType = element.elementType?.toLowerCase();
-  
-  // Enhanced content rendering with icons and better representation
+  const resolvedColors = element.attributes?.resolvedColors;
+
+  // Helper to get actual element color
+  const getColor = () => resolvedColors?.color || cssInfo?.color || undefined;
+  const getBg = () => resolvedColors?.backgroundColor || cssInfo?.backgroundColor || undefined;
+
   switch (elementType) {
-    case 'button':
+    case 'button': {
+      const btnBg = getBg();
+      const btnColor = getColor();
+      const btnRadius = cssInfo?.borderRadius || '4px';
+      const btnPadding = cssInfo?.padding || '4px 10px';
       return (
-        <span className="flex items-center gap-1">
-          <span>🔘</span>
+        <span className="flex items-center gap-1.5" style={{
+          backgroundColor: btnBg,
+          color: btnColor,
+          borderRadius: btnRadius,
+          padding: btnPadding,
+          fontSize: cssInfo?.fontSize,
+          fontWeight: cssInfo?.fontWeight || '500',
+        }}>
+          <TypeIcon type="button" />
           <span>{text || element.description || 'Button'}</span>
         </span>
       );
-    
-    case 'input':
+    }
+
+    case 'input': {
       const inputType = (element.attributes as any)?.type || 'text';
-      const inputIcon = inputType === 'password' ? '🔒' : 
-                       inputType === 'email' ? '📧' : 
-                       inputType === 'search' ? '🔍' : '📝';
       return (
-        <span className="flex items-center gap-1" style={{ color: placeholder ? '#6B7280' : 'inherit', fontStyle: placeholder ? 'italic' : 'normal' }}>
-          <span>{inputIcon}</span>
+        <span className="flex items-center gap-1.5" style={{
+          color: placeholder ? '#9CA3AF' : getColor(),
+          fontStyle: placeholder ? 'italic' : 'normal',
+          fontSize: cssInfo?.fontSize,
+          fontFamily: cssInfo?.fontFamily,
+        }}>
+          <TypeIcon type="input" />
           <span>{placeholder || text || `${inputType} input`}</span>
         </span>
       );
-    
+    }
+
     case 'link':
-    case 'a':
+    case 'a': {
+      const linkColor = getColor() || '#3B82F6';
+      const linkDecoration = cssInfo?.textDecoration || 'underline';
       return (
-        <span className="flex items-center gap-1" style={{ color: '#3B82F6', textDecoration: 'underline' }}>
-          <span>🔗</span>
+        <span className="flex items-center gap-1.5" style={{
+          color: linkColor,
+          textDecoration: linkDecoration,
+          fontSize: cssInfo?.fontSize,
+          fontFamily: cssInfo?.fontFamily,
+        }}>
+          <TypeIcon type="link" />
           <span>{text || element.description || 'Link'}</span>
         </span>
       );
-    
+    }
+
     case 'form':
       return (
-        <span className="flex items-center gap-1">
-          <span>📋</span>
+        <span className="flex items-center gap-1.5" style={{ color: getColor(), fontSize: cssInfo?.fontSize }}>
+          <TypeIcon type="form" />
           <span>{text || element.description || 'Form'}</span>
         </span>
       );
-    
+
     case 'navigation':
     case 'nav':
       return (
-        <span className="flex items-center gap-1">
-          <span>🧭</span>
+        <span className="flex items-center gap-1.5" style={{ color: getColor(), fontSize: cssInfo?.fontSize }}>
+          <TypeIcon type="navigation" />
           <span>{text || element.description || 'Navigation'}</span>
         </span>
       );
-    
+
+    case 'table':
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor(), fontSize: cssInfo?.fontSize }}>
+          <TypeIcon type="table" />
+          <span>{text || element.description || 'Table'}</span>
+        </span>
+      );
+
     case 'text':
     case 'span':
     case 'p':
-    case 'div':
-      if (text && text.length > 0) {
-        const truncatedText = mode === 'compact' && text.length > 20 ? text.substring(0, 20) + '...' : text;
-        return (
-          <span className="flex items-center gap-1">
-            <span>📄</span>
-            <span>{truncatedText}</span>
-          </span>
-        );
-      }
+    case 'div': {
+      const displayText = text || element.description || 'Text element';
+      const truncatedText = mode === 'compact' && displayText.length > 20 ? displayText.substring(0, 20) + '...' : displayText;
       return (
-        <span className="flex items-center gap-1">
-          <span>📄</span>
-          <span>{element.description || 'Text element'}</span>
-        </span>
-      );
-    
-    case 'img':
-    case 'image':
-      return (
-        <span className="flex items-center gap-1">
-          <span>🖼️</span>
-          <span>{element.description || 'Image'}</span>
-        </span>
-      );
-    
-    case 'select':
-    case 'dropdown':
-      return (
-        <span className="flex items-center gap-1">
-          <span>📋</span>
-          <span>{text || element.description || 'Dropdown'}</span>
-          <span style={{ fontSize: '0.8em' }}>▼</span>
-        </span>
-      );
-    
-    case 'checkbox':
-      return (
-        <span className="flex items-center gap-1">
-          <span>☐</span>
-          <span>{text || element.description || 'Checkbox'}</span>
-        </span>
-      );
-    
-    case 'radio':
-      return (
-        <span className="flex items-center gap-1">
-          <span>◯</span>
-          <span>{text || element.description || 'Radio button'}</span>
-        </span>
-      );
-    
-    default:
-      // Fallback with better formatting
-      const displayText = text || element.description || elementType || 'Element';
-      const truncatedText = mode === 'compact' && displayText.length > 25 ? displayText.substring(0, 25) + '...' : displayText;
-      return (
-        <span className="flex items-center gap-1">
-          <span>⚪</span>
+        <span className="flex items-center gap-1.5" style={{
+          color: getColor(),
+          fontSize: cssInfo?.fontSize,
+          fontWeight: cssInfo?.fontWeight,
+          fontFamily: cssInfo?.fontFamily,
+        }}>
           <span>{truncatedText}</span>
         </span>
       );
+    }
+
+    case 'img':
+    case 'image':
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor() }}>
+          <TypeIcon type="image" />
+          <span>{element.description || 'Image'}</span>
+        </span>
+      );
+
+    case 'select':
+    case 'dropdown':
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor(), fontSize: cssInfo?.fontSize }}>
+          <TypeIcon type="select" />
+          <span>{text || element.description || 'Dropdown'}</span>
+          <span style={{ fontSize: '0.7em', opacity: 0.6 }}>&#9660;</span>
+        </span>
+      );
+
+    case 'checkbox':
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor() }}>
+          <TypeIcon type="checkbox" />
+          <span>{text || element.description || 'Checkbox'}</span>
+        </span>
+      );
+
+    case 'radio':
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor() }}>
+          <TypeIcon type="radio" />
+          <span>{text || element.description || 'Radio button'}</span>
+        </span>
+      );
+
+    default: {
+      const displayText = text || element.description || elementType || 'Element';
+      const truncatedText = mode === 'compact' && displayText.length > 25 ? displayText.substring(0, 25) + '...' : displayText;
+      return (
+        <span className="flex items-center gap-1.5" style={{ color: getColor() }}>
+          <TypeIcon type={elementType || 'default'} />
+          <span>{truncatedText}</span>
+        </span>
+      );
+    }
   }
 }
 
@@ -456,18 +535,7 @@ function CSSPreviewFallback({ element, onClick, className, mode = 'detailed' }: 
   mode?: string;
 }) {
   const getElementIcon = (elementType: string) => {
-    switch (elementType?.toLowerCase()) {
-      case 'button': return '🔘';
-      case 'input': return '📝';
-      case 'link': case 'a': return '🔗';
-      case 'form': return '📋';
-      case 'navigation': case 'nav': return '🧭';
-      case 'img': case 'image': return '🖼️';
-      case 'select': case 'dropdown': return '📋';
-      case 'checkbox': return '☐';
-      case 'radio': return '◯';
-      default: return '⚪';
-    }
+    return <TypeIcon type={elementType?.toLowerCase() || 'default'} size={16} />;
   };
 
   // Mode-specific dimensions and styling
@@ -548,7 +616,7 @@ function CSSPreviewFallback({ element, onClick, className, mode = 'detailed' }: 
             flexShrink: 0
           }}
         >
-          <span style={{ fontSize: mode === 'compact' ? '12px' : '14px' }}>
+          <span style={{ display: 'flex', alignItems: 'center' }}>
             {getElementIcon(element.elementType)}
           </span>
           {mode !== 'compact' && (

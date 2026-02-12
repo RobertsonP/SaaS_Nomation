@@ -18,9 +18,10 @@ export class RegisterDto {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // Stricter rate limiting for login (prevent brute force)
+  // Rate limiting for login (prevent brute force)
+  // Higher limit in non-production to allow E2E tests
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 login attempts per minute
+  @Throttle({ default: { limit: process.env.NODE_ENV === 'production' ? 5 : 500, ttl: 60000 } })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }

@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2 } from 'lucide-react';
+import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock } from 'lucide-react';
 import { SiteMapGraph } from './SiteMapGraph';
 import { useDiscovery, useSiteMapData, SiteMapNodeData, SiteMapEdgeData } from './useSiteMapData';
+import { authFlowsAPI } from '../../lib/api';
+
+interface AuthFlow {
+  id: string;
+  name: string;
+  loginUrl: string;
+}
 
 interface DiscoveryPhase {
   id: string;
@@ -58,8 +65,8 @@ interface DiscoveryModalProps {
   projectId: string;
   initialUrl?: string;
   projectUrls?: ProjectUrl[];
-  onDiscoveryComplete?: (selectedUrlIds: string[]) => void;
-  onAnalyzePages?: (selectedUrlIds: string[]) => void;
+  onDiscoveryComplete?: (selectedUrls: string[]) => void;
+  onAnalyzePages?: (selectedUrls: string[]) => void;
 }
 
 export function DiscoveryModal({
@@ -87,9 +94,43 @@ export function DiscoveryModal({
   const pollIntervalRef = useRef<number>(3000); // Start at 3 seconds
   const errorCountRef = useRef<number>(0);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [discoveryStartTime, setDiscoveryStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+
+  // Auth flow state for authenticated discovery
+  const [authFlows, setAuthFlows] = useState<AuthFlow[]>([]);
+  const [selectedAuthFlowId, setSelectedAuthFlowId] = useState<string>('');
+  const [loadingAuthFlows, setLoadingAuthFlows] = useState(false);
 
   const { discovering, error, startDiscovery, progress, checkProgress } = useDiscovery(projectId);
   const { data: existingData, loading: loadingExisting } = useSiteMapData(projectId);
+
+  // Fetch auth flows for the project when modal opens
+  useEffect(() => {
+    if (isOpen && projectId) {
+      setLoadingAuthFlows(true);
+      authFlowsAPI.getByProject(projectId)
+        .then((response) => {
+          setAuthFlows(response.data || []);
+        })
+        .catch((err) => {
+          console.error('Failed to fetch auth flows:', err);
+          setAuthFlows([]);
+        })
+        .finally(() => {
+          setLoadingAuthFlows(false);
+        });
+    }
+  }, [isOpen, projectId]);
+
+  // Elapsed time timer during discovery
+  useEffect(() => {
+    if (!discovering || !discoveryStartTime) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - discoveryStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [discovering, discoveryStartTime]);
 
   // Poll for discovery progress during discovery with exponential backoff
   useEffect(() => {
@@ -181,6 +222,8 @@ export function DiscoveryModal({
     setCurrentPhase('initialization');
     setPagesFound(0);
     setDiscoveredUrls([]);
+    setDiscoveryStartTime(Date.now());
+    setElapsedSeconds(0);
 
     try {
       // Normalize URL - auto-add protocol if missing
@@ -189,6 +232,7 @@ export function DiscoveryModal({
         maxDepth,
         maxPages,
         useSitemap: true,
+        authFlowId: selectedAuthFlowId || undefined,  // Pass auth flow if selected
       });
 
       if (result && result.pages) {
@@ -254,7 +298,13 @@ export function DiscoveryModal({
   };
 
   const handleConfirmSelection = () => {
-    onDiscoveryComplete?.(selectedNodes);
+    // Pass actual URLs from selected nodes instead of internal IDs
+    const selectedUrls = siteMapData
+      ? siteMapData.nodes
+          .filter(n => selectedNodes.includes(n.id))
+          .map(n => n.url)
+      : [];
+    onDiscoveryComplete?.(selectedUrls);
     onClose();
   };
 
@@ -388,11 +438,67 @@ export function DiscoveryModal({
                 </div>
               </div>
 
+              {/* Authentication Flow Selector */}
+              {authFlows.length === 0 && !loadingAuthFlows && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Unlock className="w-5 h-5 text-amber-500 dark:text-amber-400 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">No Authentication Configured</h3>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                        Only public pages will be discovered. To find pages behind login (dashboards, settings, etc.), close this dialog and set up an authentication flow in the <strong>Authentication</strong> tab first.
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                        You can still discover public pages without authentication.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {authFlows.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    {selectedAuthFlowId ? (
+                      <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    ) : (
+                      <Unlock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-amber-900 dark:text-amber-200">Authenticated Discovery</h3>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 mb-3">
+                        Select an auth flow to discover pages that require login (like dashboards, settings, etc.)
+                      </p>
+                      <select
+                        value={selectedAuthFlowId}
+                        onChange={(e) => setSelectedAuthFlowId(e.target.value)}
+                        disabled={loadingAuthFlows}
+                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">No authentication (public pages only)</option>
+                        {authFlows.map((flow) => (
+                          <option key={flow.id} value={flow.id}>
+                            {flow.name} ({flow.loginUrl})
+                          </option>
+                        ))}
+                      </select>
+                      {selectedAuthFlowId && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          Will log in before crawling to discover protected pages
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Discovery Progress Display */}
               {discovering && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-blue-900 dark:text-blue-200">Discovery in progress...</span>
+                    <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                      Discovery in progress...{elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
+                    </span>
                     {pagesFound > 0 && (
                       <span className="text-sm text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800 px-2 py-0.5 rounded-full">
                         {pagesFound} pages found
@@ -499,7 +605,12 @@ export function DiscoveryModal({
                     {onAnalyzePages && (
                       <button
                         onClick={() => {
-                          onAnalyzePages(selectedNodes);
+                          const urls = siteMapData
+                            ? siteMapData.nodes
+                                .filter(n => selectedNodes.includes(n.id))
+                                .map(n => n.url)
+                            : [];
+                          onAnalyzePages(urls);
                         }}
                         disabled={selectedNodes.length === 0}
                         className="mt-2 px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"

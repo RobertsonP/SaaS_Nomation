@@ -198,7 +198,20 @@ export class SitemapParserService {
    * Filter out non-page URLs (images, PDFs, etc.)
    */
   filterPageUrls(urls: SitemapUrl[]): SitemapUrl[] {
-    const nonPageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.pdf', '.zip', '.rar', '.doc', '.docx', '.xls', '.xlsx', '.mp3', '.mp4', '.avi'];
+    const nonPageExtensions = [
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico', '.bmp', '.tiff',
+      // Documents
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods',
+      // Archives
+      '.zip', '.rar', '.tar', '.gz', '.7z',
+      // Media
+      '.mp4', '.mp3', '.avi', '.mov', '.wmv', '.flv', '.wav', '.ogg', '.webm',
+      // Resources
+      '.css', '.js', '.json', '.xml', '.rss', '.atom',
+      // Fonts
+      '.woff', '.woff2', '.ttf', '.eot',
+    ];
     return urls.filter(u => {
       const path = new URL(u.loc).pathname.toLowerCase();
       return !nonPageExtensions.some(ext => path.endsWith(ext));

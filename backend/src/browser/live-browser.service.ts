@@ -450,8 +450,8 @@ export class LiveBrowserService {
     const { page } = sessionData;
 
     try {
-      // Modern Playwright API: Use page.locator() for all interactions
-      const locator = page.locator(action.selector).first();
+      // Resolve selector — supports both CSS and Playwright-native locators (getByRole, getByText, etc.)
+      const locator = this.resolveLocator(page, action.selector).first();
       const timeout = 10000; // 10 seconds
 
       // Execute the action
@@ -522,14 +522,16 @@ export class LiveBrowserService {
 
     const { page } = sessionData;
     
-    // Capture full page screenshot as base64
-    const screenshot = await page.screenshot({ 
-      fullPage: false, // Only visible viewport 
-      type: 'png' 
+    // Capture viewport screenshot as base64
+    const screenshot = await page.screenshot({
+      fullPage: false,
+      type: 'jpeg',
+      quality: 70,
+      timeout: 5000,
     });
-    
+
     // Return as data URL for easy frontend display
-    return `data:image/png;base64,${screenshot.toString('base64')}`;
+    return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
   }
 
   async getSessionInfo(sessionToken: string): Promise<BrowserSession | null> {
@@ -571,6 +573,52 @@ export class LiveBrowserService {
     await this.prisma.browserSession.delete({
       where: { sessionToken },
     });
+  }
+
+  /**
+   * Resolve a selector string into a Playwright Locator.
+   * Supports CSS/XPath selectors and Playwright-native locator strings:
+   *   getByRole('button', { name: 'Submit' }), getByText('Hello'), etc.
+   */
+  private resolveLocator(page: Page, selector: string) {
+    const nativeMatch = selector.match(/^(getByRole|getByText|getByLabel|getByTestId|getByPlaceholder|getByTitle)\(/);
+    if (!nativeMatch) {
+      return page.locator(selector);
+    }
+
+    const method = nativeMatch[1];
+    const firstArgMatch = selector.match(/\(\s*['"]([^'"]*)['"]/);
+    if (!firstArgMatch) {
+      return page.locator(selector);
+    }
+    const firstArg = firstArgMatch[1];
+
+    const optionsMatch = selector.match(/,\s*\{([^}]+)\}/);
+    const options: Record<string, unknown> = {};
+    if (optionsMatch) {
+      const optStr = optionsMatch[1];
+      const nameMatch = optStr.match(/name:\s*['"]([^'"]*)['"]/);
+      if (nameMatch) options.name = nameMatch[1];
+      const exactMatch = optStr.match(/exact:\s*(true|false)/);
+      if (exactMatch) options.exact = exactMatch[1] === 'true';
+    }
+
+    switch (method) {
+      case 'getByRole':
+        return page.getByRole(firstArg as any, options as any);
+      case 'getByText':
+        return page.getByText(firstArg, options as any);
+      case 'getByLabel':
+        return page.getByLabel(firstArg, options as any);
+      case 'getByTestId':
+        return page.getByTestId(firstArg);
+      case 'getByPlaceholder':
+        return page.getByPlaceholder(firstArg, options as any);
+      case 'getByTitle':
+        return page.getByTitle(firstArg, options as any);
+      default:
+        return page.locator(selector);
+    }
   }
 
   private async cleanupExpiredSessions(): Promise<void> {
@@ -642,83 +690,150 @@ export class LiveBrowserService {
       // Wait for page to be fully loaded
       await page.waitForTimeout(2000);
       
-      // Find elements near the clicked coordinates
+      // Task 1.11: Find element at EXACT click coordinates using elementFromPoint
       const elements = await page.evaluate(({ clickX, clickY }) => {
-        const DETECTION_RADIUS = 100; // pixels around click
         const foundElements: any[] = [];
-        
-        // Get all interactive elements
+        const FALLBACK_RADIUS = 20; // Small radius for fallback suggestions only
+
+        // Interactive element detection helpers
+        const interactiveTags = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+        const interactiveRoles = ['button', 'link', 'textbox', 'checkbox', 'radio', 'menuitem', 'tab', 'option'];
+
+        const isInteractive = (el: Element): boolean => {
+          if (interactiveTags.includes(el.tagName)) return true;
+          const role = el.getAttribute('role');
+          if (role && interactiveRoles.includes(role)) return true;
+          if (el.getAttribute('onclick')) return true;
+          if (el.getAttribute('tabindex') && el.getAttribute('tabindex') !== '-1') return true;
+          if (el.getAttribute('data-testid')) return true;
+          return false;
+        };
+
+        // Walk up DOM tree to find interactive parent
+        const findInteractiveParent = (el: Element | null): Element | null => {
+          let current = el;
+          while (current && current !== document.body) {
+            if (isInteractive(current)) return current;
+            current = current.parentElement;
+          }
+          return el; // Return original if no interactive parent found
+        };
+
+        // Generate selector for an element
+        const generateSelector = (el: Element): string => {
+          // Priority 1: data-testid
+          const testId = el.getAttribute('data-testid');
+          if (testId) return `[data-testid="${testId}"]`;
+
+          // Priority 2: ID
+          if (el.id) return `#${el.id}`;
+
+          // Priority 3: aria-label
+          const ariaLabel = el.getAttribute('aria-label');
+          if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
+
+          // Priority 4: Button/link text
+          const text = el.textContent?.trim();
+          if (text && text.length < 50) {
+            if (el.tagName === 'BUTTON') return `button:has-text("${text.substring(0, 30)}")`;
+            if (el.tagName === 'A') return `a:has-text("${text.substring(0, 30)}")`;
+          }
+
+          // Priority 5: Name attribute
+          const name = el.getAttribute('name');
+          if (name) return `[name="${name}"]`;
+
+          // Priority 6: Class-based selector
+          if (el.className) {
+            const classes = el.className.split(' ').filter(c => c && !c.includes(':'));
+            if (classes.length > 0) {
+              return `${el.tagName.toLowerCase()}.${classes[0]}`;
+            }
+          }
+
+          // Fallback: tag name
+          return el.tagName.toLowerCase();
+        };
+
+        // Get element info for results
+        const getElementInfo = (el: Element, distance: number = 0) => {
+          const rect = el.getBoundingClientRect();
+          return {
+            tagName: el.tagName.toLowerCase(),
+            selector: generateSelector(el),
+            textContent: el.textContent?.trim().substring(0, 100) || '',
+            attributes: Array.from(el.attributes).reduce((acc, attr) => {
+              acc[attr.name] = attr.value;
+              return acc;
+            }, {} as Record<string, string>),
+            boundingRect: {
+              x: rect.left,
+              y: rect.top,
+              width: rect.width,
+              height: rect.height
+            },
+            distance: distance,
+            href: (el as HTMLAnchorElement).href || null,
+            value: (el as HTMLInputElement).value || null,
+            placeholder: (el as HTMLInputElement).placeholder || null,
+            type: (el as HTMLInputElement).type || null,
+            role: el.getAttribute('role') || null,
+            ariaLabel: el.getAttribute('aria-label') || null,
+            confidence: distance === 0 ? 1.0 : Math.max(0.5, 1 - (distance / 50))
+          };
+        };
+
+        // ===== STEP 1: Get EXACT element at click coordinates =====
+        const exactElement = document.elementFromPoint(clickX, clickY);
+
+        if (exactElement) {
+          // Check if the exact element is interactive
+          if (isInteractive(exactElement)) {
+            foundElements.push(getElementInfo(exactElement, 0));
+          } else {
+            // Walk up to find interactive parent
+            const interactiveParent = findInteractiveParent(exactElement);
+            if (interactiveParent && isInteractive(interactiveParent)) {
+              foundElements.push(getElementInfo(interactiveParent, 0));
+            } else {
+              // No interactive element found, but still return what was clicked
+              foundElements.push(getElementInfo(exactElement, 0));
+            }
+          }
+        }
+
+        // ===== STEP 2: Get nearby fallback elements (small radius) =====
         const interactiveSelectors = [
           'button', 'input', 'select', 'textarea', 'a[href]',
-          '[onclick]', '[role="button"]', '[role="link"]',
-          '[data-testid]', '[data-test]', '[id]', '.btn',
-          '.button', '.link', '.clickable', '[tabindex]'
+          '[role="button"]', '[role="link"]', '[data-testid]'
         ];
-        
-        const allElements = document.querySelectorAll(interactiveSelectors.join(','));
-        
-        Array.from(allElements).forEach((element, index) => {
+
+        const allInteractive = document.querySelectorAll(interactiveSelectors.join(','));
+
+        Array.from(allInteractive).forEach((element) => {
           const rect = element.getBoundingClientRect();
           const centerX = rect.left + rect.width / 2;
           const centerY = rect.top + rect.height / 2;
-          
-          // Calculate distance from click point
+
           const distance = Math.sqrt(
             Math.pow(centerX - clickX, 2) + Math.pow(centerY - clickY, 2)
           );
-          
-          // Include elements within detection radius
-          if (distance <= DETECTION_RADIUS) {
-            // Generate advanced W3Schools CSS + Playwright selectors
-            const selectorOptions = {
-              element,
-              document,
-              prioritizeUniqueness: true,
-              includePlaywrightSpecific: true,
-              testableElementsOnly: true
-            };
-            
-            const generatedSelectors = this.advancedSelectorGenerator.generateSelectors(selectorOptions);
-            
-            // Skip non-testable elements
-            if (generatedSelectors.length === 0) {
-              return;
+
+          // Only include very close elements as fallbacks
+          if (distance <= FALLBACK_RADIUS && distance > 0) {
+            // Don't add duplicates
+            const selector = generateSelector(element);
+            if (!foundElements.some(e => e.selector === selector)) {
+              foundElements.push(getElementInfo(element, Math.round(distance)));
             }
-            
-            // Use the best selector (highest confidence + uniqueness)
-            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
-            const selector = bestSelector?.selector || element.tagName.toLowerCase();
-            
-            foundElements.push({
-              tagName: element.tagName.toLowerCase(),
-              selector: selector,
-              textContent: element.textContent?.trim().substring(0, 100) || '',
-              attributes: Array.from(element.attributes).reduce((acc, attr) => {
-                acc[attr.name] = attr.value;
-                return acc;
-              }, {} as Record<string, string>),
-              boundingRect: {
-                x: rect.left,
-                y: rect.top,
-                width: rect.width,
-                height: rect.height
-              },
-              distance: Math.round(distance),
-              href: (element as HTMLAnchorElement).href || null,
-              value: (element as HTMLInputElement).value || null,
-              placeholder: (element as HTMLInputElement).placeholder || null,
-              type: (element as HTMLInputElement).type || null,
-              role: element.getAttribute('role') || null,
-              ariaLabel: element.getAttribute('aria-label') || null
-            });
           }
         });
-        
-        // Sort by distance (closest first) and return top 10
+
+        // Sort: exact element first (distance=0), then by distance
         return foundElements
           .sort((a, b) => a.distance - b.distance)
-          .slice(0, 10);
-          
+          .slice(0, 5);
+
       }, { clickX, clickY });
       
       console.log(`✅ Found ${elements.length} elements near click coordinates`);

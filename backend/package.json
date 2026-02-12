@@ -11,7 +11,9 @@
     "test:api": "jest --testPathPattern=test/api",
     "e2e": "playwright test",
     "e2e:debug": "playwright test --debug",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "cleanup": "npx ts-node ../scripts/cleanup-test-data.ts",
+    "cleanup:dry-run": "npx ts-node ../scripts/cleanup-test-data.ts --dry-run"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",

@@ -6,12 +6,14 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Create test user
+  // Create/update test user - always reset password to 'test' for E2E tests
   const hashedPassword = await bcrypt.hash('test', 10);
-  
+
   const user = await prisma.user.upsert({
     where: { email: 'test@test.com' },
-    update: {},
+    update: {
+      password: hashedPassword,  // Always reset password for consistent E2E tests
+    },
     create: {
       email: 'test@test.com',
       name: 'Test User',
@@ -21,15 +23,47 @@ async function main() {
 
   console.log('✅ Created test user:', user.email);
 
+  // Create organization for test user (required for login)
+  const org = await prisma.organization.upsert({
+    where: { id: 'test-org-id' },
+    update: {},
+    create: {
+      id: 'test-org-id',
+      name: 'Test Organization',
+      slug: 'test-org',
+    },
+  });
+
+  console.log('✅ Created test organization:', org.name);
+
+  // Create organization membership for test user (using composite unique key)
+  await prisma.organizationMember.upsert({
+    where: {
+      organizationId_userId: {
+        organizationId: org.id,
+        userId: user.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      organizationId: org.id,
+      role: 'owner',
+    },
+  });
+
+  console.log('✅ Created organization membership for test user');
+
   // Create test project with multiple URLs
   const project = await prisma.project.upsert({
     where: { id: 'test-project-id' },
-    update: {},
+    update: { organizationId: org.id },
     create: {
       id: 'test-project-id',
       name: 'Multi-Page E-commerce Site',
       description: 'Test project with multiple URLs for comprehensive testing',
       userId: user.id,
+      organizationId: org.id,
     },
   });
 

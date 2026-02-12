@@ -1,0 +1,1056 @@
+{
+  "lastUpdated": "2026-02-02",
+  "coverageTarget": "95%",
+  "testTypes": ["unit", "integration", "e2e", "api"],
+
+  "features": {
+    "auth": {
+      "name": "Authentication",
+      "scenarios": [
+        {
+          "id": "AUTH-001",
+          "feature": "User Registration",
+          "scenario": "Register new user with valid email/password",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-registration.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "AUTH-002",
+          "feature": "User Registration",
+          "scenario": "Reject duplicate email registration",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-registration.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "AUTH-003",
+          "feature": "User Registration",
+          "scenario": "Validate password strength requirements",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-registration.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "AUTH-004",
+          "feature": "User Login",
+          "scenario": "Login with valid credentials",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-login-logout.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "AUTH-005",
+          "feature": "User Login",
+          "scenario": "Reject invalid credentials",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-login-logout.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "AUTH-006",
+          "feature": "User Logout",
+          "scenario": "Logout invalidates session",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/user-login-logout.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "AUTH-007",
+          "feature": "Profile Settings",
+          "scenario": "Update user profile (name, timezone)",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth/profile-settings.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "AUTH-008",
+          "feature": "Dark Mode",
+          "scenario": "Toggle dark mode and persist preference",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/features/dark-mode.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        }
+      ]
+    },
+
+    "projects": {
+      "name": "Projects",
+      "scenarios": [
+        {
+          "id": "PROJ-001",
+          "feature": "Project CRUD",
+          "scenario": "Create new project with name and base URL",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "PROJ-002",
+          "feature": "Project CRUD",
+          "scenario": "Read project details",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "PROJ-003",
+          "feature": "Project CRUD",
+          "scenario": "Update project name and settings",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PROJ-004",
+          "feature": "Project CRUD",
+          "scenario": "Delete project with cascade (tests, elements)",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "PROJ-005",
+          "feature": "Project URLs",
+          "scenario": "Add URL to project",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-urls.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PROJ-006",
+          "feature": "Project URLs",
+          "scenario": "Remove URL from project",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-urls.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PROJ-007",
+          "feature": "Project Elements",
+          "scenario": "Add element to project library",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-elements.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PROJ-008",
+          "feature": "Project Elements",
+          "scenario": "Update element selector",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-elements.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PROJ-009",
+          "feature": "Project Elements",
+          "scenario": "Delete element from library",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/projects/project-elements.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "tests": {
+      "name": "Tests",
+      "scenarios": [
+        {
+          "id": "TEST-001",
+          "feature": "Test CRUD",
+          "scenario": "Create new test with name",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "TEST-002",
+          "feature": "Test CRUD",
+          "scenario": "Read test details with steps",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "TEST-003",
+          "feature": "Test CRUD",
+          "scenario": "Update test name and description",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "TEST-004",
+          "feature": "Test CRUD",
+          "scenario": "Delete test with cascade (steps, results)",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "TEST-005",
+          "feature": "Test Steps",
+          "scenario": "Add step to test",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-steps.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "TEST-006",
+          "feature": "Test Steps",
+          "scenario": "Edit step action/selector",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-steps.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "TEST-007",
+          "feature": "Test Steps",
+          "scenario": "Reorder steps",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-steps.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "TEST-008",
+          "feature": "Test Steps",
+          "scenario": "Delete step",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-steps.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "TEST-009",
+          "feature": "Test Duplicate",
+          "scenario": "Clone test with all steps",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/tests/test-duplicate.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        }
+      ]
+    },
+
+    "suites": {
+      "name": "Test Suites",
+      "scenarios": [
+        {
+          "id": "SUITE-001",
+          "feature": "Suite CRUD",
+          "scenario": "Create new test suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SUITE-002",
+          "feature": "Suite CRUD",
+          "scenario": "Read suite details",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SUITE-003",
+          "feature": "Suite CRUD",
+          "scenario": "Update suite name",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "SUITE-004",
+          "feature": "Suite CRUD",
+          "scenario": "Delete suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SUITE-005",
+          "feature": "Suite Tests",
+          "scenario": "Add test to suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-tests.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SUITE-006",
+          "feature": "Suite Tests",
+          "scenario": "Remove test from suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-tests.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SUITE-007",
+          "feature": "Suite Tests",
+          "scenario": "Reorder tests in suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-tests.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "SUITE-008",
+          "feature": "Suite Execution",
+          "scenario": "Run entire suite",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "SUITE-009",
+          "feature": "Suite Execution",
+          "scenario": "Capture results for each test",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/suites/suite-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "discovery": {
+      "name": "URL Discovery",
+      "scenarios": [
+        {
+          "id": "DISC-001",
+          "feature": "URL Discovery",
+          "scenario": "Discover URLs from page links",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/discovery/url-discovery.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "DISC-002",
+          "feature": "URL Discovery",
+          "scenario": "Filter out external URLs",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/discovery/url-discovery.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "DISC-003",
+          "feature": "URL Discovery",
+          "scenario": "Handle pagination/infinite scroll",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/discovery/url-discovery.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "DISC-004",
+          "feature": "Sitemap Parser",
+          "scenario": "Parse XML sitemap",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/discovery/sitemap-parser.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "DISC-005",
+          "feature": "Sitemap Parser",
+          "scenario": "Handle sitemap index",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/discovery/sitemap-parser.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        }
+      ]
+    },
+
+    "analysis": {
+      "name": "Element Analysis",
+      "scenarios": [
+        {
+          "id": "ANAL-001",
+          "feature": "Element Analysis",
+          "scenario": "Find interactive elements on page",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/analysis/element-analysis.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "ANAL-002",
+          "feature": "Element Analysis",
+          "scenario": "Generate robust selectors",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/analysis/element-analysis.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "ANAL-003",
+          "feature": "Element Analysis",
+          "scenario": "Capture element screenshots",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/analysis/element-analysis.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ANAL-004",
+          "feature": "Selector Quality",
+          "scenario": "Score selector reliability",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/analysis/selector-quality.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ANAL-005",
+          "feature": "Selector Quality",
+          "scenario": "Flag fragile selectors",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/analysis/selector-quality.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "execution": {
+      "name": "Test Execution",
+      "scenarios": [
+        {
+          "id": "EXEC-001",
+          "feature": "Step Execution",
+          "scenario": "Execute click action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "EXEC-002",
+          "feature": "Step Execution",
+          "scenario": "Execute type action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "EXEC-003",
+          "feature": "Step Execution",
+          "scenario": "Execute hover action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-004",
+          "feature": "Step Execution",
+          "scenario": "Execute select (dropdown) action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-005",
+          "feature": "Step Execution",
+          "scenario": "Execute check/uncheck action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-006",
+          "feature": "Step Execution",
+          "scenario": "Execute scroll action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "EXEC-007",
+          "feature": "Step Execution",
+          "scenario": "Execute wait action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-008",
+          "feature": "Step Execution",
+          "scenario": "Execute assert action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "EXEC-009",
+          "feature": "Step Execution",
+          "scenario": "Execute screenshot action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-010",
+          "feature": "Step Execution",
+          "scenario": "Execute navigate action",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/step-execution.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "EXEC-011",
+          "feature": "Execution Results",
+          "scenario": "Store pass/fail result",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/execution-results.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "EXEC-012",
+          "feature": "Execution Results",
+          "scenario": "Store error message on failure",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/execution-results.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-013",
+          "feature": "Execution Results",
+          "scenario": "Store execution duration",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/execution-results.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "EXEC-014",
+          "feature": "Execution Retry",
+          "scenario": "Retry failed step with smart wait",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/execution-retry.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "EXEC-015",
+          "feature": "Execution Retry",
+          "scenario": "Give up after max retries",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/execution/execution-retry.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "authFlows": {
+      "name": "Auth Flows",
+      "scenarios": [
+        {
+          "id": "FLOW-001",
+          "feature": "Auth Flow CRUD",
+          "scenario": "Create auth flow with steps",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "FLOW-002",
+          "feature": "Auth Flow CRUD",
+          "scenario": "Read auth flow details",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "FLOW-003",
+          "feature": "Auth Flow CRUD",
+          "scenario": "Update auth flow",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "FLOW-004",
+          "feature": "Auth Flow CRUD",
+          "scenario": "Delete auth flow",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "FLOW-005",
+          "feature": "Auth Flow Detection",
+          "scenario": "Auto-detect login form",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-detection.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "FLOW-006",
+          "feature": "Auth Flow Detection",
+          "scenario": "Detect auth requirement on protected page",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/auth-flows/auth-flow-detection.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "organizations": {
+      "name": "Organizations",
+      "scenarios": [
+        {
+          "id": "ORG-001",
+          "feature": "Org CRUD",
+          "scenario": "Create organization",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ORG-002",
+          "feature": "Org CRUD",
+          "scenario": "Read organization details",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ORG-003",
+          "feature": "Org CRUD",
+          "scenario": "Update organization name",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        },
+        {
+          "id": "ORG-004",
+          "feature": "Org CRUD",
+          "scenario": "Delete organization",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-crud.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ORG-005",
+          "feature": "Org Members",
+          "scenario": "Invite member by email",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-members.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ORG-006",
+          "feature": "Org Members",
+          "scenario": "Accept invitation",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-members.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "ORG-007",
+          "feature": "Org Members",
+          "scenario": "Remove member",
+          "type": "integration",
+          "automated": true,
+          "testFile": "backend/test/integration/organizations/org-members.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "selectors": {
+      "name": "Selector Management",
+      "scenarios": [
+        {
+          "id": "SEL-001",
+          "feature": "Selector Validation",
+          "scenario": "Validate selector on real DOM",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/integration/selectors/selector-validation.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SEL-002",
+          "feature": "Selector Validation",
+          "scenario": "Detect broken selector",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/integration/selectors/selector-validation.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SEL-003",
+          "feature": "Selector Healing",
+          "scenario": "Auto-heal broken selector",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/integration/selectors/selector-healing.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "SEL-004",
+          "feature": "Selector Healing",
+          "scenario": "Report when healing fails",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/integration/selectors/selector-healing.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "medium"
+        }
+      ]
+    },
+
+    "realSites": {
+      "name": "Real Site Validation",
+      "scenarios": [
+        {
+          "id": "REAL-001",
+          "feature": "bppulse.com",
+          "scenario": "Navigate and discover URLs",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/bppulse.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-002",
+          "feature": "bppulse.com",
+          "scenario": "Analyze page elements",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/bppulse.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-003",
+          "feature": "litaarchive.com",
+          "scenario": "Navigate and discover URLs",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/litarchive.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-004",
+          "feature": "litaarchive.com",
+          "scenario": "Analyze page elements",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/litarchive.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-005",
+          "feature": "tts.am",
+          "scenario": "Login with credentials",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/tts-am.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-006",
+          "feature": "tts.am",
+          "scenario": "Navigate protected pages",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/tts-am.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "REAL-007",
+          "feature": "tts.am",
+          "scenario": "Analyze page elements after auth",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/real-sites/tts-am.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        }
+      ]
+    },
+
+    "livePicker": {
+      "name": "Live Element Picker",
+      "scenarios": [
+        {
+          "id": "PICK-001",
+          "feature": "Live Picker",
+          "scenario": "Start picker session",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/features/live-picker.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PICK-002",
+          "feature": "Live Picker",
+          "scenario": "Highlight element on hover",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/features/live-picker.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "high"
+        },
+        {
+          "id": "PICK-003",
+          "feature": "Live Picker",
+          "scenario": "Select element and return selector",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/features/live-picker.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        },
+        {
+          "id": "PICK-004",
+          "feature": "Live Picker",
+          "scenario": "Verify selector accuracy",
+          "type": "e2e",
+          "automated": true,
+          "testFile": "backend/test/e2e/features/live-picker.spec.ts",
+          "status": "pending",
+          "lastRun": null,
+          "priority": "critical"
+        }
+      ]
+    }
+  },
+
+  "summary": {
+    "totalScenarios": 75,
+    "automated": 75,
+    "manual": 0,
+    "passing": 0,
+    "failing": 0,
+    "pending": 75
+  }
+}

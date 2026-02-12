@@ -376,10 +376,10 @@ export class ExecutionService {
           return { success: true, action: 'press', key: step.value };
 
         case 'screenshot':
-          const screenshotBuffer = await page.screenshot({ type: 'png', fullPage: true });
+          const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false, timeout: 5000 });
           const screenshotBase64 = screenshotBuffer.toString('base64');
           console.log(`✓ Captured screenshot`);
-          return { success: true, action: 'screenshot', screenshot: `data:image/png;base64,${screenshotBase64}` };
+          return { success: true, action: 'screenshot', screenshot: `data:image/jpeg;base64,${screenshotBase64}` };
 
         case 'doubleclick':
           await locator.dblclick({ timeout });
@@ -435,8 +435,10 @@ export class ExecutionService {
   private async capturePageScreenshot(page: Page): Promise<string | null> {
     try {
       const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
+        type: 'jpeg',
+        quality: 70,
+        fullPage: false,
+        timeout: 5000,
       });
       return screenshot.toString('base64');
     } catch (error) {

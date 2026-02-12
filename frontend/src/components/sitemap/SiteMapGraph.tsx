@@ -94,9 +94,9 @@ function getLayoutedElements(
     });
   }
 
-  // Calculate positions
-  const horizontalSpacing = 280;
-  const verticalSpacing = 150;
+  // Calculate positions - increased spacing for better readability
+  const horizontalSpacing = 350;  // Was 280 - now more space between siblings
+  const verticalSpacing = 200;    // Was 150 - now more space between levels
 
   levelNodes.forEach((nodeIds, level) => {
     const totalWidth = (nodeIds.length - 1) * horizontalSpacing;

@@ -22,6 +22,31 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['**/real-sites/**'], // Exclude real-sites from default run
+    },
+    {
+      name: 'real-sites',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Longer timeouts for real external sites
+        actionTimeout: 30000,
+        navigationTimeout: 60000,
+      },
+      testMatch: '**/real-sites/**/*.spec.ts',
+      timeout: 300000, // 5 minutes per test for real sites
+      retries: 1, // Single retry for real sites (network dependent)
+    },
+    {
+      name: 'real-sites-headed',
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false, // Watch tests run
+        actionTimeout: 30000,
+        navigationTimeout: 60000,
+      },
+      testMatch: '**/real-sites/**/*.spec.ts',
+      timeout: 300000,
+      retries: 0, // No retries in headed mode (for debugging)
     },
   ],
 });

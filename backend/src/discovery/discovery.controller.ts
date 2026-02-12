@@ -22,6 +22,7 @@ export class DiscoveryController {
       maxDepth?: number;
       maxPages?: number;
       useSitemap?: boolean;
+      authFlowId?: string;  // Optional: use authentication for discovering protected pages
     },
   ) {
     return this.discoveryService.startDiscovery(
@@ -32,6 +33,7 @@ export class DiscoveryController {
         maxDepth: body.maxDepth,
         maxPages: body.maxPages,
         useSitemap: body.useSitemap,
+        authFlowId: body.authFlowId,
       },
     );
   }

@@ -16,11 +16,15 @@ export class ScreenshotService {
       await this.browserManager.navigateToPage(page, url);
 
       const element = page.locator(selector).first();
-      const screenshot = await element.screenshot({ type: 'png' });
+      const screenshot = await element.screenshot({
+        type: 'jpeg',
+        quality: 70,
+        timeout: 5000,
+      });
 
       await this.browserManager.closeBrowser(browser);
 
-      return `data:image/png;base64,${screenshot.toString('base64')}`;
+      return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
 
     } catch (error) {
       console.error(`❌ Failed to capture screenshot: ${error.message}`);
@@ -36,12 +40,17 @@ export class ScreenshotService {
       if (thumbnail) {
         const screenshot = await element.screenshot({
           type: 'jpeg',
-          quality: 70
+          quality: 70,
+          timeout: 5000,
         });
         return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
       } else {
-        const screenshot = await element.screenshot({ type: 'png' });
-        return `data:image/png;base64,${screenshot.toString('base64')}`;
+        const screenshot = await element.screenshot({
+          type: 'jpeg',
+          quality: 70,
+          timeout: 5000,
+        });
+        return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
       }
     } catch (error) {
       console.error(`❌ Failed to capture screenshot from page: ${error.message}`);
@@ -52,10 +61,12 @@ export class ScreenshotService {
   async capturePageScreenshot(page: Page, fullPage = false): Promise<string | null> {
     try {
       const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage
+        type: 'jpeg',
+        quality: 70,
+        fullPage: false,
+        timeout: 5000,
       });
-      return `data:image/png;base64,${screenshot.toString('base64')}`;
+      return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
     } catch (error) {
       console.error(`❌ Failed to capture page screenshot: ${error.message}`);
       return null;

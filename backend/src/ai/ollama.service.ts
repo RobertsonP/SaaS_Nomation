@@ -44,7 +44,7 @@ export class OllamaService implements OnModuleInit {
       const prompt = this.buildElementAnalysisPrompt(htmlContent);
       
       const response = await this.ollama.generate({
-        model: 'llama3.2:latest',
+        model: 'qwen2.5:7b',
         prompt: prompt,
         stream: false,
         options: {

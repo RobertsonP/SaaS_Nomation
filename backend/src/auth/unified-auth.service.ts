@@ -33,7 +33,8 @@ export class UnifiedAuthService {
   async authenticateForUrl(
     targetUrl: string,
     authFlow?: LoginFlow,
-    existingBrowser?: Browser
+    existingBrowser?: Browser,
+    options?: { forceAuthenticate?: boolean }
   ): Promise<AuthSessionResult> {
     const browser = existingBrowser || await chromium.launch({
       headless: true,
@@ -56,7 +57,14 @@ export class UnifiedAuthService {
       ]
     });
 
-    const page = await browser.newPage();
+    // Create explicit context (not browser.newPage()) so the context can be reused
+    // by page-crawler for authenticated crawling with cookies preserved
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      ignoreHTTPSErrors: true,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    });
+    const page = await context.newPage();
     
     try {
       console.log(`🔐 Starting authentication flow for URL: ${targetUrl}`);
@@ -74,17 +82,24 @@ export class UnifiedAuthService {
       console.log(`🔍 URL Check: Target=${targetUrl}, Current=${currentUrl}, Match=${urlMatches}`);
 
       if (urlMatches) {
-        // Success: We're on the correct page, no auth needed
-        return {
-          browser,
-          page,
-          result: {
-            success: true,
-            finalUrl: currentUrl,
-            authenticated: false,
-            redirectedFromLogin: false
-          }
-        };
+        // If forceAuthenticate is set and we have an auth flow, skip the early return
+        // and fall through to Step 4c to authenticate even though the page loaded fine.
+        // This handles cases where the homepage is public but protected pages exist.
+        if (options?.forceAuthenticate && authFlow) {
+          console.log(`🔐 forceAuthenticate: Page loaded publicly, but forcing authentication via auth flow`);
+        } else {
+          // Success: We're on the correct page, no auth needed
+          return {
+            browser,
+            page,
+            result: {
+              success: true,
+              finalUrl: currentUrl,
+              authenticated: false,
+              redirectedFromLogin: false
+            }
+          };
+        }
       }
 
       // Step 4: Check if we were redirected to login page
@@ -998,7 +1013,11 @@ export class UnifiedAuthService {
    */
   async checkAuthRequired(targetUrl: string, authFlow?: LoginFlow): Promise<{ required: boolean; redirectUrl?: string }> {
     const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      ignoreHTTPSErrors: true,
+    });
+    const page = await context.newPage();
     
     try {
       await this.navigateWithProgressiveLoading(page, targetUrl);

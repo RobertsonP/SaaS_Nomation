@@ -9,6 +9,8 @@ export interface DiscoveryState {
   status: 'pending' | 'discovering' | 'complete' | 'failed';
   phase: string;
   pagesFound: number;
+  maxPages: number;  // Track max pages for progress bar
+  currentUrl?: string;  // Currently being crawled
   discoveredUrls: string[];
   result?: {
     pages: any[];
@@ -24,7 +26,7 @@ interface DiscoveryContextType {
     projectId: string,
     projectName: string,
     rootUrl: string,
-    options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean }
+    options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean; authFlowId?: string }
   ) => Promise<void>;
   minimizeDiscovery: () => void;
   restoreDiscovery: () => void;
@@ -118,7 +120,7 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     projectId: string,
     projectName: string,
     rootUrl: string,
-    options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean }
+    options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean; authFlowId?: string }
   ) => {
     // Clear any existing poll
     if (pollRef.current) {
@@ -138,6 +140,8 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       status: 'discovering',
       phase: 'initialization',
       pagesFound: 0,
+      maxPages: options?.maxPages || 50,  // Default to 50 if not provided
+      currentUrl: rootUrl,
       discoveredUrls: [],
     });
     setIsMinimized(false);

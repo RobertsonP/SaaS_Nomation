@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
+import { AnalysisFloatingIndicator } from '../../components/analysis/AnalysisFloatingIndicator';
 import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -114,6 +115,7 @@ export function ProjectDetailsPage() {
   const [authFlows, setAuthFlows] = useState<any[]>([]);
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [isAnalysisMinimized, setIsAnalysisMinimized] = useState(false);
   const [showLivePicker, setShowLivePicker] = useState(false);
   const [elementsKey, setElementsKey] = useState(0);
 
@@ -323,9 +325,27 @@ export function ProjectDetailsPage() {
 
   const handleAnalysisModalClose = () => {
     setShowAnalysisModal(false);
+    setIsAnalysisMinimized(false);
     // Reload project to ensure we have the latest data
     loadProject();
     // Force element library to re-render with new data
+    setElementsKey(prev => prev + 1);
+  };
+
+  const handleAnalysisMinimize = () => {
+    setShowAnalysisModal(false);
+    setIsAnalysisMinimized(true);
+  };
+
+  const handleAnalysisRestore = () => {
+    setIsAnalysisMinimized(false);
+    setShowAnalysisModal(true);
+  };
+
+  const handleAnalysisDismiss = () => {
+    setIsAnalysisMinimized(false);
+    // Reload project to ensure we have the latest data
+    loadProject();
     setElementsKey(prev => prev + 1);
   };
 
@@ -773,8 +793,21 @@ export function ProjectDetailsPage() {
       <AnalysisProgressModal
         isOpen={showAnalysisModal}
         onClose={handleAnalysisModalClose}
+        onMinimize={handleAnalysisMinimize}
         projectId={projectId || ''}
         projectName={project.name}
+      />
+
+      {/* Analysis Floating Indicator (when minimized) */}
+      <AnalysisFloatingIndicator
+        isVisible={isAnalysisMinimized && (analyzing || isAnalysisRunning)}
+        projectName={project.name}
+        currentStep={currentAnalysisStep}
+        progressPercent={analysisProgressPercent}
+        isComplete={!analyzing && !isAnalysisRunning && analysisProgressPercent >= 100}
+        hasError={false}
+        onRestore={handleAnalysisRestore}
+        onDismiss={handleAnalysisDismiss}
       />
 
       {/* Authentication Setup Modal */}
@@ -799,10 +832,18 @@ export function ProjectDetailsPage() {
         }}
         projectId={projectId || ''}
         initialUrl={project.urls[0]?.url || ''}
-        onDiscoveryComplete={(selectedUrlIds) => {
-          // Refresh the site map and project data
+        projectUrls={project.urls?.map((u: any) => ({ id: u.id, url: u.url, title: u.title })) || []}
+        onDiscoveryComplete={(selectedUrls) => {
+          // Backend already saved discovered URLs to DB during discovery.
+          // Refresh to show them in the UI.
           refetchSiteMap();
           loadProject();
+          showSuccess(
+            'Pages Added',
+            `${selectedUrls.length} discovered page${selectedUrls.length !== 1 ? 's' : ''} added to your project. You can now analyze them for elements.`
+          );
+          // Switch to sitemap tab to show the results
+          setActiveTab('sitemap');
         }}
       />
     </div>

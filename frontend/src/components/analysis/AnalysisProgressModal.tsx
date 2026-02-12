@@ -21,6 +21,7 @@ interface AnalysisProgressEvent {
 interface AnalysisProgressModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onMinimize?: () => void;
   projectId: string;
   projectName: string;
 }
@@ -28,6 +29,7 @@ interface AnalysisProgressModalProps {
 export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
   isOpen,
   onClose,
+  onMinimize,
   projectId,
   projectName,
 }) => {
@@ -37,6 +39,17 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
   const [overallProgress, setOverallProgress] = useState<number>(0);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [startTime] = useState<number>(Date.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+
+  // Elapsed time timer
+  useEffect(() => {
+    if (!isOpen || isCompleted || hasError) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isOpen, isCompleted, hasError, startTime]);
 
   useEffect(() => {
     if (!isOpen || !projectId) return;
@@ -60,27 +73,33 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
 
       // Update overall progress based on step
       if (event.progress) {
-        setOverallProgress(event.progress.percentage);
+        // For element_extraction sub-progress, scale within 30-70% range
+        if (event.step === 'element_extraction') {
+          setOverallProgress(30 + Math.round(event.progress.percentage * 0.4));
+        } else {
+          setOverallProgress(event.progress.percentage);
+        }
       } else {
         // Enhanced progress estimation with more granular steps
         const stepProgress: Record<string, number> = {
-          'initialization': 10,
-          'auth_check': 20,
+          'initialization': 5,
+          'auth_check': 15,
+          'element_extraction': 40,
           'authenticated_analysis': 45,
-          'standard_analysis': 45,
+          'standard_analysis': 50,
           'element_storage': 80,
           'fallback_analysis': 55,
           'analysis_completed': 100,
-          'analysis_error': 100, // Completion at error
+          'analysis_error': 100,
         };
         setOverallProgress(stepProgress[event.step] || 0);
       }
 
-      // Enhanced completion detection
+      // Completion detection — ONLY on analysis_completed or completed auth/standard steps
       if (event.status === 'completed' && (
-        event.step === 'authenticated_analysis' || 
-        event.step === 'standard_analysis' || 
-        event.step === 'element_storage'
+        event.step === 'authenticated_analysis' ||
+        event.step === 'standard_analysis' ||
+        event.step === 'analysis_completed'
       )) {
         setIsCompleted(true);
         setOverallProgress(100);
@@ -91,12 +110,6 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         setHasError(true);
         logger.error('Analysis error', event.details);
       }
-    });
-
-    // Handle subscription to project updates
-    newSocket.on('connect', () => {
-      logger.debug('Connected to analysis progress socket');
-      newSocket.emit('subscribe-to-project', projectId);
     });
 
     newSocket.on('disconnect', () => {
@@ -142,36 +155,69 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
               Real-time progress updates
             </p>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ml-4 flex-shrink-0"
-            title="Close (analysis will continue in background)"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1 ml-4 flex-shrink-0">
+            {/* Minimize button */}
+            {onMinimize && !isCompleted && !hasError && (
+              <button
+                onClick={onMinimize}
+                className="p-1.5 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                title="Minimize to floating indicator"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              title="Close (analysis will continue in background)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Progress</span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">{overallProgress}%</span>
+        {/* Status */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {!isCompleted && !hasError && (
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
+              )}
+              {isCompleted && (
+                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              {hasError && (
+                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              <span className={`text-sm font-medium ${
+                hasError ? 'text-red-700 dark:text-red-300' :
+                isCompleted ? 'text-green-700 dark:text-green-300' :
+                'text-gray-900 dark:text-white'
+              }`}>
+                {progressEvents.length > 0
+                  ? progressEvents[progressEvents.length - 1].message
+                  : 'Starting analysis...'}
+              </span>
+            </div>
+            {!isCompleted && !hasError && elapsedSeconds > 0 && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {elapsedSeconds}s
+              </span>
+            )}
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-            <div
-              className={`h-3 rounded-full transition-all duration-300 ${
-                hasError ? 'bg-red-500' : isCompleted ? 'bg-green-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${overallProgress}%` }}
-            />
-          </div>
-          {currentStep && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Current step: <span className="font-medium text-gray-900 dark:text-white">{currentStep.replace('_', ' ')}</span>
-            </p>
-          )}
         </div>
 
         {/* Progress Log */}
@@ -296,36 +342,7 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
-          <div className="flex items-center space-x-2">
-            {!isCompleted && !hasError && (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-300">Analysis in progress...</span>
-              </>
-            )}
-            {isCompleted && (
-              <>
-                <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span className="text-sm text-green-600 dark:text-green-400">Analysis completed successfully!</span>
-              </>
-            )}
-            {hasError && (
-              <>
-                <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span className="text-sm text-red-600 dark:text-red-400">Analysis encountered errors</span>
-              </>
-            )}
-          </div>
-          
+        <div className="flex items-center justify-end p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
           {(isCompleted || hasError) && (
             <button
               onClick={handleClose}

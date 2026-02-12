@@ -99,6 +99,8 @@ services:
       - playwright_cache:/opt/playwright
     ports:
       - "3002:3002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

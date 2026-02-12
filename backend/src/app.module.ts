@@ -27,14 +27,15 @@ import { DiscoveryModule } from './discovery/discovery.module';
   imports: [
     ScheduleModule.forRoot(),
     // Global rate limiting configuration
+    // Higher limits in development/testing to prevent E2E test failures from throttling
     ThrottlerModule.forRoot([{
       name: 'default',
-      ttl: 60000,      // 60 seconds
-      limit: 100,      // 100 requests per 60 seconds per IP
-    }, {
-      name: 'strict',   // For sensitive endpoints
       ttl: 60000,
-      limit: 10,        // 10 requests per minute
+      limit: process.env.NODE_ENV === 'production' ? 100 : 1000,
+    }, {
+      name: 'strict',
+      ttl: 60000,
+      limit: process.env.NODE_ENV === 'production' ? 10 : 100,
     }]),
     // Register Bull globally for job queue system
     BullModule.forRoot({

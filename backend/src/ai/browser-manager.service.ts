@@ -61,15 +61,16 @@ export class BrowserManagerService {
     return browser;
   }
 
-  async navigateToPage(page: Page, url: string): Promise<void> {
-    console.log(`🌐 Navigating to ${url} with enhanced loading strategy...`);
+  async navigateToPage(page: Page, url: string, options?: { fastMode?: boolean }): Promise<void> {
+    const fastMode = options?.fastMode ?? false;
+    console.log(`🌐 Navigating to ${url} with ${fastMode ? 'FAST' : 'enhanced'} loading strategy...`);
 
     try {
       // Strategy 1: Try networkidle first (fast sites)
-      console.log(`📡 Attempting fast load strategy (networkidle, 15s timeout)...`);
+      console.log(`📡 Attempting fast load strategy (networkidle, ${fastMode ? '5s' : '15s'} timeout)...`);
       await page.goto(url, {
         waitUntil: 'networkidle',
-        timeout: 15000
+        timeout: fastMode ? 5000 : 15000
       });
       console.log(`✅ Fast load successful for ${url}`);
 
@@ -127,8 +128,12 @@ export class BrowserManagerService {
       }
     }
 
-    // Progressive waits for dynamic content
-    await this.waitForDynamicContent(page, url);
+    // Progressive waits for dynamic content (skip in fast mode)
+    if (!fastMode) {
+      await this.waitForDynamicContent(page, url);
+    } else {
+      console.log(`⚡ Fast mode - skipping dynamic content waits`);
+    }
   }
 
   private async waitForDynamicContent(page: Page, url: string): Promise<void> {
@@ -185,16 +190,24 @@ export class BrowserManagerService {
   }
 
   /**
-   * Create a page with SSL error handling for localhost URLs
+   * Create a page with SSL error handling for localhost URLs.
+   * Optionally accepts storageState to create an authenticated context
+   * (preserving cookies/localStorage from a prior auth session).
    */
-  async createPageForUrl(browser: Browser, url: string): Promise<Page> {
+  async createPageForUrl(browser: Browser, url: string, options?: { storageState?: any }): Promise<Page> {
     const isLocal = this.isLocalAddress(url);
 
-    if (isLocal) {
-      console.log(`🏠 Localhost detected for ${url} - enabling SSL bypass`);
-      const context = await browser.newContext({
-        ignoreHTTPSErrors: true
-      });
+    if (options?.storageState || isLocal) {
+      const contextOptions: any = {};
+      if (isLocal) {
+        console.log(`🏠 Localhost detected for ${url} - enabling SSL bypass`);
+        contextOptions.ignoreHTTPSErrors = true;
+      }
+      if (options?.storageState) {
+        console.log(`🔐 Creating authenticated browser context with storageState`);
+        contextOptions.storageState = options.storageState;
+      }
+      const context = await browser.newContext(contextOptions);
       return context.newPage();
     }
 

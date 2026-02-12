@@ -160,6 +160,21 @@ export function TestSuitesPage() {
     setExecutingSuite(null)
   }
 
+  const handleDeleteSuite = async (suiteId: string, suiteName: string) => {
+    if (!window.confirm(`Delete suite "${suiteName}"? This will remove all execution history. This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await testSuitesAPI.delete(suiteId)
+      setTestSuites(testSuites.filter(s => s.id !== suiteId))
+      showSuccess('Suite Deleted', `Test suite "${suiteName}" has been deleted`)
+    } catch (error) {
+      logger.error('Failed to delete test suite:', error)
+      showError('Deletion Failed', 'Failed to delete test suite')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -336,6 +351,13 @@ export function TestSuitesPage() {
                     >
                       📊 Results
                     </Link>
+                    <button
+                      onClick={() => handleDeleteSuite(suite.id, suite.name)}
+                      className="text-red-600 hover:text-red-800 text-sm px-3 py-1 border border-red-200 rounded hover:bg-red-50"
+                      title="Delete suite"
+                    >
+                      🗑️ Delete
+                    </button>
                   </div>
                 </div>
                 

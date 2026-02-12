@@ -11,6 +11,7 @@ import { join } from 'path';
 import { writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { SmartWaitService } from '../execution/smart-wait.service';
+import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 
 interface TestStep {
   id: string;
@@ -22,39 +23,6 @@ interface TestStep {
   value?: string;
   description: string;
   timeout?: number;
-}
-
-/**
- * Normalize URL for Docker execution
- * Converts localhost URLs to host.docker.internal so browser inside Docker can reach host machine
- */
-function normalizeUrlForDocker(url: string): string {
-  if (!url) return url;
-
-  try {
-    // Add protocol if missing
-    let normalizedUrl = url;
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = 'http://' + normalizedUrl;
-    }
-
-    const urlObj = new URL(normalizedUrl);
-
-    // Convert localhost/127.0.0.1 to host.docker.internal for Docker compatibility
-    if (urlObj.hostname === 'localhost' || urlObj.hostname === '127.0.0.1') {
-      urlObj.hostname = 'host.docker.internal';
-      return urlObj.toString();
-    }
-
-    return normalizedUrl;
-  } catch {
-    // If URL parsing fails, try simple string replacement
-    return url
-      .replace(/^localhost:/, 'http://host.docker.internal:')
-      .replace(/^127\.0\.0\.1:/, 'http://host.docker.internal:')
-      .replace('://localhost:', '://host.docker.internal:')
-      .replace('://127.0.0.1:', '://host.docker.internal:');
-  }
 }
 
 @Processor('test-execution')
@@ -514,8 +482,67 @@ export class ExecutionQueueProcessor {
   }
 
   /**
+   * Resolve a selector string into a Playwright Locator.
+   * Supports both CSS/XPath selectors and Playwright-native locator strings:
+   *   - getByRole('button', { name: 'Submit' })
+   *   - getByText('Hello')
+   *   - getByLabel('Email')
+   *   - getByTestId('submit-btn')
+   *   - getByPlaceholder('Enter email')
+   *   - getByTitle('Close')
+   *   - Regular CSS/XPath selectors (fallback)
+   */
+  private resolveLocator(page: Page, selector: string) {
+    // Match native locator patterns: getByRole('...', { ... }) or getByText('...')
+    const nativeMatch = selector.match(/^(getByRole|getByText|getByLabel|getByTestId|getByPlaceholder|getByTitle)\(/);
+    if (!nativeMatch) {
+      return page.locator(selector);
+    }
+
+    const method = nativeMatch[1];
+
+    // Extract the first string argument (between first pair of quotes)
+    const firstArgMatch = selector.match(/\(\s*['"]([^'"]*)['"]/);
+    if (!firstArgMatch) {
+      return page.locator(selector); // Fallback if can't parse
+    }
+    const firstArg = firstArgMatch[1];
+
+    // Extract options object if present: { name: '...', exact: true }
+    const optionsMatch = selector.match(/,\s*\{([^}]+)\}/);
+    const options: Record<string, unknown> = {};
+    if (optionsMatch) {
+      const optStr = optionsMatch[1];
+      // Parse name: '...'
+      const nameMatch = optStr.match(/name:\s*['"]([^'"]*)['"]/);
+      if (nameMatch) options.name = nameMatch[1];
+      // Parse exact: true/false
+      const exactMatch = optStr.match(/exact:\s*(true|false)/);
+      if (exactMatch) options.exact = exactMatch[1] === 'true';
+    }
+
+    switch (method) {
+      case 'getByRole':
+        return page.getByRole(firstArg as any, options as any);
+      case 'getByText':
+        return page.getByText(firstArg, options as any);
+      case 'getByLabel':
+        return page.getByLabel(firstArg, options as any);
+      case 'getByTestId':
+        return page.getByTestId(firstArg);
+      case 'getByPlaceholder':
+        return page.getByPlaceholder(firstArg, options as any);
+      case 'getByTitle':
+        return page.getByTitle(firstArg, options as any);
+      default:
+        return page.locator(selector);
+    }
+  }
+
+  /**
    * Get reliable locator with fallback selector support
    * Uses smart wait priority: visible > stable > element (GEMINI requirement)
+   * Supports both CSS selectors and Playwright-native locator strings (getByRole, etc.)
    */
   private async getReliableLocator(page: Page, step: TestStep) {
     const selectors = [
@@ -529,7 +556,7 @@ export class ExecutionQueueProcessor {
     for (let i = 0; i < selectors.length; i++) {
       const selector = selectors[i];
       try {
-        const locator = page.locator(selector);
+        const locator = this.resolveLocator(page, selector);
 
         // PRIORITY 1: Wait for element to be visible (most reliable for interactions)
         try {
@@ -633,9 +660,9 @@ export class ExecutionQueueProcessor {
         return { success: true, action: 'press', key: step.value };
 
       case 'screenshot':
-        const screenshotBuffer = await page.screenshot({ type: 'png', fullPage: true });
+        const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false, timeout: 5000 });
         const screenshotBase64 = screenshotBuffer.toString('base64');
-        return { success: true, action: 'screenshot', screenshot: `data:image/png;base64,${screenshotBase64}` };
+        return { success: true, action: 'screenshot', screenshot: `data:image/jpeg;base64,${screenshotBase64}` };
 
       case 'doubleclick':
         await locator.dblclick({ timeout });
@@ -664,8 +691,10 @@ export class ExecutionQueueProcessor {
   private async capturePageScreenshot(page: Page): Promise<string | null> {
     try {
       const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
+        type: 'jpeg',
+        quality: 70,
+        fullPage: false,
+        timeout: 5000,
       });
       return screenshot.toString('base64');
     } catch (error) {
