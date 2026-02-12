@@ -17,5 +17,8 @@
     "@modelcontextprotocol/server-memory": "^2025.4.25",
     "@modelcontextprotocol/server-postgres": "^0.6.2",
     "@playwright/mcp": "^0.0.30"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }

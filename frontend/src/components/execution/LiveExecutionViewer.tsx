@@ -61,16 +61,31 @@ export function LiveExecutionViewer({
   const [queueStatus, setQueueStatus] = useState<{ position: number; waiting: boolean } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const stepsContainerRef = useRef<HTMLDivElement | null>(null);
+  const stepRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (isOpen && testId) {
       startExecution();
     }
-    
+
     return () => {
       cleanup();
     };
   }, [isOpen, testId]);
+
+  // Auto-scroll to current step when it changes
+  useEffect(() => {
+    if (executionData?.currentStepIndex !== undefined) {
+      const stepElement = stepRefs.current.get(executionData.currentStepIndex);
+      if (stepElement) {
+        stepElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    }
+  }, [executionData?.currentStepIndex]);
 
   const setupSocketIO = useCallback(() => {
     // Connect to Socket.IO for real-time execution updates
@@ -179,9 +194,10 @@ export function LiveExecutionViewer({
       setIsExecuting(false);
       setExecutionData(prev => {
         if (!prev) return prev;
-        const finalData = {
+        const finalStatus: LiveExecutionData['status'] = data.status === 'passed' ? 'passed' : 'failed';
+        const finalData: LiveExecutionData = {
           ...prev,
-          status: data.status === 'passed' ? 'passed' : 'failed' as const,
+          status: finalStatus,
           duration: data.duration,
           completedAt: new Date().toISOString()
         };
@@ -484,36 +500,62 @@ export function LiveExecutionViewer({
               )}
 
               {executionData?.steps.length ? (
-                <div className="p-3 space-y-2">
+                <div ref={stepsContainerRef} className="p-3 space-y-2">
                   {executionData.steps.map((step, index) => (
                     <div
                       key={step.id}
-                      className={`p-3 rounded-lg border ${
-                        step.status === 'running' ? 'bg-blue-50 border-blue-200' :
-                        step.status === 'passed' ? 'bg-green-50 border-green-200' :
-                        step.status === 'failed' ? 'bg-red-50 border-red-200' :
-                        'bg-gray-50 border-gray-200'
-                      } ${index === executionData.currentStepIndex && step.status === 'running' ? 'ring-2 ring-blue-300' : ''}`}
+                      ref={(el) => {
+                        if (el) stepRefs.current.set(index, el);
+                      }}
+                      className={`p-3 rounded-lg border transition-all duration-300 ease-in-out ${
+                        step.status === 'running'
+                          ? 'bg-blue-50 border-blue-300 shadow-md shadow-blue-100 animate-pulse'
+                          : step.status === 'passed'
+                            ? 'bg-green-50 border-green-300 shadow-sm'
+                            : step.status === 'failed'
+                              ? 'bg-red-50 border-red-300 shadow-sm'
+                              : 'bg-gray-50 border-gray-200 opacity-60'
+                      } ${index === executionData.currentStepIndex && step.status === 'running'
+                        ? 'ring-2 ring-blue-400 ring-offset-1 scale-[1.02]'
+                        : ''
+                      }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <div className="text-xs font-medium text-gray-500">
+                        <div className={`text-xs font-medium ${
+                          step.status === 'running' ? 'text-blue-600' :
+                          step.status === 'passed' ? 'text-green-600' :
+                          step.status === 'failed' ? 'text-red-600' :
+                          'text-gray-500'
+                        }`}>
                           Step {index + 1} • {step.type}
                         </div>
-                        <div className="text-xs">
-                          {step.status === 'pending' && '⏸️'}
-                          {step.status === 'running' && <span className="animate-pulse">▶️</span>}
-                          {step.status === 'passed' && '✅'}
-                          {step.status === 'failed' && '❌'}
-                          {step.status === 'skipped' && '⏭️'}
+                        <div className={`text-sm flex items-center gap-1 ${
+                          step.status === 'passed' ? 'animate-bounce-once' : ''
+                        }`}>
+                          {step.status === 'pending' && <span className="opacity-40">⏸️</span>}
+                          {step.status === 'running' && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
+                              <span className="text-blue-600 font-medium">Running</span>
+                            </span>
+                          )}
+                          {step.status === 'passed' && <span className="text-green-500">✅ Done</span>}
+                          {step.status === 'failed' && <span className="text-red-500">❌ Failed</span>}
+                          {step.status === 'skipped' && <span className="opacity-40">⏭️</span>}
                         </div>
                       </div>
 
-                      <div className="text-sm font-medium text-gray-900 mb-1">
+                      <div className={`text-sm font-medium mb-1 ${
+                        step.status === 'running' ? 'text-blue-900' :
+                        step.status === 'passed' ? 'text-green-900' :
+                        step.status === 'failed' ? 'text-red-900' :
+                        'text-gray-700'
+                      }`}>
                         {step.description}
                       </div>
 
                       {step.selector && (
-                        <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700 mb-1 truncate" title={step.selector}>
+                        <div className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-700 dark:text-gray-300 mb-1 truncate" title={step.selector}>
                           {step.selector}
                         </div>
                       )}
@@ -525,14 +567,14 @@ export function LiveExecutionViewer({
                       )}
 
                       {step.error && (
-                        <div className="text-xs text-red-600 mt-1">
-                          Error: {step.error}
+                        <div className="text-xs text-red-600 mt-1 bg-red-50 p-2 rounded border border-red-200">
+                          ⚠️ {step.error}
                         </div>
                       )}
 
-                      {step.duration && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Duration: {(step.duration / 1000).toFixed(1)}s
+                      {step.duration !== undefined && step.status !== 'pending' && (
+                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          ⏱️ {(step.duration / 1000).toFixed(2)}s
                         </div>
                       )}
                     </div>

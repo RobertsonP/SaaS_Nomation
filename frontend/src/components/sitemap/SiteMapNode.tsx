@@ -90,7 +90,7 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
   return (
     <div
       className={`
-        px-3 py-2 rounded-lg border-2 shadow-sm min-w-[180px] max-w-[240px] cursor-pointer transition-all
+        px-4 py-3 rounded-lg border-2 shadow-sm min-w-[200px] max-w-[280px] cursor-pointer transition-all
         ${getNodeStyles()}
         ${selected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
         hover:shadow-md
@@ -105,8 +105,8 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
           {getStatusIcon()}
           <button
             onClick={handleOpenUrl}
@@ -125,12 +125,12 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
       </div>
 
       {/* URL */}
-      <div className="flex items-center gap-1 text-xs text-gray-500 mb-1.5">
+      <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
         <span className="truncate">{displayUrl}</span>
       </div>
 
       {/* Footer badges */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         {pageType && (
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPageTypeBadge()}`}>
             {pageType}

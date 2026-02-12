@@ -80,6 +80,7 @@ export function useDiscovery(projectId: string | undefined) {
       maxDepth?: number;
       maxPages?: number;
       useSitemap?: boolean;
+      authFlowId?: string;  // Optional: use authentication for discovering protected pages
     }
   ) => {
     if (!projectId) return null;

@@ -1,0 +1,128 @@
+ID,Feature,Scenario,Type,Preconditions,Steps,Expected Result,Automated?,Status,Last Run,Notes
+AUTH-01,Authentication,Login with valid credentials,E2E,Test user seeded in DB,"1. Go to /login
+2. Enter test@test.com / test
+3. Click Sign in",Redirects to /dashboard,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-02,Authentication,Login with invalid credentials,E2E,None,"1. Go to /login
+2. Enter wrong@email.com / wrongpassword
+3. Click Sign in",Stays on /login with error message,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-03,Authentication,Redirect to login for protected route,E2E,Not logged in,"1. Go to /dashboard directly",Redirects to /login,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-04,Authentication,Login helper works,E2E,Test user seeded,"1. Call login() helper",Lands on /dashboard,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-05,Authentication,Session persists during navigation,E2E,Logged in,"1. Navigate to /projects
+2. Navigate to /dashboard",Stays logged in on both pages,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-06,Authentication,Session persists after page refresh,E2E,Logged in,"1. Refresh the page",Stays on /dashboard (not redirected to login),Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-07,Authentication,Logout successfully,E2E,Logged in,"1. Dismiss onboarding if shown
+2. Click Logout button",Redirects to /login,Yes,Pass,2026-02-11,auth.spec.ts
+AUTH-08,Authentication,Cannot access dashboard after logout,E2E,Logged in,"1. Clear localStorage
+2. Navigate to /dashboard",Redirects to /login,Yes,Pass,2026-02-11,auth.spec.ts
+PROJ-01,Projects,Create project with name and URL,E2E,Logged in,"1. Go to /projects
+2. Click Create Project
+3. Fill name and URL
+4. Click Create Project",Redirects to project details page showing project name,Yes,Pass,2026-02-11,project-crud.spec.ts
+PROJ-02,Projects,View project details with tabs,E2E,Project exists,"1. Navigate to project details
+2. Check for tabs",Shows Overview / Site Map / URLs / Elements / Authentication tabs,Yes,Pass,2026-02-11,project-crud.spec.ts
+PROJ-03,Projects,Edit project name,E2E,Project exists,"1. Navigate to project
+2. Edit name via UI or API
+3. Verify updated name",Project name updated and displayed,Yes,Pass,2026-02-11,project-crud.spec.ts
+PROJ-04,Projects,Add URL to project,E2E,Project exists,"1. Go to URLs tab
+2. Enter new URL
+3. Click Add URL",New URL appears in the list,Yes,Pass,2026-02-11,project-crud.spec.ts
+PROJ-05,Projects,Delete project,E2E,Project exists,"1. Delete project via API
+2. Go to /projects",Project no longer visible in list,Yes,Pass,2026-02-11,project-crud.spec.ts
+AFLW-01,Auth Flow,Create auth flow,E2E,Project exists,"1. Go to Authentication tab
+2. Click Add Authentication
+3. Fill name / login URL / username / password
+4. Click Save Auth Flow",Auth flow created; modal closes,Yes,Pass,2026-02-11,auth-flow-setup.spec.ts
+AFLW-02,Auth Flow,Verify auth flow in list,E2E,Auth flow created,"1. Go to Authentication tab",Auth flow name and login URL visible in list,Yes,Pass,2026-02-11,auth-flow-setup.spec.ts
+AFLW-03,Auth Flow,Edit auth flow,E2E,Auth flow exists,"1. Click Edit on auth flow
+2. Change name
+3. Save",Updated name shown; old name gone,Yes,Pass,2026-02-11,auth-flow-setup.spec.ts
+AFLW-04,Auth Flow,Delete auth flow,E2E,Auth flow exists,"1. Click Delete on auth flow
+2. Accept confirmation",Auth flow removed from list,Yes,Pass,2026-02-11,auth-flow-setup.spec.ts
+AFLW-05,Auth Flow,Cleanup: delete test project,E2E,Test project exists,"1. Delete project via API",Project removed,Yes,Pass,2026-02-11,auth-flow-setup.spec.ts
+DISC-01,Discovery,Run discovery on saucedemo.com,E2E,Project with saucedemo URL,"1. Go to Site Map tab
+2. Click Discover
+3. Click Start Discovery
+4. Wait for completion",Discovery Complete with >0 pages found,Yes,Pass,2026-02-11,discovery.spec.ts
+DISC-02,Discovery,Show discovered pages in sitemap graph,E2E,Discovery completed,"1. Open discovery modal
+2. Check graph or selection panel",Graph shows pages or Add Pages button visible,Yes,Pass,2026-02-11,discovery.spec.ts
+DISC-03,Discovery,Add discovered pages to project,E2E,Discovery completed,"1. Click Add N Pages button
+2. Go to URLs tab",URLs added and visible in list,Yes,Pass,2026-02-11,discovery.spec.ts
+DISC-04,Discovery,Re-discovery deduplication,E2E,Pages already added,"1. Run discovery again
+2. Add pages again
+3. Check URL count",URL count does not double,Yes,Pass,2026-02-11,discovery.spec.ts
+DISC-05,Discovery,Discovery progress phases,E2E,Project exists,"1. Start discovery
+2. Observe progress phases",At least one phase label visible (Checking connectivity / Looking for sitemap / Crawling pages / Saving results),Yes,Pass,2026-02-11,discovery.spec.ts
+DISC-06,Discovery,Cleanup: delete discovery project,E2E,Test project exists,"1. Delete project",Project removed,Yes,Pass,2026-02-11,discovery.spec.ts
+ELEM-01,Element Analysis,Create project for analysis,E2E,Logged in,"1. Create project with saucedemo.com URL",Project created,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-02,Element Analysis,Run discovery on saucedemo,E2E,Project exists,"1. Open Site Map
+2. Click Discover
+3. Start Discovery",Discovery completes,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-03,Element Analysis,Trigger element analysis,E2E,Discovery done,"1. Go to Elements tab
+2. Click Analyze",Analysis runs and detects elements,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-04,Element Analysis,Dropdown detection on real page,E2E,None,"1. Login to saucedemo
+2. Go to inventory page
+3. Interact with sort dropdown",Dropdown works; sort changes product order,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-05,Element Analysis,Button and input detection,E2E,None,"1. Go to saucedemo login page",Username input (text) / password input / login button all visible,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-06,Element Analysis,Modal/popup detection,E2E,None,"1. Go to the-internet.herokuapp.com/javascript_alerts
+2. Click alert button
+3. Accept alert",Alert appears with correct message; result text confirms,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-07,Element Analysis,Checkbox state detection,E2E,None,"1. Go to the-internet.herokuapp.com/checkboxes
+2. Toggle checkboxes",Two checkboxes; correct initial states; toggling works,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-08,Element Analysis,Dynamic content/state changes,E2E,None,"1. Go to the-internet.herokuapp.com/dynamic_controls
+2. Click Remove
+3. Click Add",Checkbox disappears on remove; reappears on add,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-09,Element Analysis,Selector quality on real elements,E2E,None,"1. Go to saucedemo login
+2. Check selector attributes",Elements have data-test and id attributes,Yes,Pass,2026-02-11,element-analysis.spec.ts
+ELEM-10,Element Analysis,Cleanup: delete test project,E2E,Project exists,"1. Delete project",Project cleaned up,Yes,Pass,2026-02-11,element-analysis.spec.ts
+TBLD-01,Test Builder,Navigate to test builder,E2E,Seeded project exists,"1. Go to project details
+2. Click Create Test",Navigates to /tests/new,Yes,Pass,2026-02-11,test-builder.spec.ts
+TBLD-02,Test Builder,Fill config modal and start building,E2E,On /tests/new page,"1. Fill test name
+2. Select starting URL
+3. Click Start Building Test",Config modal closes; test builder renders with Test Steps panel,Yes,Pass,2026-02-11,test-builder.spec.ts
+TBLD-03,Test Builder,Verify builder layout,E2E,Builder loaded,"1. Check for Test Steps header
+2. Check for Save Test button
+3. Check for Cancel button",All UI elements visible,Yes,Pass,2026-02-11,test-builder.spec.ts
+TBLD-04,Test Builder,Save test and verify in list,E2E,Builder loaded with name,"1. Click Save Test
+2. Navigate to tests list",Test appears in list with correct name,Yes,Pass,2026-02-11,test-builder.spec.ts
+TBLD-05,Test Builder,Edit existing test,E2E,Test created,"1. Go to tests list
+2. Click Edit
+3. Verify test name displayed
+4. Open Edit Config modal",Test name visible; Edit Config button works,Yes,Pass,2026-02-11,test-builder.spec.ts
+TBLD-06,Test Builder,Delete test cleanup,E2E,Test exists,"1. Click Delete on test
+2. Accept confirmation",Test removed from list,Yes,Pass,2026-02-11,test-builder.spec.ts
+TEXE-01,Test Execution,Login and see dashboard,E2E,Logged in,"1. Login",Dashboard shows Welcome back,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-02,Test Execution,Navigate to project and find tests,E2E,Projects exist,"1. Go to /projects
+2. Click first project",On project details page,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-03,Test Execution,Run test live with real-time updates,E2E,Test with steps exists,"1. Click Run Live (🎬) button
+2. Wait for modal
+3. Observe steps executing
+4. Wait for completion",Live Execution modal shows; steps transition through states; shows Passed or Failed,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-04,Test Execution,Step events in real-time,E2E,Test with steps exists,"1. Click Run Live
+2. Observe step transitions",Steps go from pending -> running (pulse) -> passed/failed,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-05,Test Execution,Browser viewport screenshots,E2E,Test with steps exists,"1. Click Run Live
+2. Check Browser Viewport section",Screenshot visible with base64 or URL src,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-06,Test Execution,Stop execution,E2E,Test running,"1. Click Run Live
+2. Wait for Running state
+3. Click Stop Execution",Execution stops,Yes,Pass,2026-02-11,test-execution.spec.ts
+TEXE-07,Test Execution,Re-run from results page,E2E,Test exists,"1. Click View Results
+2. Click Run Live on results page",Live Execution modal appears,Yes,Pass,2026-02-11,test-execution.spec.ts
+TSUI-01,Test Suites,Navigate to test suites page,E2E,Project exists,"1. Go to /projects/{id}/suites",Page loads with Test Suites heading,Yes,Pass,2026-02-11,test-suites.spec.ts
+TSUI-02,Test Suites,Create test suite,E2E,On suites page,"1. Click Create Test Suite
+2. Fill suite name
+3. Click Create Suite",Suite appears in list,Yes,Pass,2026-02-11,test-suites.spec.ts
+TSUI-03,Test Suites,View test suite details,E2E,Suite created,"1. Click Manage on suite",Suite detail page loads showing suite name,Yes,Pass,2026-02-11,test-suites.spec.ts
+TSUI-04,Test Suites,Delete test suite,E2E,Suite exists,"1. Click Delete on suite
+2. Accept confirmation",Suite removed from list,Yes,Pass,2026-02-11,test-suites.spec.ts
+URL-01,URL Management,Create project for URL testing,E2E,Logged in,"1. Create project with saucedemo URL",Project created,Yes,Pass,2026-02-11,url-management.spec.ts
+URL-02,URL Management,Project starts with root URL,E2E,Project created,"1. Go to URLs tab",Root URL (saucedemo.com) visible,Yes,Pass,2026-02-11,url-management.spec.ts
+URL-03,URL Management,Add new URL to project,E2E,Project exists,"1. Go to URLs tab
+2. Enter new URL
+3. Click Add URL",New URL visible in list,Yes,Pass,2026-02-11,url-management.spec.ts
+URL-04,URL Management,URLs persist after refresh,E2E,URL added,"1. Refresh page
+2. Go to URLs tab",URLs still visible,Yes,Pass,2026-02-11,url-management.spec.ts
+URL-05,URL Management,Cleanup: delete project,E2E,Project exists,"1. Delete project",Project cleaned up,Yes,Pass,2026-02-11,url-management.spec.ts
+PICK-01,Element Picker,Create project for picker testing,E2E,Logged in,"1. Create project with saucedemo URL",Project created,Yes,Pass,2026-02-11,element-picker.spec.ts
+PICK-02,Element Picker,Navigate to element picker,E2E,Project exists,"1. Click Elements tab or Picker button",Element picker UI loads,Yes,Pass,2026-02-11,element-picker.spec.ts
+PICK-03,Element Picker,Verify project has URLs,E2E,Project created,"1. Go to URLs tab",Saucedemo URL visible,Yes,Pass,2026-02-11,element-picker.spec.ts
+PICK-04,Element Picker,View element library,E2E,Project exists,"1. Go to Elements tab",Elements tab shows content,Yes,Pass,2026-02-11,element-picker.spec.ts
+PICK-05,Element Picker,Cleanup: delete project,E2E,Project exists,"1. Delete project",Project cleaned up,Yes,Pass,2026-02-11,element-picker.spec.ts

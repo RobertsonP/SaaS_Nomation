@@ -197,6 +197,7 @@ export const projectsAPI = {
     maxDepth?: number;
     maxPages?: number;
     useSitemap?: boolean;
+    authFlowId?: string;  // Optional: use authentication for discovering protected pages
   }) => {
     const response = await api.post(`/projects/${projectId}/discover`, {
       rootUrl,

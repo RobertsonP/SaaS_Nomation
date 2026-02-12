@@ -86,7 +86,8 @@ export interface ProjectElement {
   id: string;
   projectId: string;
   selector: string;
-  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image';
+  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image' |
+    'table' | 'dropdown' | 'modal-trigger' | 'toggle' | 'tab' | 'accordion' | 'element';
   description: string;
   confidence: number;
   attributes: {
@@ -153,12 +154,44 @@ export interface ProjectElement {
         height: string;
       };
     };
+    // Richer element context for CSS recreation
+    parentContext?: {
+      tag: string;
+      role?: string;
+      className?: string;
+      id?: string;
+      display?: string;
+      flexDirection?: string;
+      text?: string;
+    };
+    siblingInfo?: {
+      count: number;
+      index: number;
+      nearbyLabels: string[];
+    };
+    contextHTML?: string;
+    containerSelector?: string;
+    visualDescription?: string;
+    resolvedColors?: {
+      backgroundColor: string;
+      color: string;
+      borderColor?: string;
+    };
   };
   sourceUrl?: {
     id: string;
     url: string;
     title?: string;
     description?: string;
+  };
+  // Structured table data (for table elements)
+  tableData?: {
+    headers: string[];
+    rowCount: number;
+    sampleData: string[][];
+    tableSelector: string;
+    rowSelectors: string[];
+    headerColumnMap: Record<string, number>;
   };
   screenshot?: string | null; // Base64 encoded screenshot
   

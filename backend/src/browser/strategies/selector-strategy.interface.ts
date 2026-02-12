@@ -57,6 +57,9 @@ export interface SelectorOptions {
   allElements?: BrowserElement[];
 }
 
+// getBy* types kept for backward compatibility with existing stored selectors resolved via resolveLocator()
+export type LocatorType = 'css' | 'xpath' | 'getByRole' | 'getByText' | 'getByLabel' | 'getByTestId' | 'getByPlaceholder' | 'getByTitle';
+
 export interface GeneratedSelector {
   selector: string;
   confidence: number;
@@ -64,6 +67,10 @@ export interface GeneratedSelector {
   description: string;
   isUnique: boolean;
   isPlaywrightOptimized: boolean;
+  /** How to resolve this selector — 'css' for page.locator(), native methods for getBy* */
+  locatorType?: LocatorType;
+  /** Arguments for native locator methods (e.g. { role: 'button', name: 'Submit' }) */
+  locatorArgs?: Record<string, unknown>;
 }
 
 export interface SelectorStrategy {

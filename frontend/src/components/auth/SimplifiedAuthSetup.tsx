@@ -266,9 +266,11 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            🔐 {isEditMode ? 'Edit Authentication Flow' : 'Simplified Authentication Setup'}
+            {isEditMode ? 'Edit Authentication Flow' : 'Simplified Authentication Setup'}
           </h2>
-          <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-4">
+            {/* Progress steps */}
+            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
             <div className={`px-2 py-1 rounded ${step === 'credentials' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
               1. Credentials
             </div>
@@ -278,6 +280,17 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
             <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
               3. Review
             </div>
+            </div>
+            {/* Close button */}
+            <button
+              onClick={onCancel}
+              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              title="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
 

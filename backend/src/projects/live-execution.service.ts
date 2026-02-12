@@ -161,8 +161,10 @@ export class LiveExecutionService {
       }
 
       const beforeScreenshot = await page.screenshot({
-        type: 'png',
-        fullPage: false
+        type: 'jpeg',
+        quality: 70,
+        fullPage: false,
+        timeout: 5000,
       });
 
       const step = data.step;
@@ -251,8 +253,10 @@ export class LiveExecutionService {
       console.log(`✅ Step completed: ${step.type} on ${step.selector}`);
 
       const afterScreenshot = await page.screenshot({
-        type: 'png',
-        fullPage: false
+        type: 'jpeg',
+        quality: 70,
+        fullPage: false,
+        timeout: 5000,
       });
 
       console.log(`✅ Live step execution completed successfully`);
@@ -274,7 +278,7 @@ export class LiveExecutionService {
       let errorScreenshot = null;
       try {
         if (page) {
-          errorScreenshot = await page.screenshot({ type: 'png', fullPage: false });
+          errorScreenshot = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false, timeout: 5000 });
         }
       } catch (screenshotError) {
         console.warn('Could not capture error screenshot:', screenshotError);

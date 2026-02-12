@@ -2,7 +2,8 @@ import { Browser, Page } from 'playwright';
 
 export interface DetectedElement {
   selector: string;
-  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image';
+  elementType: 'button' | 'input' | 'link' | 'form' | 'navigation' | 'text' | 'image' |
+    'table' | 'dropdown' | 'modal-trigger' | 'toggle' | 'tab' | 'accordion' | 'element';
   description: string;
   confidence: number;
   
@@ -145,6 +146,40 @@ export interface DetectedElement {
         width: string;
         height: string;
       };
+    };
+
+    // Richer element context for CSS recreation
+    parentContext?: {
+      tag: string;
+      role?: string;
+      className?: string;
+      id?: string;
+      display?: string;
+      flexDirection?: string;
+      text?: string;
+    };
+    siblingInfo?: {
+      count: number;
+      index: number;
+      nearbyLabels: string[];
+    };
+    contextHTML?: string;        // Parent outerHTML (truncated)
+    containerSelector?: string;  // Nearest semantic container
+    visualDescription?: string;  // Auto-generated visual description
+    resolvedColors?: {           // Computed colors (walked up parent chain)
+      backgroundColor: string;
+      color: string;
+      borderColor?: string;
+    };
+
+    // Structured table data (for table elements)
+    tableData?: {
+      headers: string[];
+      rowCount: number;
+      sampleData: string[][];
+      tableSelector: string;
+      rowSelectors: string[];
+      headerColumnMap: Record<string, number>;
     };
 
     // Index signature for additional dynamic attributes stored in Prisma JSON field

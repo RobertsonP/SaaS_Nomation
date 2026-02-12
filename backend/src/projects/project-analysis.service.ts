@@ -330,7 +330,18 @@ export class ProjectAnalysisService {
 
       try {
         const retryResult = await this.retryService.executeWithRetry(
-          () => this.elementAnalyzer.analyzePage(projectUrl.url),
+          () => this.elementAnalyzer.analyzePage(projectUrl.url, {
+            onProgress: (stage, percent, detail) => {
+              this.progressGateway.sendProgress(
+                projectId,
+                'element_extraction',
+                `${projectUrl.url}: ${stage}`,
+                percent,
+                100,
+                { url: projectUrl.url, stage, detail }
+              );
+            },
+          }),
           `analyze-url-${projectUrl.url}`,
           {
             maxRetries: 2,

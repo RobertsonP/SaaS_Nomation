@@ -5,33 +5,45 @@ import { Page, ElementHandle } from 'playwright';
 @Injectable()
 export class SelectorQualityService {
   // Minimum quality threshold - selectors below this are rejected
-  private readonly MIN_QUALITY_THRESHOLD = 0.35;
+  // Task 1.2: Raised from 0.35 to 0.5 for better quality
+  private readonly MIN_QUALITY_THRESHOLD = 0.5;
 
   /**
    * Check if a selector should be rejected (too low quality or problematic pattern)
+   * Task 1.2: Enhanced to reject ALL div:nth-child and similar unstable patterns
    */
   shouldRejectSelector(selector: string): { reject: boolean; reason: string | null } {
+    const trimmed = selector.trim();
+
+    // CRITICAL: Reject ANY selector containing div:nth-child or div:nth-of-type
+    // These are position-based and break when page structure changes
+    const divNthPattern = /div:nth-(child|of-type)\(\d+\)/i;
+    if (divNthPattern.test(trimmed)) {
+      return { reject: true, reason: 'Contains div:nth-child pattern which is fragile and position-based' };
+    }
+
     // Reject selectors that are ONLY positional (no semantic value)
     const positionalOnlyPattern = /^[a-z]+:nth-(child|of-type)\(\d+\)$/i;
-    if (positionalOnlyPattern.test(selector.trim())) {
+    if (positionalOnlyPattern.test(trimmed)) {
       return { reject: true, reason: 'Position-only selector (e.g., a:nth-child(2)) is too fragile' };
     }
 
-    // Reject selectors that end with only :nth-child without any other identifying attribute
-    const endsWithNthPattern = /^[a-z]+ ?> ?[a-z]+:nth-(child|of-type)\(\d+\)$/i;
-    if (endsWithNthPattern.test(selector.trim())) {
-      return { reject: true, reason: 'Selector relies only on position without semantic attributes' };
+    // Reject selectors that end with :nth-child on any generic element
+    // Matches: "parent > element:nth-child(n)" where element is generic
+    const endsWithNthPattern = /> ?(div|span|a|li|p|section|article):nth-(child|of-type)\(\d+\)$/i;
+    if (endsWithNthPattern.test(trimmed)) {
+      return { reject: true, reason: 'Selector ends with position-based pattern on generic element' };
     }
 
     // Reject generic tag-only selectors
     const genericTagPattern = /^(div|span|a|li|p|ul|ol)$/i;
-    if (genericTagPattern.test(selector.trim())) {
+    if (genericTagPattern.test(trimmed)) {
       return { reject: true, reason: 'Generic tag selector without any attributes' };
     }
 
     // Reject selectors that are just a class on a generic element without other context
     const genericWithClassPattern = /^(div|span)\.[a-z0-9_-]+$/i;
-    if (genericWithClassPattern.test(selector.trim())) {
+    if (genericWithClassPattern.test(trimmed)) {
       return { reject: true, reason: 'Generic element with single class is too common' };
     }
 
@@ -105,11 +117,29 @@ export class SelectorQualityService {
     if (selector.includes(':first-child') || selector.includes(':last-child')) {
       score -= 0.2;
     }
-    if (selector.split(' ').length > 4) {
-      score -= 0.15;
-    }
-    if (selector.includes('>>') || selector.includes('xpath=')) {
+    if (selector.includes('xpath=')) {
       score -= 0.2;
+    }
+
+    // Reward professional Playwright patterns
+    if (selector.includes('>>')) {
+      score += 0.15; // Deep combinator is stable
+    }
+    if (selector.includes(':visible')) {
+      score += 0.05;
+    }
+    if (selector.includes('[role=') && selector.includes('[aria-label=')) {
+      score += 0.10; // Role + aria-label combo
+    }
+    if (selector.includes('[role=') && selector.includes(':has-text(')) {
+      score += 0.08; // Role + text combo
+    }
+    const attrCount = (selector.match(/\[[\w-]+=/g) || []).length;
+    if (attrCount >= 2) {
+      score += 0.10; // Multi-attribute selectors
+    }
+    if (attrCount >= 3) {
+      score += 0.05; // Extra bonus for 3+ attributes
     }
 
     return Math.max(0, Math.min(1, score));
@@ -125,8 +155,10 @@ export class SelectorQualityService {
       score += 0.3;
     } else if (complexity === 1) {
       score += 0.1;
-    } else if (complexity > 3) {
-      score -= 0.2;
+    } else if (complexity >= 4 && complexity <= 5) {
+      score += 0.15; // Multi-part selectors are more specific = more stable
+    } else if (complexity > 5) {
+      score += 0.05; // Still positive, just less bonus for very long selectors
     }
 
     if (selector.includes('[type=') || selector.includes('input[')) {

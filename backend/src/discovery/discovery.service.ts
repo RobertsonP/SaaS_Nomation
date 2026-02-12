@@ -2,6 +2,8 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SitemapParserService } from './sitemap-parser.service';
 import { PageCrawlerService } from './page-crawler.service';
+import { LoginFlow } from '../ai/interfaces/element.interface';
+import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 import axios from 'axios';
 import * as https from 'https';
 
@@ -11,6 +13,8 @@ export interface DiscoveryProgress {
   discoveredUrls: number;
   totalUrls: number;
   message: string;
+  urls?: string[];  // List of discovered URLs for live progress display
+  currentUrl?: string;  // Currently being crawled
 }
 
 export interface DiscoveredPage {
@@ -73,25 +77,16 @@ export class DiscoveryService {
 
   /**
    * Translate localhost URLs to Docker-accessible addresses when running in Docker
-   * This allows users to enter http://localhost:3001 and have it work from inside Docker
    */
   private translateLocalhostForDocker(url: string): string {
     const isDocker = process.env.RUNNING_IN_DOCKER === 'true';
     if (!isDocker) return url;
 
-    try {
-      const parsed = new URL(url);
-      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
-        // Use host.docker.internal to reach the host machine from inside Docker
-        parsed.hostname = 'host.docker.internal';
-        const translatedUrl = parsed.toString();
-        this.logger.log(`Translated localhost URL for Docker: ${url} → ${translatedUrl}`);
-        return translatedUrl;
-      }
-    } catch {
-      // Invalid URL, return as-is
+    const translated = normalizeUrlForDocker(url);
+    if (translated !== url) {
+      this.logger.log(`Translated localhost URL for Docker: ${url} → ${translated}`);
     }
-    return url;
+    return translated;
   }
 
   /**
@@ -115,19 +110,19 @@ export class DiscoveryService {
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         throw new HttpException(
-          `Cannot connect to ${url}. ${isLocal ? 'Make sure your local development server is running on the specified port.' : 'The server refused the connection.'}`,
+          `Can't reach ${url}. ${isLocal ? 'Make sure your app is running on this port.' : 'The server refused the connection.'}`,
           HttpStatus.BAD_REQUEST
         );
       }
       if (error.code === 'ENOTFOUND') {
         throw new HttpException(
-          `Cannot resolve hostname for ${url}. Please check the URL is correct.`,
+          `Can't find ${url}. Please check the URL is spelled correctly.`,
           HttpStatus.BAD_REQUEST
         );
       }
       if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
         throw new HttpException(
-          `Connection to ${url} timed out. ${isLocal ? 'Make sure your local server is responding.' : 'The server may be slow or unavailable.'}`,
+          `Connection to ${url} timed out. ${isLocal ? 'Make sure your app is responding.' : 'The server may be slow or unavailable.'}`,
           HttpStatus.REQUEST_TIMEOUT
         );
       }
@@ -139,6 +134,7 @@ export class DiscoveryService {
 
   /**
    * Start discovery for a project from a root URL
+   * @param authFlowId - Optional auth flow ID to use for discovering protected pages
    */
   async startDiscovery(
     projectId: string,
@@ -148,9 +144,10 @@ export class DiscoveryService {
       maxDepth?: number;
       maxPages?: number;
       useSitemap?: boolean;
+      authFlowId?: string;
     } = {},
   ): Promise<DiscoveryResult> {
-    const { maxDepth = 3, maxPages = 100, useSitemap = true } = options;
+    const { maxDepth = 3, maxPages = 100, useSitemap = true, authFlowId } = options;
     const startTime = Date.now();
 
     // Verify project belongs to organization
@@ -186,14 +183,63 @@ export class DiscoveryService {
         phase: 'connectivity',
         discoveredUrls: 0,
         totalUrls: 0,
-        message: isLocal ? 'Checking local server connectivity...' : 'Checking website connectivity...',
+        message: isLocal ? 'Checking if your local server is reachable...' : 'Checking if the website is reachable...',
       });
 
       await this.checkUrlReachable(baseUrl);
 
+      // Fetch auth flow if provided - enables discovering protected pages
+      let authFlow: LoginFlow | undefined;
+      if (authFlowId) {
+        this.logger.log(`Using auth flow ${authFlowId} for authenticated discovery`);
+        this.updateProgress(projectId, {
+          status: 'discovering',
+          phase: 'authentication',
+          discoveredUrls: 0,
+          totalUrls: 0,
+          message: 'Loading authentication configuration...',
+        });
+
+        const authFlowRecord = await this.prisma.authFlow.findFirst({
+          where: { id: authFlowId, projectId },
+        });
+
+        if (authFlowRecord) {
+          // Transform database record to LoginFlow interface
+          // Using unknown as intermediate type for JSON fields from Prisma
+          authFlow = {
+            id: authFlowRecord.id,
+            name: authFlowRecord.name,
+            loginUrl: this.translateLocalhostForDocker(authFlowRecord.loginUrl),
+            steps: authFlowRecord.steps as unknown as LoginFlow['steps'],
+            credentials: authFlowRecord.credentials as unknown as LoginFlow['credentials'],
+            useAutoDetection: authFlowRecord.useAutoDetection,
+            manualSelectors: authFlowRecord.manualSelectors as unknown as LoginFlow['manualSelectors'],
+          };
+          this.logger.log(`Auth flow loaded: ${authFlow.name} (login URL: ${authFlow.loginUrl})`);
+        } else {
+          throw new HttpException(
+            `Authentication flow not found. The selected auth flow may have been deleted. Please select a different one or discover without authentication.`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
       const discoveredPages: DiscoveredPage[] = [];
       const relationships: DiscoveryResult['relationships'] = [];
       const urlToId = new Map<string, string>();
+
+      // Add login page to discovered pages when auth is configured
+      if (authFlow) {
+        discoveredPages.push({
+          url: authFlow.loginUrl,
+          title: 'Login Page',
+          pageType: 'login',
+          requiresAuth: false,
+          depth: 0,
+        });
+        this.logger.log(`Added login page to discovered pages: ${authFlow.loginUrl}`);
+      }
 
       // Step 1: Try sitemap first
       if (useSitemap) {
@@ -202,7 +248,7 @@ export class DiscoveryService {
           phase: 'sitemap',
           discoveredUrls: 0,
           totalUrls: 0,
-          message: 'Checking for sitemap...',
+          message: 'Looking for a sitemap...',
         });
 
         const sitemap = await this.sitemapParser.fetchSitemap(baseUrl);
@@ -232,6 +278,7 @@ export class DiscoveryService {
             discoveredUrls: discoveredPages.length,
             totalUrls: filteredUrls.length,
             message: `Found ${discoveredPages.length} pages in sitemap`,
+            urls: discoveredPages.map(p => p.url),
           });
         } else {
           // No sitemap found - inform user and proceed to crawling
@@ -241,7 +288,7 @@ export class DiscoveryService {
             phase: 'sitemap',
             discoveredUrls: 0,
             totalUrls: 0,
-            message: 'No sitemap found, will discover pages by crawling links...',
+            message: 'No sitemap found — will discover pages by following links',
           });
         }
       }
@@ -255,9 +302,29 @@ export class DiscoveryService {
         message: discoveredPages.length > 0
           ? `Crawling to find more pages (found ${discoveredPages.length} from sitemap)...`
           : 'Crawling website to discover pages...',
+        urls: discoveredPages.map(p => p.url),
+        currentUrl: baseUrl,
       });
 
-      const crawlResults = await this.pageCrawler.crawlWithDepth(baseUrl, maxDepth, maxPages);
+      const crawlResults = await this.pageCrawler.crawlWithDepth(
+        baseUrl,
+        maxDepth,
+        maxPages,
+        authFlow,
+        // Progress callback — updates progress on every page crawled
+        (crawled, total, currentUrl) => {
+          const totalFound = discoveredPages.length + crawled;
+          this.updateProgress(projectId, {
+            status: 'discovering',
+            phase: 'crawling',
+            discoveredUrls: totalFound,
+            totalUrls: Math.max(totalFound + (total - crawled), maxPages),
+            message: `Crawling page ${crawled} — found ${totalFound} pages so far`,
+            urls: [...discoveredPages.map(p => p.url)],
+            currentUrl,
+          });
+        },
+      );
 
       // Process crawl results
       for (const [url, result] of crawlResults) {
@@ -294,6 +361,16 @@ export class DiscoveryService {
         }
       }
 
+      // Update progress with all discovered URLs after crawling
+      this.updateProgress(projectId, {
+        status: 'discovering',
+        phase: 'processing',
+        discoveredUrls: discoveredPages.length,
+        totalUrls: discoveredPages.length,
+        message: `Processing ${discoveredPages.length} discovered pages...`,
+        urls: discoveredPages.map(p => p.url),
+      });
+
       // Step 3: Save to database
       this.updateProgress(projectId, {
         status: 'discovering',
@@ -301,97 +378,120 @@ export class DiscoveryService {
         discoveredUrls: discoveredPages.length,
         totalUrls: discoveredPages.length,
         message: 'Saving discovered pages...',
+        urls: discoveredPages.map(p => p.url),
       });
 
-      // Create or update ProjectUrls
-      for (const page of discoveredPages) {
-        const existingUrl = await this.prisma.projectUrl.findFirst({
-          where: {
-            projectId,
-            url: page.url,
-          },
-        });
+      // Create or update ProjectUrls — batch lookup then parallel upserts
+      const existingUrls = await this.prisma.projectUrl.findMany({
+        where: { projectId, url: { in: discoveredPages.map(p => p.url) } },
+      });
+      const existingUrlMap = new Map(existingUrls.map(u => [u.url, u]));
 
-        if (existingUrl) {
-          // Update existing URL with new data (screenshot, verification, etc.)
-          await this.prisma.projectUrl.update({
-            where: { id: existingUrl.id },
-            data: {
-              title: page.title || existingUrl.title,
-              requiresAuth: page.requiresAuth,
-              pageType: page.pageType,
-              screenshot: page.screenshot || existingUrl.screenshot,
-              verified: page.isAccessible ?? existingUrl.verified,
-              lastVerified: page.isAccessible !== undefined ? new Date() : existingUrl.lastVerified,
-            },
-          });
-          urlToId.set(page.url, existingUrl.id);
+      const toCreate: typeof discoveredPages = [];
+      const toUpdate: Array<{ id: string; page: DiscoveredPage; existing: typeof existingUrls[0] }> = [];
+
+      for (const page of discoveredPages) {
+        const existing = existingUrlMap.get(page.url);
+        if (existing) {
+          toUpdate.push({ id: existing.id, page, existing });
+          urlToId.set(page.url, existing.id);
         } else {
-          const newUrl = await this.prisma.projectUrl.create({
-            data: {
-              projectId,
-              url: page.url,
-              title: page.title || this.generateTitleFromUrl(page.url),
-              discovered: true,
-              discoveryDepth: page.depth,
-              requiresAuth: page.requiresAuth,
-              pageType: page.pageType,
-              screenshot: page.screenshot,
-              verified: page.isAccessible ?? false,
-              lastVerified: page.isAccessible ? new Date() : null,
-            },
-          });
-          urlToId.set(page.url, newUrl.id);
+          toCreate.push(page);
         }
       }
 
-      // Create PageRelationships
-      // Note: URLs need to be normalized for lookup since urlToId uses normalized URLs
-      for (const rel of relationships) {
-        const normalizedSource = this.normalizeUrl(rel.sourceUrl);
-        const normalizedTarget = this.normalizeUrl(rel.targetUrl);
+      // Batch create new URLs
+      if (toCreate.length > 0) {
+        await this.prisma.projectUrl.createMany({
+          data: toCreate.map(page => ({
+            projectId,
+            url: page.url,
+            title: page.title || this.generateTitleFromUrl(page.url),
+            discovered: true,
+            discoveryDepth: page.depth,
+            requiresAuth: page.requiresAuth,
+            pageType: page.pageType,
+            screenshot: page.screenshot,
+            verified: page.isAccessible ?? false,
+            lastVerified: page.isAccessible ? new Date() : null,
+          })),
+          skipDuplicates: true,
+        });
+        // Fetch the created IDs
+        const created = await this.prisma.projectUrl.findMany({
+          where: { projectId, url: { in: toCreate.map(p => p.url) } },
+          select: { id: true, url: true },
+        });
+        created.forEach(c => urlToId.set(c.url, c.id));
+      }
 
-        // Try normalized URL first, then fall back to raw URL
-        const sourceId = urlToId.get(normalizedSource) || urlToId.get(rel.sourceUrl);
-        const targetId = urlToId.get(normalizedTarget) || urlToId.get(rel.targetUrl);
+      // Parallel update existing URLs
+      if (toUpdate.length > 0) {
+        await Promise.all(toUpdate.map(({ id, page, existing }) =>
+          this.prisma.projectUrl.update({
+            where: { id },
+            data: {
+              title: page.title || existing.title,
+              requiresAuth: page.requiresAuth,
+              pageType: page.pageType,
+              screenshot: page.screenshot || existing.screenshot,
+              verified: page.isAccessible ?? existing.verified,
+              lastVerified: page.isAccessible !== undefined ? new Date() : existing.lastVerified,
+            },
+          })
+        ));
+      }
 
-        if (sourceId && targetId && sourceId !== targetId) {
-          try {
-            await this.prisma.pageRelationship.upsert({
-              where: {
-                sourceUrlId_targetUrlId: {
-                  sourceUrlId: sourceId,
-                  targetUrlId: targetId,
-                },
+      // Create PageRelationships — parallel upserts
+      const validRelationships = relationships
+        .map(rel => {
+          const normalizedSource = this.normalizeUrl(rel.sourceUrl);
+          const normalizedTarget = this.normalizeUrl(rel.targetUrl);
+          const sourceId = urlToId.get(normalizedSource) || urlToId.get(rel.sourceUrl);
+          const targetId = urlToId.get(normalizedTarget) || urlToId.get(rel.targetUrl);
+          return { ...rel, sourceId, targetId };
+        })
+        .filter(rel => rel.sourceId && rel.targetId && rel.sourceId !== rel.targetId);
+
+      // Process in batches of 20 to avoid overwhelming the DB
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < validRelationships.length; i += BATCH_SIZE) {
+        const batch = validRelationships.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(rel =>
+          this.prisma.pageRelationship.upsert({
+            where: {
+              sourceUrlId_targetUrlId: {
+                sourceUrlId: rel.sourceId!,
+                targetUrlId: rel.targetId!,
               },
-              create: {
-                projectId,
-                sourceUrlId: sourceId,
-                targetUrlId: targetId,
-                linkText: rel.linkText,
-                linkType: rel.linkType,
-              },
-              update: {
-                linkText: rel.linkText,
-                linkType: rel.linkType,
-              },
-            });
-          } catch (error) {
+            },
+            create: {
+              projectId,
+              sourceUrlId: rel.sourceId!,
+              targetUrlId: rel.targetId!,
+              linkText: rel.linkText,
+              linkType: rel.linkType,
+            },
+            update: {
+              linkText: rel.linkText,
+              linkType: rel.linkType,
+            },
+          }).catch(() => {
             // Ignore duplicate errors
-            this.logger.debug(`Relationship already exists: ${rel.sourceUrl} -> ${rel.targetUrl}`);
-          }
-        }
+          })
+        ));
       }
 
       const discoveryTime = Date.now() - startTime;
 
-      // Complete
+      // Complete - include all discovered URLs in final state
       this.updateProgress(projectId, {
         status: 'complete',
         phase: 'complete',
         discoveredUrls: discoveredPages.length,
         totalUrls: discoveredPages.length,
-        message: `Discovery complete! Found ${discoveredPages.length} pages in ${Math.round(discoveryTime / 1000)}s`,
+        message: `Done! Found ${discoveredPages.length} pages in ${Math.round(discoveryTime / 1000)}s`,
+        urls: discoveredPages.map(p => p.url),
       });
 
       return {
@@ -581,9 +681,9 @@ export class DiscoveryService {
       // 1. Remove hash/anchor fragments
       parsed.hash = '';
 
-      // 2. Normalize localhost variations
+      // 2. Normalize localhost variations (localhost = 127.0.0.1 = host.docker.internal)
       let host = parsed.host;
-      if (parsed.hostname === '127.0.0.1') {
+      if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'host.docker.internal') {
         const port = parsed.port || '';
         host = `localhost${port ? ':' + port : ''}`;
       }
@@ -591,17 +691,18 @@ export class DiscoveryService {
       // 3. Remove www prefix
       host = host.replace(/^www\./, '');
 
-      // 4. Normalize path
+      // 4. Normalize path - remove trailing slashes, index files, lowercase
       let path = parsed.pathname.replace(/\/+$/, '') || '/';
-      path = path.toLowerCase();
+      path = path.replace(/\/(index|default)\.(html?|php|aspx?|jsp)$/i, '');
+      path = path.toLowerCase() || '/';
 
-      // 5. Remove tracking parameters
+      // 5. Remove tracking parameters (only safe-to-remove ones)
       const trackingParams = [
         'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
         'fbclid', 'fb_action_ids', 'fb_action_types', 'fb_source',
-        'gclid', 'gclsrc', 'dclid',
-        'ref', 'source', 'campaign', 'via', 'affiliate',
-        'mc_cid', 'mc_eid', 'msclkid', '_ga', '_gl',
+        'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
+        'msclkid', 'twclid',
+        'mc_cid', 'mc_eid', '_ga', '_gl',
         'trk', 'trkid', 'tracking', 'click_id', 'clickid',
         'sessionid', 'session', 'sid',
       ];

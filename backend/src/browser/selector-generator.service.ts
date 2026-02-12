@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import {
-  SelectorStrategy,
   SelectorOptions,
   GeneratedSelector,
-  getAllStrategies,
-  getCssOnlyStrategies
-} from './strategies';
+} from './strategies/selector-strategy.interface';
+import { isTestableElement } from './selector-utils';
+import { TestAttributeStrategy } from './strategies/test-attribute.strategy';
+import { PlaywrightStrategy } from './strategies/playwright.strategy';
+import { SemanticStrategy } from './strategies/semantic.strategy';
+import { RelationalStrategy } from './strategies/relational.strategy';
+import { LayoutStrategy } from './strategies/layout.strategy';
+import { CombinedStrategy } from './strategies/combined.strategy';
+import { XPathStrategy } from './strategies/xpath.strategy';
 
 /**
  * Orchestrator service for selector generation using Strategy Pattern
@@ -13,44 +18,65 @@ import {
  */
 @Injectable()
 export class SelectorGeneratorService {
-  private readonly strategies: SelectorStrategy[];
-  private readonly cssOnlyStrategies: SelectorStrategy[];
-
-  constructor() {
-    this.strategies = getAllStrategies();
-    this.cssOnlyStrategies = getCssOnlyStrategies();
-  }
+  private readonly testAttributeStrategy = new TestAttributeStrategy();
+  private readonly playwrightStrategy = new PlaywrightStrategy();
+  private readonly semanticStrategy = new SemanticStrategy();
+  private readonly relationalStrategy = new RelationalStrategy();
+  private readonly layoutStrategy = new LayoutStrategy();
+  private readonly combinedStrategy = new CombinedStrategy();
+  private readonly xpathStrategy = new XPathStrategy();
 
   /**
    * Generate selectors using all available strategies
    */
   generateSelectors(options: SelectorOptions): GeneratedSelector[] {
-    const { includePlaywrightSpecific, prioritizeUniqueness, testableElementsOnly, element } = options;
+    const { element, document, includePlaywrightSpecific, prioritizeUniqueness, testableElementsOnly } = options;
 
     // Skip non-testable elements if requested
-    if (testableElementsOnly && !this.isTestableElement(element)) {
+    if (testableElementsOnly && !isTestableElement(element)) {
       return [];
     }
 
-    // Select appropriate strategies based on options
-    const activeStrategies = includePlaywrightSpecific
-      ? this.strategies
-      : this.cssOnlyStrategies;
+    const selectors: GeneratedSelector[] = [];
 
-    // Collect selectors from all strategies
-    const allSelectors: GeneratedSelector[] = [];
+    // 1. Test-specific attributes
+    this.testAttributeStrategy.addTestSpecificSelectors(element, selectors, document);
 
-    for (const strategy of activeStrategies) {
-      try {
-        const selectors = strategy.generate(options);
-        allSelectors.push(...selectors);
-      } catch (error) {
-        console.warn(`Strategy ${strategy.name} failed:`, error);
-      }
+    // 2. Unique IDs
+    this.testAttributeStrategy.addIdSelectors(element, selectors, document);
+
+    // 3. Playwright-specific selectors
+    if (includePlaywrightSpecific) {
+      this.playwrightStrategy.addPlaywrightSelectors(element, selectors, document);
     }
 
-    // Filter and sort results
-    return this.filterAndSort(allSelectors, prioritizeUniqueness);
+    // 4. Semantic selectors
+    this.semanticStrategy.addSemanticSelectors(element, selectors, document);
+
+    // 5. Stable attribute selectors
+    this.semanticStrategy.addStableAttributeSelectors(element, selectors, document);
+
+    // 6. Relational selectors
+    this.relationalStrategy.addStableRelationalSelectors(element, selectors, document);
+
+    // 7. Layout, visibility, state, text, deep combinator selectors
+    this.layoutStrategy.addVisibilitySelectors(element, selectors, document);
+    this.layoutStrategy.addStateAttributeSelectors(element, selectors, document);
+    this.combinedStrategy.addEnhancedTextSelectors(element, selectors, document);
+    this.combinedStrategy.addDeepCombinatorSelectors(element, selectors, document);
+
+    // 7b. Sibling-based selectors
+    this.relationalStrategy.addSiblingBasedSelectors(element, selectors, document);
+
+    // 8. Comprehensive combined selectors
+    this.combinedStrategy.addComprehensiveCombinedSelectors(element, selectors, document);
+
+    // 9. XPath fallback
+    if (selectors.length < 3) {
+      this.xpathStrategy.addXPathSelectors(element, selectors, document);
+    }
+
+    return this.filterAndSort(selectors, prioritizeUniqueness);
   }
 
   /**
@@ -62,22 +88,18 @@ export class SelectorGeneratorService {
   }
 
   /**
-   * Generate selectors using a specific strategy
-   */
-  generateWithStrategy(strategyName: string, options: SelectorOptions): GeneratedSelector[] {
-    const strategy = this.strategies.find(s => s.name === strategyName);
-    if (!strategy) {
-      console.warn(`Strategy ${strategyName} not found`);
-      return [];
-    }
-    return strategy.generate(options);
-  }
-
-  /**
    * Get list of available strategy names
    */
   getAvailableStrategies(): string[] {
-    return this.strategies.map(s => s.name);
+    return [
+      'test-attribute',
+      'playwright',
+      'semantic',
+      'relational',
+      'layout',
+      'combined',
+      'xpath'
+    ];
   }
 
   /**
@@ -105,40 +127,5 @@ export class SelectorGeneratorService {
 
     // Return top 10
     return sorted.slice(0, 10);
-  }
-
-  /**
-   * Check if element is interactive/testable
-   */
-  private isTestableElement(element: any): boolean {
-    const tag = element.tagName?.toLowerCase();
-    const role = element.getAttribute?.('role');
-    const type = element.getAttribute?.('type');
-
-    const interactiveTags = ['button', 'input', 'textarea', 'select', 'a', 'form', 'img'];
-    const interactiveRoles = ['button', 'link', 'textbox', 'checkbox', 'radio', 'menuitem', 'tab'];
-    const interactiveTypes = ['submit', 'button', 'checkbox', 'radio', 'text', 'password', 'email'];
-
-    // Element is testable if it's an interactive tag, has interactive role, or has interactive type
-    const isInteractive = interactiveTags.includes(tag) ||
-                          interactiveRoles.includes(role) ||
-                          interactiveTypes.includes(type);
-
-    // Also check for event handlers
-    const hasEventHandlers = element.hasAttribute?.('onclick') ||
-                              element.hasAttribute?.('onsubmit') ||
-                              element.hasAttribute?.('onchange');
-
-    // Check for test attributes
-    const hasTestAttributes = element.hasAttribute?.('data-testid') ||
-                               element.hasAttribute?.('data-test') ||
-                               element.hasAttribute?.('data-cy');
-
-    // Check for meaningful text content (for text elements)
-    const text = element.textContent?.trim() || '';
-    const isTextElement = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'label'].includes(tag) &&
-                          text.length > 0 && text.length < 200;
-
-    return isInteractive || hasEventHandlers || hasTestAttributes || isTextElement;
   }
 }
