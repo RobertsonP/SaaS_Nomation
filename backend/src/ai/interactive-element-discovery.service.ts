@@ -5,7 +5,7 @@ import { DetectedElement } from './interfaces/element.interface';
 interface InteractiveTrigger {
   selector: string;
   text: string;
-  triggerType: 'modal' | 'dropdown' | 'popup' | 'expandable';
+  triggerType: 'modal' | 'dropdown' | 'popup' | 'expandable' | 'tab';
   ariaInfo?: string;
 }
 
@@ -71,7 +71,7 @@ export class InteractiveElementDiscoveryService {
       const triggers: Array<{
         selector: string;
         text: string;
-        triggerType: 'modal' | 'dropdown' | 'popup' | 'expandable';
+        triggerType: 'modal' | 'dropdown' | 'popup' | 'expandable' | 'tab';
         ariaInfo?: string;
       }> = [];
 
@@ -154,6 +154,21 @@ export class InteractiveElementDiscoveryService {
         }
       });
 
+      // 5. Tab triggers — inactive tabs that reveal hidden tab panels
+      document.querySelectorAll(
+        '[role="tab"]:not([aria-selected="true"]), ' +
+        '[data-bs-toggle="tab"]:not(.active), [data-toggle="tab"]:not(.active), ' +
+        '.nav-tabs .nav-link:not(.active), .nav-pills .nav-link:not(.active), ' +
+        '[role="tab"][aria-selected="false"]'
+      ).forEach(el => {
+        const selector = getSelector(el);
+        const text = el.textContent?.trim()?.slice(0, 50) || '';
+        if (selector && !seen.has(selector)) {
+          seen.add(selector);
+          triggers.push({ selector, text, triggerType: 'tab' });
+        }
+      });
+
       return triggers;
     });
   }
@@ -204,19 +219,21 @@ export class InteractiveElementDiscoveryService {
         name: string;
       }> = [];
 
-      // Look for elements in modals, overlays, dropdowns
+      // Look for elements in modals, overlays, dropdowns, tab panels, and forms
       const containers = document.querySelectorAll(
         '.modal.show, .modal[style*="display: block"], [role="dialog"], [role="alertdialog"], ' +
         '.dropdown-menu.show, [class*="dropdown"][class*="open"], ' +
         '[class*="popup"][class*="open"], [class*="popup"][class*="show"], ' +
         '.popover.show, [role="listbox"], [role="menu"], ' +
-        '[aria-expanded="true"] + *, [aria-expanded="true"] ~ *'
+        '[aria-expanded="true"] + *, [aria-expanded="true"] ~ *, ' +
+        '[role="tabpanel"]:not([hidden]), .tab-pane.active, .tab-pane.show, ' +
+        'form:not([style*="display: none"]), [role="form"]'
       );
 
       const processElement = (el: Element) => {
         const tag = el.tagName.toLowerCase();
-        if (!['input', 'button', 'select', 'textarea', 'a'].includes(tag) &&
-            !el.getAttribute('role')?.match(/button|link|checkbox|radio|textbox|combobox/)) {
+        if (!['input', 'button', 'select', 'textarea', 'a', 'form', 'label'].includes(tag) &&
+            !el.getAttribute('role')?.match(/button|link|checkbox|radio|textbox|combobox|form/)) {
           return;
         }
 
@@ -247,7 +264,7 @@ export class InteractiveElementDiscoveryService {
 
       if (containers.length > 0) {
         containers.forEach(container => {
-          container.querySelectorAll('input, button, select, textarea, a, [role]').forEach(processElement);
+          container.querySelectorAll('input, button, select, textarea, a, form, label, [role]').forEach(processElement);
         });
       } else {
         // Fallback: look for any newly visible elements (we'll filter against baseline)
@@ -274,7 +291,7 @@ export class InteractiveElementDiscoveryService {
         elementType,
         description: this.buildDescription(el, trigger),
         confidence: 0.7,
-        discoveryState: trigger.triggerType === 'modal' ? 'modal' : 'after_interaction',
+        discoveryState: trigger.triggerType === 'modal' ? 'modal' : trigger.triggerType === 'tab' ? 'tab' : 'after_interaction',
         discoveryTrigger: `Clicked "${trigger.text}"`,
         attributes: {
           tag: el.tag,
@@ -290,27 +307,29 @@ export class InteractiveElementDiscoveryService {
       });
     }
 
-    // Close the popup: try Escape, then click outside
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(300);
+    // Close the popup — tabs and expandables don't need closing
+    if (trigger.triggerType !== 'tab') {
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(300);
 
-    // Verify popup closed — if not, try clicking outside
-    const stillOpen = await page.evaluate(() => {
-      return !!document.querySelector(
-        '.modal.show, .modal[style*="display: block"], [role="dialog"]:not([aria-hidden="true"])'
-      );
-    });
+      // Verify popup closed — if not, try clicking outside
+      const stillOpen = await page.evaluate(() => {
+        return !!document.querySelector(
+          '.modal.show, .modal[style*="display: block"], [role="dialog"]:not([aria-hidden="true"])'
+        );
+      });
 
-    if (stillOpen) {
-      // Try clicking a close button
-      const closeBtn = page.locator('.modal .close, .modal [aria-label="Close"], [class*="modal"] button:has-text("Close"), [class*="modal"] button:has-text("×")').first();
-      if (await closeBtn.isVisible().catch(() => false)) {
-        await closeBtn.click({ timeout: 2000 }).catch(() => {});
-        await page.waitForTimeout(300);
-      } else {
-        // Click the overlay/backdrop
-        await page.mouse.click(10, 10);
-        await page.waitForTimeout(300);
+      if (stillOpen) {
+        // Try clicking a close button
+        const closeBtn = page.locator('.modal .close, .modal [aria-label="Close"], [class*="modal"] button:has-text("Close"), [class*="modal"] button:has-text("×")').first();
+        if (await closeBtn.isVisible().catch(() => false)) {
+          await closeBtn.click({ timeout: 2000 }).catch(() => {});
+          await page.waitForTimeout(300);
+        } else {
+          // Click the overlay/backdrop
+          await page.mouse.click(10, 10);
+          await page.waitForTimeout(300);
+        }
       }
     }
 
@@ -340,7 +359,14 @@ export class InteractiveElementDiscoveryService {
     trigger: InteractiveTrigger,
   ): string {
     const label = el.ariaLabel || el.placeholder || el.text || el.name || el.type || el.tag;
-    const context = trigger.triggerType === 'modal' ? 'modal' : trigger.triggerType;
+    const contextMap: Record<string, string> = {
+      modal: 'modal',
+      dropdown: 'dropdown',
+      popup: 'popup',
+      expandable: 'expandable section',
+      tab: 'tab',
+    };
+    const context = contextMap[trigger.triggerType] || trigger.triggerType;
     return `${label} (in ${context}: "${trigger.text}")`.slice(0, 200);
   }
 }

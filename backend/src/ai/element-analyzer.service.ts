@@ -41,29 +41,9 @@ export class ElementAnalyzerService {
       await this.browserManager.navigateToPage(page, url, { fastMode });
       onProgress?.('Page loaded, scanning elements...', 20);
 
-      // Enhanced element extraction with CSS information
-      const initialElements = await this.elementDetection.extractAllPageElements(page, { skipScreenshots: fastMode });
-      onProgress?.(`Found ${initialElements.length} elements, checking for hidden content...`, 50);
-
-      // Discover elements hidden in modals, dropdowns, popups
-      let allElements = initialElements;
-      if (!fastMode) {
-        try {
-          const hiddenElements = await this.interactiveDiscovery.discoverHiddenElements(
-            page,
-            initialElements,
-            (msg) => onProgress?.(msg, 60),
-          );
-          if (hiddenElements.length > 0) {
-            allElements = [...initialElements, ...hiddenElements];
-            console.log(`Interactive discovery found ${hiddenElements.length} additional elements`);
-          }
-        } catch (err) {
-          console.warn(`Interactive discovery skipped: ${err.message}`);
-        }
-      }
-
-      const elements = allElements;
+      // Enhanced element extraction with CSS information (screenshots always skipped — CSS preview is sufficient)
+      const elements = await this.elementDetection.extractAllPageElements(page, { skipScreenshots: true });
+      // Interactive discovery (modals, dropdowns, tabs) runs separately via Phase 5 trigger — not during initial scan
       onProgress?.(`Found ${elements.length} elements total`, 90);
 
       console.log(`Found ${elements.length} elements with enhanced data`);

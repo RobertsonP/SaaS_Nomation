@@ -29,6 +29,7 @@ export class SitemapParserService {
       return (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
+        hostname === 'host.docker.internal' ||
         hostname.startsWith('192.168.') ||
         hostname.startsWith('10.') ||
         hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) !== null
@@ -182,11 +183,20 @@ export class SitemapParserService {
   /**
    * Filter URLs to only include pages from the same domain
    */
+  /**
+   * Normalize domain for comparison — localhost, 127.0.0.1 and host.docker.internal are equivalent
+   */
+  private normalizeDomain(domain: string): string {
+    const d = domain.toLowerCase();
+    if (d === '127.0.0.1' || d === 'host.docker.internal') return 'localhost';
+    return d;
+  }
+
   filterSameDomain(urls: SitemapUrl[], baseUrl: string): SitemapUrl[] {
-    const baseDomain = new URL(baseUrl).hostname;
+    const baseDomain = this.normalizeDomain(new URL(baseUrl).hostname);
     return urls.filter(u => {
       try {
-        const urlDomain = new URL(u.loc).hostname;
+        const urlDomain = this.normalizeDomain(new URL(u.loc).hostname);
         return urlDomain === baseDomain || urlDomain.endsWith(`.${baseDomain}`);
       } catch {
         return false;

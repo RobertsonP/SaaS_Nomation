@@ -191,7 +191,11 @@ export interface ProjectElement {
     sampleData: string[][];
     tableSelector: string;
     rowSelectors: string[];
+    columnSelectors: string[];
+    cellSelectors: string[][];
     headerColumnMap: Record<string, number>;
+    hasHeaders: boolean;
+    hasTbody: boolean;
   };
   screenshot?: string | null; // Base64 encoded screenshot
   

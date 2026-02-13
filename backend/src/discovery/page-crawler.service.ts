@@ -318,6 +318,11 @@ export class PageCrawlerService implements OnModuleInit {
       // Extract all links (delegates to LinkDiscoveryService)
       const links = await this.linkDiscoveryService.extractLinks(page, baseDomain);
 
+      // Diagnostic: log link extraction results
+      const internalLinks = links.filter(l => l.linkType !== 'external');
+      const externalLinks = links.filter(l => l.linkType === 'external');
+      this.logger.debug(`Links from ${url}: ${links.length} total (${internalLinks.length} internal, ${externalLinks.length} external)`);
+
       // Close the page (not the context if it's shared)
       await page.close();
       if (shouldCloseContext) {
@@ -433,7 +438,7 @@ export class PageCrawlerService implements OnModuleInit {
     const baseDomain = new URL(startUrl).hostname;
     const isAuthenticated = !!authFlow;
 
-    this.logger.log(`Starting crawl of ${startUrl} (max depth: ${maxDepth}, max pages: ${maxPages}, authenticated: ${isAuthenticated})`);
+    this.logger.log(`Starting crawl of ${startUrl} (max depth: ${maxDepth}, max pages: ${maxPages}, authenticated: ${isAuthenticated}, baseDomain: ${baseDomain})`);
 
     await this.initBrowser();
 
@@ -515,20 +520,38 @@ export class PageCrawlerService implements OnModuleInit {
 
           // Add discovered links to queue if within depth limit
           if (depth < maxDepth) {
+            let queued = 0;
+            let skippedExternal = 0;
+            let skippedNonPage = 0;
+            let skippedVisited = 0;
+            let skippedDepth = 0;
+
             for (const link of result.links) {
               // Task 1.4: Filter non-HTML URLs and external links
-              if (link.linkType !== 'external' && this.urlNormalizationService.isPageUrl(link.url)) {
-                const linkNormalized = this.urlNormalizationService.normalizeUrl(link.url);
-                if (!visited.has(linkNormalized)) {
-                  // Track menu level properly - submenu items add extra depth
-                  const linkDepth = depth + 1 + (link.menuLevel || 0);
-                  // Only add if calculated depth is still within limit
-                  if (linkDepth <= maxDepth) {
-                    queue.push({ url: link.url, depth: linkDepth });
-                  }
-                }
+              if (link.linkType === 'external') {
+                skippedExternal++;
+                continue;
               }
+              if (!this.urlNormalizationService.isPageUrl(link.url)) {
+                skippedNonPage++;
+                continue;
+              }
+              const linkNormalized = this.urlNormalizationService.normalizeUrl(link.url);
+              if (visited.has(linkNormalized)) {
+                skippedVisited++;
+                continue;
+              }
+              // Track menu level properly - submenu items add extra depth
+              const linkDepth = depth + 1 + (link.menuLevel || 0);
+              if (linkDepth > maxDepth) {
+                skippedDepth++;
+                continue;
+              }
+              queue.push({ url: link.url, depth: linkDepth });
+              queued++;
             }
+
+            this.logger.debug(`Queue update from ${normalizedUrl}: +${queued} queued, skipped: ${skippedExternal} external, ${skippedNonPage} non-page, ${skippedVisited} visited, ${skippedDepth} too deep`);
           }
         } catch (error) {
           const errorMsg = error.message || 'Unknown error';

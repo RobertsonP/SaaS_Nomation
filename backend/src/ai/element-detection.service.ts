@@ -1,16 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Page } from 'playwright';
 import { DetectedElement } from './interfaces/element.interface';
-import { AdvancedSelectorGeneratorService } from '../browser/advanced-selector-generator.service';
-import { SelectorQualityService } from './selector-quality.service';
 import { ScreenshotService } from './screenshot.service';
-import { MockElementData, MockElement, MockDocument, MockElementWrapper, MockElementList } from '../common/types/dom.types';
 
 @Injectable()
 export class ElementDetectionService {
   constructor(
-    private advancedSelectorService: AdvancedSelectorGeneratorService,
-    private selectorQuality: SelectorQualityService,
     private screenshotService: ScreenshotService,
   ) {}
 
@@ -95,30 +90,22 @@ export class ElementDetectionService {
         const tableRect = table.getBoundingClientRect();
         if (tableRect.width === 0 && tableRect.height === 0) return;
 
+        // Detect table structure
+        const hasTbody = table.querySelector('tbody') !== null;
+        const hasThead = table.querySelector('thead') !== null;
+
         // Extract headers
         const headers: string[] = [];
         table.querySelectorAll('thead th, thead td, tr:first-child th').forEach((th) => {
           headers.push((th.textContent || '').trim());
         });
+        const hasHeaders = headers.length > 0;
 
-        // Count rows (excluding header rows)
-        const bodyRows = table.querySelectorAll('tbody tr');
-        const allRows = bodyRows.length > 0 ? bodyRows : table.querySelectorAll('tr');
-        const rowCount = allRows.length;
+        // Build header-column map: { "Name": 0, "Email": 1, ... }
+        const headerColumnMap: Record<string, number> = {};
+        headers.forEach((h, i) => { if (h) headerColumnMap[h] = i; });
 
-        // Sample first 3 rows of data
-        const sampleData: string[][] = [];
-        const dataRows = bodyRows.length > 0 ? bodyRows : table.querySelectorAll('tr');
-        const startIdx = (bodyRows.length > 0 || headers.length === 0) ? 0 : 1;
-        for (let i = startIdx; i < Math.min(startIdx + 3, dataRows.length); i++) {
-          const cells: string[] = [];
-          dataRows[i].querySelectorAll('td, th').forEach((cell) => {
-            cells.push((cell.textContent || '').trim().substring(0, 100));
-          });
-          sampleData.push(cells);
-        }
-
-        // Generate selector for the table
+        // Generate table selector
         let tableSelector = 'table';
         if (table.id) tableSelector = `#${table.id}`;
         else if (table.className && typeof table.className === 'string') {
@@ -126,10 +113,54 @@ export class ElementDetectionService {
           if (cls.length > 0) tableSelector = `table.${cls.join('.')}`;
         }
 
+        // Selector building helpers
+        const rowTag = hasTbody ? `${tableSelector} tbody tr` : `${tableSelector} tr`;
+        const headerRowOffset = (!hasTbody && hasHeaders) ? 1 : 0;
+
+        // Count data rows (excluding header rows)
+        const bodyRows = table.querySelectorAll(hasTbody ? 'tbody tr' : 'tr');
+        const rowCount = bodyRows.length - headerRowOffset;
+
+        // Extract up to 50 rows of data with selectors
+        const sampleData: string[][] = [];
+        const rowSelectors: string[] = [];
+        const cellSelectors: string[][] = [];
+        const dataRows = bodyRows;
+        const startIdx = headerRowOffset;
+        const maxRows = Math.min(startIdx + 50, dataRows.length);
+
+        for (let i = startIdx; i < maxRows; i++) {
+          const row = dataRows[i];
+          const rowNum = i - startIdx + 1; // 1-based for nth-child
+          const nthChild = i + 1; // actual position in DOM
+          rowSelectors.push(`${rowTag}:nth-child(${nthChild})`);
+
+          const cells: string[] = [];
+          const rowCellSelectors: string[] = [];
+          row.querySelectorAll('td, th').forEach((cell, cellIdx) => {
+            cells.push((cell.textContent || '').trim().substring(0, 100));
+            rowCellSelectors.push(`${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1})`);
+          });
+          sampleData.push(cells);
+          cellSelectors.push(rowCellSelectors);
+        }
+
+        // Column selectors: select all cells in column N
+        const columnSelectors: string[] = [];
+        if (headers.length > 0) {
+          for (let c = 0; c < headers.length; c++) {
+            if (hasThead) {
+              columnSelectors.push(`${tableSelector} thead th:nth-child(${c + 1})`);
+            } else {
+              columnSelectors.push(`${tableSelector} tr:first-child th:nth-child(${c + 1})`);
+            }
+          }
+        }
+
         tableElements.push({
           selector: tableSelector,
           elementType: 'table',
-          description: `Data table${headers.length > 0 ? ': ' + headers.slice(0, 3).join(', ') : ''} (${rowCount} rows)`,
+          description: `Data table${hasHeaders ? ': ' + headers.slice(0, 3).join(', ') : ''} (${rowCount} rows)`,
           confidence: 0.8,
           attributes: {
             text: '',
@@ -137,7 +168,18 @@ export class ElementDetectionService {
             id: table.id || '',
             className: table.className || '',
             'aria-label': table.getAttribute('aria-label') || '',
-            tableData: { headers, rowCount, sampleData },
+            tableData: {
+              headers,
+              rowCount,
+              sampleData,
+              tableSelector,
+              rowSelectors,
+              columnSelectors,
+              cellSelectors,
+              headerColumnMap,
+              hasHeaders,
+              hasTbody,
+            },
           },
         });
 
@@ -1273,236 +1315,13 @@ export class ElementDetectionService {
         return cappedElements;
       });
 
-    // ADVANCED SELECTOR GENERATION: Regenerate selectors using advanced service (Node context)
-    console.log('🎯 Regenerating selectors using Advanced Selector Service...');
+    // Skip second-pass advanced selector regeneration — first pass CSS selectors are sufficient
+    // Advanced selectors can be generated on-demand if needed
+    console.log(`✅ Element extraction complete — ${extractedElements.length} elements with CSS selectors (no second pass)`);
 
-    // Re-evaluate in browser context to get element references for selector generation
-    const elementsWithAdvancedSelectors = await page.evaluate((elementsData) => {
-      const results = [];
+    // Clean up needsScreenshot flags (screenshots always skipped for speed)
+    extractedElements.forEach((el: any) => delete el.needsScreenshot);
 
-      for (const elementData of elementsData) {
-        try {
-          // Try to find the element using the old selector
-          let element: Element | null = null;
-
-          // Try multiple selector strategies to find the element
-          if (elementData.selector) {
-            // Handle Playwright-native selectors (getByRole, getByText, etc.)
-            if (elementData.selector.startsWith('getBy')) {
-              // For Playwright-native, fall back to basic selectors from attributes
-              if (elementData.attributes?.id) {
-                element = document.querySelector(`#${elementData.attributes.id}`);
-              } else if (elementData.attributes?.['data-testid']) {
-                element = document.querySelector(`[data-testid="${elementData.attributes['data-testid']}"]`);
-              }
-            } else {
-              // CSS selector - try directly
-              try {
-                const matches = document.querySelectorAll(elementData.selector);
-                if (matches.length === 1) {
-                  element = matches[0];
-                } else if (matches.length > 1) {
-                  // Multiple matches - try to find by position/text
-                  for (const match of Array.from(matches)) {
-                    if (match.textContent?.trim() === elementData.text) {
-                      element = match;
-                      break;
-                    }
-                  }
-                  if (!element) element = matches[0]; // Fallback to first
-                }
-              } catch (e) {
-                // Selector invalid
-              }
-            }
-          }
-
-          if (!element) {
-            // Fallback: try to find by attributes
-            if (elementData.attributes) {
-              const attrs = elementData.attributes;
-              if (attrs.id) {
-                element = document.getElementById(attrs.id);
-              } else if (attrs['data-testid']) {
-                element = document.querySelector(`[data-testid="${attrs['data-testid']}"]`);
-              } else if (attrs.name) {
-                element = document.querySelector(`[name="${attrs.name}"]`);
-              }
-            }
-          }
-
-          if (element) {
-            // Element found - extract comprehensive data for advanced selector generation
-            results.push({
-              ...elementData,
-              elementData: {
-                tagName: element.tagName.toLowerCase(),
-                id: element.id,
-                className: element.className,
-                textContent: element.textContent?.trim() || '',
-                innerHTML: element.innerHTML,
-                attributes: {
-                  'data-testid': element.getAttribute('data-testid'),
-                  'data-test': element.getAttribute('data-test'),
-                  'aria-label': element.getAttribute('aria-label'),
-                  'aria-checked': element.getAttribute('aria-checked'),
-                  'aria-selected': element.getAttribute('aria-selected'),
-                  'aria-expanded': element.getAttribute('aria-expanded'),
-                  'aria-pressed': element.getAttribute('aria-pressed'),
-                  'aria-disabled': element.getAttribute('aria-disabled'),
-                  'aria-hidden': element.getAttribute('aria-hidden'),
-                  'role': element.getAttribute('role'),
-                  'type': element.getAttribute('type'),
-                  'name': element.getAttribute('name'),
-                  'placeholder': element.getAttribute('placeholder'),
-                  'title': element.getAttribute('title'),
-                  'disabled': element.getAttribute('disabled'),
-                  'readonly': element.getAttribute('readonly'),
-                  'checked': element.getAttribute('checked'),
-                  'selected': element.getAttribute('selected'),
-                  'robotId': element.getAttribute('robotId'),
-                  'data-robotid': element.getAttribute('data-robotid'),
-                  'data-state': element.getAttribute('data-state'),
-                  'data-status': element.getAttribute('data-status')
-                },
-                computedStyle: {
-                  display: window.getComputedStyle(element).display,
-                  visibility: window.getComputedStyle(element).visibility,
-                  opacity: window.getComputedStyle(element).opacity
-                },
-                isVisible: (element as HTMLElement).offsetParent !== null,
-                parentId: element.parentElement?.id,
-                parentRole: element.parentElement?.getAttribute('role'),
-                parentTagName: element.parentElement?.tagName.toLowerCase(),
-                siblingCount: element.parentElement?.children.length || 0,
-                childrenCount: element.children.length,
-                firstChildTag: element.children[0]?.tagName.toLowerCase(),
-                hasClickHandler: !!((element as any).onclick || element.getAttribute('onclick'))
-              }
-            });
-          } else {
-            // Element not found - keep original
-            results.push(elementData);
-          }
-        } catch (error) {
-          // Error - keep original element
-          results.push(elementData);
-        }
-      }
-
-      return results;
-    }, extractedElements);
-
-    // Now generate advanced selectors in Node context
-    for (let i = 0; i < elementsWithAdvancedSelectors.length; i++) {
-      const element = elementsWithAdvancedSelectors[i];
-
-      if (element.elementData) {
-        try {
-          // Create mock element and document for advanced selector service
-          const mockElement = this.createMockElement(element.elementData);
-          const mockDocument = this.createMockDocument(elementsWithAdvancedSelectors);
-
-          // Generate selectors using advanced service
-          // Type assertions needed: Mock objects implement BrowserElement/BrowserDocument via index signatures
-          const generatedSelectors = this.advancedSelectorService.generateSelectors({
-            element: mockElement as unknown as import('../browser/strategies/selector-strategy.interface').BrowserElement,
-            document: mockDocument as unknown as import('../browser/strategies/selector-strategy.interface').BrowserDocument,
-            prioritizeUniqueness: true,
-            includePlaywrightSpecific: true, // Enable Playwright-specific locators (role+aria, :has-text, etc.)
-            testableElementsOnly: false, // We already filtered
-            allElements: elementsWithAdvancedSelectors as unknown as import('../browser/strategies/selector-strategy.interface').BrowserElement[]
-          });
-
-          if (generatedSelectors && generatedSelectors.length > 0) {
-            // Use best selector
-            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
-            element.selector = bestSelector.selector;
-
-            // Store fallback selectors
-            element.fallbackSelectors = generatedSelectors.slice(1, 6).map(s => s.selector);
-
-            // Store quality metrics
-            element.selectorQuality = {
-              confidence: bestSelector.confidence,
-              type: bestSelector.type,
-              isUnique: bestSelector.isUnique,
-              isPlaywrightOptimized: bestSelector.isPlaywrightOptimized,
-              description: bestSelector.description
-            };
-
-            console.log(`✅ Generated advanced selector for ${element.elementType}: ${bestSelector.selector} (confidence: ${bestSelector.confidence})`);
-          }
-        } catch (error) {
-          console.warn(`⚠️ Failed to generate advanced selector for element, keeping original:`, error.message);
-        }
-      }
-    }
-
-    // Replace extractedElements with enhanced version
-    extractedElements = elementsWithAdvancedSelectors;
-
-    console.log(`✅ Advanced selector generation complete - ${extractedElements.length} elements enhanced`);
-
-    // Capture thumbnails for interactive elements (3x parallel for speed)
-    // Skip in fast mode for performance testing
-    if (skipScreenshots) {
-      console.log(`⚡ Skipping screenshots (fast mode)`);
-      // Clean up needsScreenshot flags
-      extractedElements.forEach(el => delete el.needsScreenshot);
-      return extractedElements;
-    }
-
-    const elementsNeedingScreenshots = extractedElements.filter(el => el.needsScreenshot);
-    const totalCount = elementsNeedingScreenshots.length;
-
-    if (totalCount > 0) {
-      console.log(`📸 Capturing ${totalCount} element screenshots (3x parallel)...`);
-
-      const BATCH_SIZE = 3;
-      let capturedCount = 0;
-      let failedCount = 0;
-
-      for (let i = 0; i < totalCount; i += BATCH_SIZE) {
-        const batch = elementsNeedingScreenshots.slice(i, i + BATCH_SIZE);
-        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
-
-        console.log(`📸 Batch ${batchNum}/${totalBatches} (${batch.length} elements)...`);
-
-        await Promise.all(batch.map(async (element) => {
-          try {
-            const thumbnail = await this.screenshotService.captureElementScreenshotFromPage(
-              page,
-              element.selector,
-              true // thumbnail mode (JPEG, quality 70)
-            );
-
-            if (thumbnail) {
-              // Update visualData
-              if (element.attributes?.visualData) {
-                element.attributes.visualData.thumbnailBase64 = thumbnail;
-                element.attributes.visualData.type = 'image';
-              }
-              // Backward compatibility
-              element.screenshot = thumbnail;
-              capturedCount++;
-            } else {
-              failedCount++;
-            }
-          } catch (error) {
-            console.error(`⚠️ Screenshot failed for ${element.selector}:`, error.message);
-            failedCount++;
-          }
-          // Clean up temporary flag
-          delete element.needsScreenshot;
-        }));
-      }
-
-      console.log(`✅ Screenshots complete: ${capturedCount} captured, ${failedCount} failed`);
-    } else {
-      console.log('📸 No elements need screenshots');
-    }
     return extractedElements;
   }
 
@@ -1513,145 +1332,7 @@ export class ElementDetectionService {
     return this.screenshotService.captureElementScreenshot(url, selector);
   }
 
-  /**
-   * Create a mock element object for advanced selector generation
-   */
-  private createMockElement(elementData: MockElementData): MockElement {
-    // Helper to create empty mock element list
-    const emptyList = (): MockElementList => {
-      const arr: MockElement[] = [];
-      return Object.assign(arr, {
-        item: (index: number) => arr[index] || null,
-        forEach: (cb: (el: MockElement, i: number) => void) => arr.forEach(cb)
-      }) as MockElementList;
-    };
-
-    return {
-      tagName: elementData.tagName?.toUpperCase() || '',
-      id: elementData.id || '',
-      className: elementData.className || '',
-      textContent: elementData.textContent || '',
-      innerHTML: elementData.innerHTML || '',
-      getAttribute: (name: string) => elementData.attributes?.[name] || null,
-      hasAttribute: (name: string) => !!(elementData.attributes?.[name]),
-      setAttribute: () => {}, // No-op for mock
-      querySelectorAll: () => emptyList(), // Simple mock - returns empty list
-      parentElement: elementData.parentId || elementData.parentTagName ? {
-        id: elementData.parentId,
-        tagName: elementData.parentTagName?.toUpperCase(),
-        getAttribute: (name: string) => {
-          if (name === 'role') return elementData.parentRole || null;
-          return null;
-        },
-        children: { length: elementData.siblingCount || 0 },
-        className: ''
-      } : null,
-      children: { length: elementData.childrenCount || 0, 0: elementData.firstChildTag ? { tagName: elementData.firstChildTag.toUpperCase() } : null },
-      offsetParent: elementData.isVisible ? {} : null,
-      onclick: elementData.hasClickHandler ? () => {} : null,
-      style: {
-        cursor: elementData.hasClickHandler ? 'pointer' : 'auto',
-        display: elementData.computedStyle?.display || 'block',
-        visibility: elementData.computedStyle?.visibility || 'visible',
-        opacity: elementData.computedStyle?.opacity || '1'
-      },
-      getBoundingClientRect: () => ({
-        x: 0,
-        y: 0,
-        width: elementData.isVisible ? 100 : 0,
-        height: elementData.isVisible ? 30 : 0,
-        top: 0,
-        left: 0,
-        right: 100,
-        bottom: 30
-      }),
-      closest: (selector: string) => {
-        // Simple mock - check if parent matches
-        if (selector === 'nav' || selector === '[role="navigation"]') {
-          return elementData.parentRole === 'navigation' || elementData.parentTagName === 'nav' ? {} : null;
-        }
-        return null;
-      },
-      attributes: Object.keys(elementData.attributes || {}).map(name => ({
-        name,
-        value: elementData.attributes?.[name] || null
-      })),
-      previousElementSibling: null,
-      nextElementSibling: null
-    };
-  }
-
-  /**
-   * Create a mock document object for selector uniqueness testing
-   */
-  private createMockDocument(allElements: MockElementWrapper[]): MockDocument {
-    // Helper to convert array to MockElementList
-    const toElementList = (arr: MockElement[]): MockElementList => {
-      return Object.assign(arr, {
-        item: (index: number) => arr[index] || null,
-        forEach: (cb: (el: MockElement, i: number) => void) => arr.forEach(cb)
-      }) as MockElementList;
-    };
-
-    const querySelectorAllImpl = (selector: string): MockElementList => {
-      // Simple mock - try to match elements by basic selectors
-      const matches: MockElement[] = [];
-
-      for (const el of allElements) {
-        if (!el.elementData) continue;
-
-        let isMatch = false;
-
-        // ID selector
-        if (selector.startsWith('#')) {
-          const id = selector.slice(1);
-          if (el.elementData.id === id) isMatch = true;
-        }
-        // Class selector
-        else if (selector.startsWith('.')) {
-          const className = selector.slice(1);
-          if (el.elementData.className?.includes(className)) isMatch = true;
-        }
-        // Attribute selector
-        else if (selector.includes('[')) {
-          const attrMatch = selector.match(/\[([^=\]]+)(?:="([^"]+)")?\]/);
-          if (attrMatch) {
-            const [, attrName, attrValue] = attrMatch;
-            const elAttrValue = el.elementData.attributes?.[attrName];
-            if (attrValue) {
-              if (elAttrValue === attrValue) isMatch = true;
-            } else {
-              if (elAttrValue !== null && elAttrValue !== undefined) isMatch = true;
-            }
-          }
-        }
-        // Tag selector
-        else if (selector.match(/^[a-z]+$/)) {
-          if (el.elementData.tagName === selector) isMatch = true;
-        }
-
-        if (isMatch) {
-          matches.push(this.createMockElement(el.elementData));
-        }
-      }
-
-      return toElementList(matches);
-    };
-
-    return {
-      querySelectorAll: querySelectorAllImpl,
-      querySelector: (selector: string): MockElement | null => {
-        const matches = querySelectorAllImpl(selector);
-        return matches.length > 0 ? matches[0] : null;
-      },
-      getElementById: (id: string): MockElement | null => {
-        for (const el of allElements) {
-          if (el.elementData?.id === id) {
-            return this.createMockElement(el.elementData);
-          }
-        }
-        return null;
-      }
-    };
-  }
+  // Second-pass advanced selector generation and screenshot capture were removed for speed.
+  // CSS selectors from the first browser pass are used directly.
+  // See git history for the removed _legacyAdvancedSelectorPass method if needed.
 }

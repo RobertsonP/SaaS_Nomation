@@ -19,12 +19,32 @@ export class LinkDiscoveryService {
   constructor(private readonly menuInteractionService: MenuInteractionService) {}
 
   /**
+   * Normalize domain for comparison — treats localhost variants as equivalent.
+   * localhost, 127.0.0.1, and host.docker.internal are all the same host.
+   */
+  private normalizeDomain(domain: string): string {
+    const d = domain.toLowerCase();
+    if (d === '127.0.0.1' || d === 'host.docker.internal') return 'localhost';
+    return d;
+  }
+
+  /**
    * Extract all links from a page, including those hidden in menus
    */
   async extractLinks(page: playwright.Page, baseDomain: string): Promise<DiscoveredLink[]> {
     // First, extract all statically visible links
-    const staticLinks = await page.evaluate((domain: string) => {
+    // Normalize the base domain before passing to browser context
+    const normalizedBaseDomain = this.normalizeDomain(baseDomain);
+
+    const staticLinks = await page.evaluate(({ domain, normalizedDomain }: { domain: string; normalizedDomain: string }) => {
       const results: { url: string; text: string; location: string; isExternal: boolean }[] = [];
+
+      // Domain normalizer for localhost variants (runs in browser context)
+      const normDomain = (d: string): string => {
+        const dl = d.toLowerCase();
+        if (dl === '127.0.0.1' || dl === 'host.docker.internal') return 'localhost';
+        return dl;
+      };
 
       // Get all anchor tags
       document.querySelectorAll('a[href]').forEach((anchor: HTMLAnchorElement) => {
@@ -46,11 +66,11 @@ export class LinkDiscoveryService {
           else if (tagName === 'aside') location = 'sidebar';
         }
 
-        // Check if external
+        // Check if external — normalize localhost variants for comparison
         let isExternal = false;
         try {
-          const linkDomain = new URL(href).hostname;
-          isExternal = linkDomain !== domain && !linkDomain.endsWith(`.${domain}`);
+          const linkDomain = normDomain(new URL(href).hostname);
+          isExternal = linkDomain !== normalizedDomain && !linkDomain.endsWith(`.${normalizedDomain}`);
         } catch {
           isExternal = false;
         }
@@ -78,7 +98,14 @@ export class LinkDiscoveryService {
       });
 
       return results;
-    }, baseDomain);
+    }, { domain: baseDomain, normalizedDomain: normalizedBaseDomain });
+
+    // Diagnostic logging: show external links that were filtered
+    const externalLinks = staticLinks.filter(l => l.isExternal);
+    if (externalLinks.length > 0) {
+      this.logger.debug(`Filtered ${externalLinks.length} external links (base domain: ${baseDomain} → normalized: ${normalizedBaseDomain}): ${externalLinks.slice(0, 5).map(l => l.url).join(', ')}${externalLinks.length > 5 ? '...' : ''}`);
+    }
+    this.logger.debug(`Found ${staticLinks.length} static links (${staticLinks.filter(l => !l.isExternal).length} internal, ${externalLinks.length} external)`);
 
     // Convert static links to DiscoveredLink format
     const allLinks: DiscoveredLink[] = staticLinks.map(link => ({
@@ -121,8 +148,16 @@ export class LinkDiscoveryService {
     revealMethod: 'hover' | 'click',
     parentMenuText: string
   ): Promise<DiscoveredLink[]> {
-    const links = await page.evaluate((domain: string) => {
+    const normalizedBaseDomain = this.normalizeDomain(baseDomain);
+
+    const links = await page.evaluate(({ normalizedDomain }: { normalizedDomain: string }) => {
       const results: { url: string; text: string; location: string; isExternal: boolean }[] = [];
+
+      const normDomain = (d: string): string => {
+        const dl = d.toLowerCase();
+        if (dl === '127.0.0.1' || dl === 'host.docker.internal') return 'localhost';
+        return dl;
+      };
 
       document.querySelectorAll('a[href]').forEach((anchor: HTMLAnchorElement) => {
         // Enhanced visibility check using getBoundingClientRect
@@ -147,11 +182,11 @@ export class LinkDiscoveryService {
           return;
         }
 
-        // Check if external
+        // Check if external — normalize localhost variants for comparison
         let isExternal = false;
         try {
-          const linkDomain = new URL(href).hostname;
-          isExternal = linkDomain !== domain && !linkDomain.endsWith(`.${domain}`);
+          const linkDomain = normDomain(new URL(href).hostname);
+          isExternal = linkDomain !== normalizedDomain && !linkDomain.endsWith(`.${normalizedDomain}`);
         } catch {
           isExternal = false;
         }
@@ -165,7 +200,7 @@ export class LinkDiscoveryService {
       });
 
       return results;
-    }, baseDomain);
+    }, { normalizedDomain: normalizedBaseDomain });
 
     // Filter to only newly revealed links
     return links

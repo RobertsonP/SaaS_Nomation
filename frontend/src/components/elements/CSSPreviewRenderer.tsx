@@ -72,14 +72,6 @@ export function CSSPreviewRenderer({
         </div>
       )}
       
-      {/* Quality indicators */}
-      {showQuality && element.overallQuality !== undefined && (
-        <QualityIndicatorBadge 
-          element={element}
-          mode={mode === 'compact' ? 'minimal' : 'standard'}
-        />
-      )}
-      
       {/* Mode-specific additional info */}
       {mode === 'detailed' && (
         <div className="css-preview-details">

@@ -13,6 +13,8 @@ export interface AnalysisProgressEvent {
   step: string;
   status: 'started' | 'progress' | 'completed' | 'error';
   message: string;
+  /** User-friendly message for display (no technical jargon) */
+  friendlyMessage?: string;
   details?: any;
   timestamp: Date;
   progress?: {
@@ -20,6 +22,40 @@ export interface AnalysisProgressEvent {
     total: number;
     percentage: number;
   };
+}
+
+/** Map step names to user-friendly labels */
+function getFriendlyMessage(step: string, message: string, status: string): string {
+  if (step === 'initialization') {
+    if (message.includes('Found')) return message;
+    return 'Preparing analysis...';
+  }
+  if (step === 'auth_check') {
+    if (message.includes('Found authentication')) return 'Authenticating...';
+    if (message.includes('No authentication')) return 'No login needed, scanning directly...';
+    return 'Checking authentication...';
+  }
+  if (step === 'authenticated_analysis' || step === 'standard_analysis') {
+    const urlMatch = message.match(/URL (\d+)\/(\d+)/i) || message.match(/(\d+) of (\d+)/i);
+    if (urlMatch) return `Scanning page ${urlMatch[1]} of ${urlMatch[2]}...`;
+    if (status === 'started') return 'Scanning page elements...';
+    if (status === 'completed') {
+      const elemMatch = message.match(/(\d+) elements/);
+      return elemMatch ? `Done! Found ${elemMatch[1]} elements` : 'Analysis complete!';
+    }
+    return 'Scanning page elements...';
+  }
+  if (step === 'element_extraction') {
+    if (message.includes('Found')) return message;
+    return 'Extracting elements...';
+  }
+  if (step === 'element_storage') {
+    const elemMatch = message.match(/(\d+) elements/);
+    return elemMatch ? `Saving ${elemMatch[1]} elements...` : 'Saving elements...';
+  }
+  if (step === 'analysis_completed') return 'Analysis complete!';
+  if (step === 'analysis_error') return 'Analysis failed';
+  return message;
 }
 
 @Injectable()
@@ -68,7 +104,12 @@ export class AnalysisProgressGateway implements OnGatewayConnection, OnGatewayDi
 
   // Send progress update to all clients watching this project
   sendProgressUpdate(event: AnalysisProgressEvent) {
-    console.log(`📡 Broadcasting progress: ${event.step} - ${event.message}`);
+    // Add friendly message if not already set
+    if (!event.friendlyMessage) {
+      event.friendlyMessage = getFriendlyMessage(event.step, event.message, event.status);
+    }
+
+    console.log(`📡 Broadcasting progress: ${event.step} - ${event.friendlyMessage}`);
 
     // Send to project-specific room (clients join on subscribe)
     this.server.to(`project-${event.projectId}`).emit('analysis-progress', event);

@@ -41,13 +41,6 @@ const TYPE_FILTERS = [
   { value: 'navigation', label: 'Nav' },
 ] as const;
 
-const QUALITY_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'high', label: 'High', min: 0.8 },
-  { value: 'medium', label: 'Medium', min: 0.5, max: 0.8 },
-  { value: 'low', label: 'Low', max: 0.5 },
-] as const;
-
 function getPathFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -71,7 +64,6 @@ export function ElementLibraryPanel({
   const [showUrlPicker, setShowUrlPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [qualityFilter, setQualityFilter] = useState('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Handle analyze button
@@ -96,14 +88,6 @@ export function ElementLibraryPanel({
       // Type filter
       if (typeFilter !== 'all' && el.elementType !== typeFilter) return false;
 
-      // Quality filter
-      if (qualityFilter !== 'all') {
-        const q = el.overallQuality ?? el.confidence ?? 0.5;
-        const filter = QUALITY_FILTERS.find(f => f.value === qualityFilter);
-        if (filter && 'min' in filter && q < (filter.min ?? 0)) return false;
-        if (filter && 'max' in filter && q >= (filter.max ?? 1)) return false;
-      }
-
       // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -118,7 +102,7 @@ export function ElementLibraryPanel({
 
       return true;
     });
-  }, [elements, typeFilter, qualityFilter, searchQuery]);
+  }, [elements, typeFilter, searchQuery]);
 
   // Group by source URL
   const groupedElements = useMemo(() => {
@@ -222,7 +206,7 @@ export function ElementLibraryPanel({
             {onClearElements && elements.length > 0 && (
               <button
                 onClick={onClearElements}
-                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md font-medium"
+                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 border border-red-300 dark:border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md font-medium"
                 title="Clear all elements"
               >
                 Clear
@@ -279,25 +263,6 @@ export function ElementLibraryPanel({
           })}
         </div>
 
-        {/* Quality Filter Chips */}
-        <div className="flex flex-wrap gap-1.5">
-          {QUALITY_FILTERS.map(f => (
-            <button
-              key={f.value}
-              onClick={() => setQualityFilter(f.value)}
-              className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
-                qualityFilter === f.value
-                  ? f.value === 'high' ? 'bg-green-600 text-white' :
-                    f.value === 'medium' ? 'bg-yellow-500 text-white' :
-                    f.value === 'low' ? 'bg-red-500 text-white' :
-                    'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Scrollable Content — Grouped by URL */}
@@ -367,7 +332,6 @@ export function ElementLibraryPanel({
             <button
               onClick={() => {
                 setTypeFilter('all');
-                setQualityFilter('all');
                 setSearchQuery('');
               }}
               className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"

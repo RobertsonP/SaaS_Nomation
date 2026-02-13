@@ -177,6 +177,8 @@ export class DiscoveryService {
       const baseDomain = new URL(baseUrl).hostname;
       const isLocal = this.isLocalAddress(baseUrl);
 
+      this.logger.log(`Discovery starting: rootUrl=${rootUrl}, translatedUrl=${translatedRootUrl}, baseUrl=${baseUrl}, baseDomain=${baseDomain}, isLocal=${isLocal}`);
+
       // Pre-flight check: Verify the URL is reachable before starting discovery
       this.updateProgress(projectId, {
         status: 'discovering',

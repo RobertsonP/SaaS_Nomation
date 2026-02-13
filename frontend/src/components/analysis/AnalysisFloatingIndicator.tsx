@@ -1,12 +1,10 @@
 import { Loader2, CheckCircle, AlertCircle, Maximize2, X } from 'lucide-react';
+import { AnalysisProgressState } from '../../hooks/useAnalysisProgress';
 
 interface AnalysisFloatingIndicatorProps {
   isVisible: boolean;
   projectName: string;
-  currentStep: string;
-  progressPercent: number;
-  isComplete: boolean;
-  hasError: boolean;
+  progress: AnalysisProgressState;
   onRestore: () => void;
   onDismiss: () => void;
 }
@@ -14,26 +12,14 @@ interface AnalysisFloatingIndicatorProps {
 export function AnalysisFloatingIndicator({
   isVisible,
   projectName,
-  currentStep,
-  progressPercent,
-  isComplete,
-  hasError,
+  progress,
   onRestore,
   onDismiss,
 }: AnalysisFloatingIndicatorProps) {
   if (!isVisible) return null;
 
+  const { isComplete, hasError, currentPhaseLabel, overallPercent, currentUrlIndex, totalUrls, elementsFound } = progress;
   const isRunning = !isComplete && !hasError;
-
-  // Format step name for display
-  const formatStepName = (step: string) => {
-    return step
-      .replace(/_/g, ' ')
-      .replace(/([A-Z])/g, ' $1')
-      .toLowerCase()
-      .replace(/^\s*/, '')
-      .replace(/^./, (c) => c.toUpperCase());
-  };
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm">
@@ -68,7 +54,7 @@ export function AnalysisFloatingIndicator({
                 ? 'text-red-800 dark:text-red-200'
                 : 'text-purple-800 dark:text-purple-200'
             }`}>
-              {isRunning && `Analyzing: ${projectName}`}
+              {isRunning && `Scanning: ${projectName}`}
               {isComplete && 'Analysis Complete'}
               {hasError && 'Analysis Failed'}
             </span>
@@ -79,7 +65,12 @@ export function AnalysisFloatingIndicator({
                 ? 'text-red-600 dark:text-red-300'
                 : 'text-purple-600 dark:text-purple-300'
             }`}>
-              {isRunning && formatStepName(currentStep)}
+              {isRunning && (
+                <>
+                  {totalUrls > 0 ? `Page ${Math.min(currentUrlIndex, totalUrls)}/${totalUrls}` : currentPhaseLabel}
+                  {elementsFound > 0 && ` | ${elementsFound} elements`}
+                </>
+              )}
               {isComplete && 'Click to view results'}
               {hasError && 'Click to view details'}
             </span>
@@ -122,7 +113,7 @@ export function AnalysisFloatingIndicator({
             <div className="h-1.5 bg-purple-200 dark:bg-purple-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-purple-500 dark:bg-purple-400 transition-all duration-300 ease-out"
-                style={{ width: `${progressPercent}%` }}
+                style={{ width: `${overallPercent}%` }}
               />
             </div>
           </div>

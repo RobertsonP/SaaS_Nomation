@@ -11,6 +11,7 @@ import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 import { ProjectElement } from '../../types/element.types';
 import { createLogger } from '../../lib/logger';
 import { useProjectWebSocket, useUrlManagement } from './hooks';
+import { useAnalysisProgress } from '../../hooks/useAnalysisProgress';
 import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
 
 const logger = createLogger('ProjectDetails');
@@ -183,6 +184,16 @@ export function ProjectDetailsPage() {
     showError,
   });
 
+  // Unified analysis progress for modal + floating indicator
+  const analysisProgress = useAnalysisProgress({
+    projectId,
+    onComplete: () => {
+      loadProject();
+      setElementsKey(prev => prev + 1);
+    },
+    onError: (msg) => showError('Analysis Error', msg),
+  });
+
   // URL management hook
   const {
     newUrl,
@@ -256,12 +267,12 @@ export function ProjectDetailsPage() {
   const handleAnalyzeSelected = async () => {
     if (!projectId || selectedUrls.length === 0) return;
 
-    // Show progress modal FIRST and wait for WebSocket connection
+    // Show progress modal and reset progress state
     setShowAnalysisModal(true);
     setAnalyzing(true);
+    analysisProgress.reset();
 
     // Wait for WebSocket to connect before starting analysis
-    // This ensures the modal is ready to receive events
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -290,11 +301,11 @@ export function ProjectDetailsPage() {
   const handleAnalyzeProject = async () => {
     if (!projectId) return;
 
-    // Show progress modal FIRST and wait for WebSocket connection
+    // Show progress modal and reset progress state
     setShowAnalysisModal(true);
+    analysisProgress.reset();
 
     // Wait for WebSocket to connect before starting analysis
-    // This ensures the modal is ready to receive events
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -794,18 +805,15 @@ export function ProjectDetailsPage() {
         isOpen={showAnalysisModal}
         onClose={handleAnalysisModalClose}
         onMinimize={handleAnalysisMinimize}
-        projectId={projectId || ''}
         projectName={project.name}
+        progress={analysisProgress}
       />
 
       {/* Analysis Floating Indicator (when minimized) */}
       <AnalysisFloatingIndicator
         isVisible={isAnalysisMinimized && (analyzing || isAnalysisRunning)}
         projectName={project.name}
-        currentStep={currentAnalysisStep}
-        progressPercent={analysisProgressPercent}
-        isComplete={!analyzing && !isAnalysisRunning && analysisProgressPercent >= 100}
-        hasError={false}
+        progress={analysisProgress}
         onRestore={handleAnalysisRestore}
         onDismiss={handleAnalysisDismiss}
       />
