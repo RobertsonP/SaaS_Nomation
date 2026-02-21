@@ -225,6 +225,9 @@ export function DiscoveryModal({
     setDiscoveryStartTime(Date.now());
     setElapsedSeconds(0);
 
+    // Close the modal — floating indicator handles progress display
+    setTimeout(() => onClose(), 500); // Let the request start first
+
     try {
       // Normalize URL - auto-add protocol if missing
       const normalizedUrl = normalizeUrl(urlToUse);
@@ -489,82 +492,6 @@ export function DiscoveryModal({
                       )}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Discovery Progress Display */}
-              {discovering && (
-                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                      Discovery in progress...{elapsedSeconds > 0 && ` (${elapsedSeconds}s)`}
-                    </span>
-                    {pagesFound > 0 && (
-                      <span className="text-sm text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800 px-2 py-0.5 rounded-full">
-                        {pagesFound} pages found
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Phase Progress Steps */}
-                  <div className="space-y-2">
-                    {DISCOVERY_PHASES.map((phase) => {
-                      const status = getPhaseStatus(phase.id);
-                      const Icon = phase.icon;
-                      return (
-                        <div key={phase.id} className="flex items-center gap-3">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                            status === 'completed' ? 'bg-green-500' :
-                            status === 'active' ? 'bg-blue-500' :
-                            status === 'error' ? 'bg-red-500' :
-                            'bg-gray-300 dark:bg-gray-600'
-                          }`}>
-                            {status === 'completed' ? (
-                              <CheckCircle className="w-4 h-4 text-white" />
-                            ) : status === 'active' ? (
-                              <Loader2 className="w-4 h-4 text-white animate-spin" />
-                            ) : status === 'error' ? (
-                              <AlertCircle className="w-4 h-4 text-white" />
-                            ) : (
-                              <Icon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
-                            )}
-                          </div>
-                          <span className={`text-sm ${
-                            status === 'completed' ? 'text-green-700 dark:text-green-300' :
-                            status === 'active' ? 'text-blue-700 dark:text-blue-300 font-medium' :
-                            status === 'error' ? 'text-red-700 dark:text-red-300' :
-                            'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {phase.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Live URL Discovery List */}
-                  {discoveredUrls.length > 0 && (
-                    <details className="mt-4" open>
-                      <summary className="text-xs font-medium text-blue-800 dark:text-blue-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-100">
-                        View discovered URLs ({discoveredUrls.length})
-                      </summary>
-                      <div className="mt-2 max-h-32 overflow-y-auto bg-white dark:bg-gray-800 rounded border border-blue-200 dark:border-blue-700">
-                        {discoveredUrls.slice(-10).map((url, idx) => (
-                          <div
-                            key={idx}
-                            className="px-2 py-1 text-xs text-blue-700 dark:text-blue-300 border-b border-blue-100 dark:border-blue-800 last:border-b-0 truncate"
-                          >
-                            {url}
-                          </div>
-                        ))}
-                        {discoveredUrls.length > 10 && (
-                          <div className="px-2 py-1 text-xs text-blue-500 dark:text-blue-400 italic">
-                            ...and {discoveredUrls.length - 10} more
-                          </div>
-                        )}
-                      </div>
-                    </details>
-                  )}
                 </div>
               )}
 

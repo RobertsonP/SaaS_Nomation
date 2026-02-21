@@ -8,9 +8,10 @@ import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
+import { useDiscoveryProgress } from '../../hooks/useDiscoveryProgress';
 import { ProjectElement } from '../../types/element.types';
 import { createLogger } from '../../lib/logger';
-import { useProjectWebSocket, useUrlManagement } from './hooks';
+import { useUrlManagement } from './hooks';
 import { useAnalysisProgress } from '../../hooks/useAnalysisProgress';
 import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
 
@@ -101,7 +102,7 @@ interface Project {
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { showSuccess, showError } = useNotification();
-  const { minimizeDiscovery } = useDiscoveryContext();
+  const { minimizeDiscovery, activeDiscovery } = useDiscoveryContext();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sitemap' | 'urls' | 'elements' | 'auth'>('overview');
@@ -165,33 +166,37 @@ export function ProjectDetailsPage() {
     loadAnalysisMetrics();
   }, []);
 
-  // WebSocket hook for real-time analysis updates
-  const {
-    isAnalysisRunning,
-    analyzing,
-    currentAnalysisStep,
-    analysisProgressPercent,
-    analysisLogs,
-    setAnalyzing,
-    setCurrentAnalysisStep,
-  } = useProjectWebSocket({
-    projectId,
-    projectName: project?.name,
-    onProjectReload: loadProject,
-    onElementsKeyIncrement: () => setElementsKey(prev => prev + 1),
-    onAnalysisDashboardReload: loadAnalysisDashboard,
-    showAnalysisDashboard,
-    showError,
-  });
+  // Local busy state for non-WebSocket operations (e.g., clearing elements)
+  const [analyzing, setAnalyzing] = useState(false);
+  const [currentAnalysisStep, setCurrentAnalysisStep] = useState('Ready');
 
-  // Unified analysis progress for modal + floating indicator
+  // Unified analysis progress (single WebSocket connection)
   const analysisProgress = useAnalysisProgress({
     projectId,
     onComplete: () => {
       loadProject();
       setElementsKey(prev => prev + 1);
+      loadAnalysisDashboard();
     },
     onError: (msg) => showError('Analysis Error', msg),
+  });
+
+  // Derived state combining local busy state with WebSocket progress
+  const isAnalysisRunning = analysisProgress.isRunning || analyzing;
+  const analysisProgressPercent = analysisProgress.isRunning ? analysisProgress.overallPercent : (analyzing ? 0 : 100);
+  const analysisLogs = analysisProgress.rawEvents.map(e => ({
+    timestamp: new Date(e.timestamp).toLocaleTimeString(),
+    level: e.status === 'error' ? 'ERROR' : e.status === 'completed' ? 'SUCCESS' : 'PROGRESS',
+    message: e.friendlyMessage || e.message || 'Processing...',
+  }));
+
+  // Discovery progress (WebSocket-based real-time updates)
+  const discoveryProgress = useDiscoveryProgress({
+    projectId,
+    onComplete: () => {
+      refetchSiteMap();
+      loadProject();
+    },
   });
 
   // URL management hook
@@ -645,7 +650,10 @@ export function ProjectDetailsPage() {
           <ProjectSiteMapTab
             siteMapData={siteMapData}
             siteMapLoading={siteMapLoading}
-            onShowDiscoveryModal={() => setShowDiscoveryModal(true)}
+            onShowDiscoveryModal={() => {
+              if (activeDiscovery?.status === 'discovering') return;
+              setShowDiscoveryModal(true);
+            }}
           />
         )}
 
@@ -664,7 +672,10 @@ export function ProjectDetailsPage() {
             onRemoveUrl={handleRemoveUrl}
             onVerifyUrl={handleVerifyUrl}
             onAnalyzeSelected={handleAnalyzeSelected}
-            onShowDiscoveryModal={() => setShowDiscoveryModal(true)}
+            onShowDiscoveryModal={() => {
+              if (activeDiscovery?.status === 'discovering') return;
+              setShowDiscoveryModal(true);
+            }}
           />
         )}
 
@@ -811,12 +822,14 @@ export function ProjectDetailsPage() {
 
       {/* Analysis Floating Indicator (when minimized) */}
       <AnalysisFloatingIndicator
-        isVisible={isAnalysisMinimized && (analyzing || isAnalysisRunning)}
+        isVisible={isAnalysisMinimized && analysisProgress.isRunning}
         projectName={project.name}
         progress={analysisProgress}
         onRestore={handleAnalysisRestore}
         onDismiss={handleAnalysisDismiss}
       />
+
+      {/* Discovery Floating Indicator is now rendered at app level via DiscoveryContext */}
 
       {/* Authentication Setup Modal */}
       {showAuthModal && (

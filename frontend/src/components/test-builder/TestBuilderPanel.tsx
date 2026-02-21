@@ -38,6 +38,8 @@ interface TestBuilderPanelProps {
   projectId?: string // For element hunting
   onHuntNewElements?: (newElements: ProjectElement[]) => void // Callback for new elements
   startingUrl?: string // Test's configured starting URL
+  pendingStep?: TestStep | null // Step from table cell/row selection
+  onPendingStepConsumed?: () => void // Clear pending step after consumption
   // NEW: Auto-add to test steps integration
   _onAutoAddToTestSteps?: (element: ProjectElement, action?: string) => void
 }
@@ -53,6 +55,8 @@ export function TestBuilderPanel({
   projectId,
   onHuntNewElements,
   startingUrl,
+  pendingStep,
+  onPendingStepConsumed,
   _onAutoAddToTestSteps
 }: TestBuilderPanelProps) {
   // Initialize steps with localStorage persistence
@@ -113,6 +117,61 @@ export function TestBuilderPanel({
       setHasUnsavedChanges(hasChanges);
     }
   }, [steps, testId, initialSteps]);
+
+  // Consume pending step from table cell/row selection
+  useEffect(() => {
+    if (pendingStep) {
+      setSteps(prev => [...prev, pendingStep]);
+      onPendingStepConsumed?.();
+
+      // Show notification using safe DOM methods
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #10B981, #059669);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        z-index: 10000;
+        box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+        animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 2.7s;
+        max-width: 350px;
+      `;
+
+      const title = document.createElement('div');
+      title.style.cssText = 'font-weight: 600; margin-bottom: 4px;';
+      title.textContent = 'Step added';
+
+      const desc = document.createElement('div');
+      desc.style.cssText = 'font-size: 12px; opacity: 0.9;';
+      desc.textContent = pendingStep.description;
+
+      notification.appendChild(title);
+      notification.appendChild(desc);
+
+      if (!document.querySelector('#auto-add-animations')) {
+        const style = document.createElement('style');
+        style.id = 'auto-add-animations';
+        style.textContent = `
+          @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      document.body.appendChild(notification);
+      setTimeout(() => { if (notification.parentNode) notification.remove(); }, 3000);
+    }
+  }, [pendingStep, onPendingStepConsumed]);
 
   // NEW: Auto-add functionality for live element picker integration
   const _handleAutoAddTestStep = useCallback((element: ProjectElement, action?: string) => {

@@ -138,7 +138,9 @@
       "Bash(sort:*)",
       "mcp__plugin_serena_serena__get_symbols_overview",
       "mcp__plugin_serena_serena__search_for_pattern",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(TZ='Asia/Dubai' date:*)",
+      "mcp__plugin_serena_serena__find_referencing_symbols"
     ],
     "deny": []
   },

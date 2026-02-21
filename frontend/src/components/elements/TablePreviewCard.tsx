@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { ProjectElement } from '../../types/element.types';
 import { TableExplorer } from './TableExplorer';
+import { CellStepData } from './CellSelectorPopover';
 
 interface TablePreviewCardProps {
   element: ProjectElement;
   onSelectElement: (element: ProjectElement) => void;
+  onAddStep?: (step: CellStepData) => void;
 }
 
-export function TablePreviewCard({ element, onSelectElement }: TablePreviewCardProps) {
+export function TablePreviewCard({ element, onSelectElement, onAddStep }: TablePreviewCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showExplorer, setShowExplorer] = useState(false);
   const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
@@ -175,6 +177,7 @@ export function TablePreviewCard({ element, onSelectElement }: TablePreviewCardP
           <TableExplorer
             tableData={tableData}
             onClose={() => setShowExplorer(false)}
+            onAddStep={onAddStep}
           />
         </div>
       )}

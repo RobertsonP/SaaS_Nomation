@@ -47,14 +47,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
-      // Handle validation errors from class-validator
+      // Handle validation errors from class-validator (message is always an Array)
       if (
         typeof exceptionResponse === 'object' &&
-        'message' in exceptionResponse
+        Array.isArray((exceptionResponse as any).message)
       ) {
-        const messages = Array.isArray((exceptionResponse as any).message)
-          ? (exceptionResponse as any).message
-          : [(exceptionResponse as any).message];
+        const messages = (exceptionResponse as any).message;
 
         errorResponse = {
           success: false,
@@ -67,14 +65,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           },
         };
       } else {
+        const message =
+          typeof exceptionResponse === 'string'
+            ? exceptionResponse
+            : (exceptionResponse as any)?.message || 'An error occurred';
+
         errorResponse = {
           success: false,
           error: {
             code: this.mapHttpStatusToErrorCode(status),
-            message:
-              typeof exceptionResponse === 'string'
-                ? exceptionResponse
-                : (exceptionResponse as any).message || 'An error occurred',
+            message,
             timestamp: new Date().toISOString(),
             path: request.url,
           },

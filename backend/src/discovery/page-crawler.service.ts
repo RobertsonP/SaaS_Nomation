@@ -76,14 +76,22 @@ export class PageCrawlerService implements OnModuleInit {
    */
   async initBrowser(): Promise<void> {
     if (!this.browser) {
+      const args = [
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+      ];
+
+      // In Docker, help Chromium resolve host.docker.internal to the host machine
+      if (process.env.RUNNING_IN_DOCKER === 'true') {
+        args.push('--host-resolver-rules=MAP host.docker.internal host-gateway');
+      }
+
       this.browser = await playwright.chromium.launch({
         headless: true,
-        args: [
-          '--disable-gpu',
-          '--disable-dev-shm-usage',
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-        ],
+        args,
       });
       this.logger.log('Browser initialized for page crawling');
     }
@@ -154,11 +162,16 @@ export class PageCrawlerService implements OnModuleInit {
 
       this.logger.debug(`Using authenticated context for ${url} (${cookies.length} cookies)`);
     } else {
-      // Create new unauthenticated context
+      // Create new unauthenticated context with stealth settings
       context = await this.browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
+        locale: 'en-US',
         ignoreHTTPSErrors: isLocal,  // Allow self-signed certs for localhost
+      });
+      // Override navigator.webdriver to avoid bot detection
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
       });
     }
 

@@ -144,7 +144,6 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       currentUrl: rootUrl,
       discoveredUrls: [],
     });
-    setIsMinimized(false);
 
     try {
       const result = await projectsAPI.startDiscovery(projectId, rootUrl, options);

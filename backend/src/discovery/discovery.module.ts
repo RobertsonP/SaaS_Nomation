@@ -8,6 +8,7 @@ import { MenuInteractionService } from './menu-interaction.service';
 import { UrlNormalizationService } from './url-normalization.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { UnifiedAuthService } from '../auth/unified-auth.service';
+import { DiscoveryProgressGateway } from './discovery-progress.gateway';
 
 @Module({
   imports: [PrismaModule],
@@ -19,8 +20,9 @@ import { UnifiedAuthService } from '../auth/unified-auth.service';
     LinkDiscoveryService,
     MenuInteractionService,
     UrlNormalizationService,
-    UnifiedAuthService,  // Required for authenticated page discovery
+    UnifiedAuthService,
+    DiscoveryProgressGateway,
   ],
-  exports: [DiscoveryService],
+  exports: [DiscoveryService, DiscoveryProgressGateway],
 })
 export class DiscoveryModule {}

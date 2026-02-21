@@ -4,6 +4,7 @@ import { TestStep } from '../../types/test.types'
 import { getProjectElements } from '../../lib/api'
 import { ElementLibraryPanel } from './ElementLibraryPanel'
 import { TestBuilderPanel } from './TestBuilderPanel'
+import { CellStepData } from '../elements/CellSelectorPopover'
 
 interface TestBuilderProps {
   onSave: (steps: TestStep[]) => void
@@ -21,6 +22,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
   const [elementLibrary, setElementLibrary] = useState<ProjectElement[]>([])
   const [loadingElements, setLoadingElements] = useState(false)
   const [selectedElement, setSelectedElement] = useState<ProjectElement | null>(null)
+  const [pendingStep, setPendingStep] = useState<TestStep | null>(null)
 
   // Enhanced element library filtering state
   const [selectedElementType, setSelectedElementType] = useState<string>('all')
@@ -68,6 +70,18 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
     onElementsUpdated?.()
   }
 
+  // Handle cell/table step addition from explorer
+  const handleAddStep = (stepData: CellStepData) => {
+    const step: TestStep = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: stepData.type as TestStep['type'],
+      selector: stepData.selector,
+      value: stepData.value || undefined,
+      description: stepData.description,
+    }
+    setPendingStep(step)
+  }
+
   return (
     <div className="bg-white h-full flex flex-col">
       {/* OPTIMIZED LAYOUT: 60% element library + 40% test steps */}
@@ -77,6 +91,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
           <ElementLibraryPanel
             elements={elementLibrary}
             onSelectElement={handleElementSelect}
+            onAddStep={handleAddStep}
             selectedElementType={selectedElementType}
             selectedUrl={selectedUrl}
             onElementTypeChange={setSelectedElementType}
@@ -85,7 +100,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             showQuality={true}
             compact={false}
             isLoading={loadingElements}
-            setShowLivePicker={setShowLivePicker} // NEW PROP
+            setShowLivePicker={setShowLivePicker}
           />
         </div>
 
@@ -101,6 +116,8 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             projectId={projectId}
             onHuntNewElements={handleHuntNewElements}
             startingUrl={startingUrl}
+            pendingStep={pendingStep}
+            onPendingStepConsumed={() => setPendingStep(null)}
             className="h-full"
           />
         </div>

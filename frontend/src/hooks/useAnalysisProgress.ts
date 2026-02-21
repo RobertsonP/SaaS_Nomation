@@ -126,6 +126,12 @@ export function useAnalysisProgress({ projectId, onComplete, onError }: UseAnaly
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Stable refs for callbacks to prevent re-render loops
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   const [state, setState] = useState<AnalysisProgressState>({
     isRunning: false,
     currentPhase: 'prepare',
@@ -299,14 +305,14 @@ export function useAnalysisProgress({ projectId, onComplete, onError }: UseAnaly
     };
   }, [projectId]);
 
-  // Fire callbacks on completion/error
+  // Fire callbacks on completion/error (using stable refs)
   useEffect(() => {
-    if (state.isComplete && onComplete) onComplete();
-  }, [state.isComplete, onComplete]);
+    if (state.isComplete && onCompleteRef.current) onCompleteRef.current();
+  }, [state.isComplete]);
 
   useEffect(() => {
-    if (state.hasError && onError) onError(state.errorMessage);
-  }, [state.hasError, state.errorMessage, onError]);
+    if (state.hasError && onErrorRef.current) onErrorRef.current(state.errorMessage);
+  }, [state.hasError, state.errorMessage]);
 
   return {
     ...state,

@@ -1055,7 +1055,7 @@ export class ElementDetectionService {
                   if (href && href.startsWith('#') && href.length > 1) return href.replace(/^#/, '');
                   return null;
                 })(),
-                // Task 1.6: Dropdown options extraction
+                // Task 1.6: Dropdown options + structured dropdown data
                 dropdownOptions: (() => {
                   if (elementType !== 'dropdown') return null;
                   const tagName = element.tagName.toLowerCase();
@@ -1071,9 +1071,7 @@ export class ElementDetectionService {
                   }
 
                   // Custom dropdown with ARIA options — scoped to dropdown container
-                  // First try ARIA roles (most reliable)
                   let optionEls = element.querySelectorAll('[role="option"], [role="menuitem"]');
-                  // If no ARIA options, try li elements but only within dropdown/menu containers
                   if (optionEls.length === 0) {
                     const menuContainer = element.querySelector('ul, [role="listbox"], [role="menu"], .dropdown-menu, [class*="menu"], [class*="options"], [class*="list"]');
                     if (menuContainer) {
@@ -1086,6 +1084,88 @@ export class ElementDetectionService {
                       text: opt.textContent?.trim() || '',
                       selected: opt.getAttribute('aria-selected') === 'true',
                     }));
+                  }
+
+                  return null;
+                })(),
+                // Structured dropdown data with per-option selectors and CSS
+                dropdownData: (() => {
+                  if (elementType !== 'dropdown') return null;
+                  const tagName = element.tagName.toLowerCase();
+                  const parentSelector = selector;
+                  const isNative = tagName === 'select';
+
+                  if (isNative) {
+                    const selectEl = element as HTMLSelectElement;
+                    const options = Array.from(selectEl.options).slice(0, 50).map((opt, i) => {
+                      const optStyle = window.getComputedStyle(opt);
+                      // Build selector: prefer value, fall back to nth-child
+                      const optSelector = opt.value
+                        ? `${parentSelector} option[value="${opt.value}"]`
+                        : `${parentSelector} option:nth-child(${i + 1})`;
+                      return {
+                        value: opt.value,
+                        text: opt.text || opt.textContent?.trim() || '',
+                        selected: opt.selected,
+                        selector: optSelector,
+                        index: i,
+                        cssPreview: {
+                          color: optStyle.color || '',
+                          backgroundColor: optStyle.backgroundColor || '',
+                          fontSize: optStyle.fontSize || '',
+                        },
+                      };
+                    });
+                    return {
+                      triggerSelector: parentSelector,
+                      isNative: true,
+                      optionCount: selectEl.options.length,
+                      options,
+                    };
+                  }
+
+                  // Custom dropdown
+                  let optionEls = element.querySelectorAll('[role="option"], [role="menuitem"]');
+                  if (optionEls.length === 0) {
+                    const menuContainer = element.querySelector('ul, [role="listbox"], [role="menu"], .dropdown-menu, [class*="menu"], [class*="options"], [class*="list"]');
+                    if (menuContainer) {
+                      optionEls = menuContainer.querySelectorAll('li');
+                    }
+                  }
+                  if (optionEls.length > 0) {
+                    const optArray = Array.from(optionEls).slice(0, 50);
+                    const options = optArray.map((opt, i) => {
+                      const optStyle = window.getComputedStyle(opt);
+                      const role = opt.getAttribute('role');
+                      // Build selector: data-value, text content, or nth-child
+                      let optSelector: string;
+                      const dataValue = opt.getAttribute('data-value');
+                      if (dataValue) {
+                        optSelector = `${parentSelector} [data-value="${dataValue}"]`;
+                      } else if (role === 'option' || role === 'menuitem') {
+                        optSelector = `${parentSelector} [role="${role}"]:nth-child(${i + 1})`;
+                      } else {
+                        optSelector = `${parentSelector} li:nth-child(${i + 1})`;
+                      }
+                      return {
+                        value: dataValue || opt.getAttribute('value') || opt.textContent?.trim() || '',
+                        text: opt.textContent?.trim() || '',
+                        selected: opt.getAttribute('aria-selected') === 'true',
+                        selector: optSelector,
+                        index: i,
+                        cssPreview: {
+                          color: optStyle.color || '',
+                          backgroundColor: optStyle.backgroundColor || '',
+                          fontSize: optStyle.fontSize || '',
+                        },
+                      };
+                    });
+                    return {
+                      triggerSelector: parentSelector,
+                      isNative: false,
+                      optionCount: optArray.length,
+                      options,
+                    };
                   }
 
                   return null;

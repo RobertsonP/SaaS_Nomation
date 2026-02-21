@@ -191,10 +191,29 @@ export class InteractiveElementDiscoveryService {
     const isVisible = await element.isVisible().catch(() => false);
     if (!isVisible) return [];
 
+    // Listen for popup windows before clicking
+    const popupPromise = page.waitForEvent('popup', { timeout: 3000 }).catch(() => null);
+
     await element.click({ timeout: 3000 });
 
     // Wait for new content to appear
     await page.waitForTimeout(800);
+
+    // Check for popup window (new tab/window opened by the click)
+    const popup = await popupPromise;
+    if (popup) {
+      this.logger.log(`Trigger "${trigger.text}" opened a popup window`);
+      try {
+        await popup.waitForLoadState('domcontentloaded', { timeout: 10000 });
+        const popupElements = await this.extractElementsFromPage(popup, trigger, baselineSelectors, 'popup');
+        newElements.push(...popupElements);
+      } catch (err) {
+        this.logger.debug(`Failed to extract from popup: ${err.message}`);
+      } finally {
+        await popup.close().catch(() => {});
+      }
+      return newElements;
+    }
 
     // Safety: check we didn't navigate away
     if (page.url() !== currentUrl) {
@@ -334,6 +353,98 @@ export class InteractiveElementDiscoveryService {
     }
 
     return newElements;
+  }
+
+  /**
+   * Extract interactive elements from a page (used for popup windows and main page)
+   */
+  private async extractElementsFromPage(
+    page: Page,
+    trigger: InteractiveTrigger,
+    baselineSelectors: Set<string>,
+    discoveryState: 'popup' | 'modal' | 'tab' | 'after_interaction',
+  ): Promise<DetectedElement[]> {
+    const elements: DetectedElement[] = [];
+
+    const rawElements = await page.evaluate(() => {
+      const results: Array<{
+        selector: string;
+        tag: string;
+        text: string;
+        type: string;
+        role: string;
+        ariaLabel: string;
+        id: string;
+        className: string;
+        placeholder: string;
+        name: string;
+      }> = [];
+
+      document.querySelectorAll('input, button, select, textarea, a, form, label, [role]').forEach(el => {
+        const tag = el.tagName.toLowerCase();
+        if (!['input', 'button', 'select', 'textarea', 'a', 'form', 'label'].includes(tag) &&
+            !el.getAttribute('role')?.match(/button|link|checkbox|radio|textbox|combobox|form/)) {
+          return;
+        }
+
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        if (style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) return;
+
+        let selector = '';
+        if (el.id) selector = `#${CSS.escape(el.id)}`;
+        else if (el.getAttribute('data-testid')) selector = `[data-testid="${el.getAttribute('data-testid')}"]`;
+        else if (el.getAttribute('name')) selector = `${tag}[name="${el.getAttribute('name')}"]`;
+        else if (el.getAttribute('aria-label')) selector = `[aria-label="${el.getAttribute('aria-label')}"]`;
+        else {
+          const classes = Array.from(el.classList).slice(0, 2);
+          selector = classes.length > 0 ? `${tag}.${classes.join('.')}` : tag;
+        }
+
+        results.push({
+          selector,
+          tag,
+          text: el.textContent?.trim()?.slice(0, 100) || '',
+          type: el.getAttribute('type') || '',
+          role: el.getAttribute('role') || '',
+          ariaLabel: el.getAttribute('aria-label') || '',
+          id: el.id || '',
+          className: el.className?.toString() || '',
+          placeholder: (el as HTMLInputElement).placeholder || '',
+          name: el.getAttribute('name') || '',
+        });
+      });
+
+      return results;
+    });
+
+    for (const el of rawElements) {
+      if (baselineSelectors.has(el.selector)) continue;
+
+      elements.push({
+        selector: el.selector,
+        elementType: this.inferElementType(el.tag, el.type, el.role),
+        description: this.buildDescription(el, trigger),
+        confidence: 0.7,
+        discoveryState,
+        discoveryTrigger: discoveryState === 'popup'
+          ? `Popup from "${trigger.text}"`
+          : `Clicked "${trigger.text}"`,
+        attributes: {
+          tag: el.tag,
+          role: el.role || undefined,
+          'aria-label': el.ariaLabel || undefined,
+          text: el.text || undefined,
+          id: el.id || undefined,
+          class: el.className || undefined,
+          type: el.type || undefined,
+          name: el.name || undefined,
+          placeholder: el.placeholder || undefined,
+        },
+      });
+    }
+
+    return elements;
   }
 
   private inferElementType(

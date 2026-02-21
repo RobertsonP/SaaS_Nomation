@@ -91,7 +91,10 @@ export class ProjectsService {
       include: {
         urls: true,
         elements: {
-          include: { sourceUrl: true },
+          include: {
+            sourceUrl: true,
+            authFlow: { select: { id: true, name: true } }
+          },
           orderBy: [
             { sourceUrl: { url: 'asc' } },
             { confidence: 'desc' },

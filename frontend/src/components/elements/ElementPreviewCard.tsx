@@ -84,6 +84,7 @@ export function ElementPreviewCard({
       modal: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', label: 'Modal' },
       hover: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300', label: 'Hover' },
       tab: { color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300', label: 'Tab' },
+      popup: { color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', label: 'Popup' },
     };
 
     const config = stateConfig[discoveryState];
@@ -118,6 +119,11 @@ export function ElementPreviewCard({
           {element.elementType}
         </span>
         {attributes?.discoveryState && getDiscoveryStateBadge(attributes.discoveryState)}
+        {element.authFlow && (
+          <span className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+            {element.authFlow.name}
+          </span>
+        )}
       </div>
 
       {/* Description */}

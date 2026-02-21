@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { ProjectElement } from '../../types/element.types';
 import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
+import { DropdownPreviewCard } from '../elements/DropdownPreviewCard';
+import { CellStepData } from '../elements/CellSelectorPopover';
 import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
 
 interface ProjectUrl {
@@ -14,6 +16,7 @@ interface ProjectUrl {
 interface ElementLibraryPanelProps {
   elements: ProjectElement[];
   onSelectElement: (element: ProjectElement) => void;
+  onAddStep?: (step: CellStepData) => void;
   isLoading: boolean;
   selectedElementType?: string;
   selectedUrl?: string;
@@ -53,6 +56,7 @@ function getPathFromUrl(url: string): string {
 export function ElementLibraryPanel({
   elements,
   onSelectElement,
+  onAddStep,
   isLoading,
   setShowLivePicker,
   onAnalyzePages,
@@ -302,23 +306,33 @@ export function ElementLibraryPanel({
               {/* Group Elements */}
               {!isCollapsed && (
                 <div className="px-4 pb-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {group.elements.map(element => (
-                    element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData) ? (
-                      <div key={element.id} className="lg:col-span-2">
-                        <TablePreviewCard
-                          element={element}
-                          onSelectElement={onSelectElement}
-                        />
-                      </div>
-                    ) : (
+                  {group.elements.map(element => {
+                    const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
+                    const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
+
+                    if (hasTableData) {
+                      return (
+                        <div key={element.id} className="lg:col-span-2">
+                          <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                        </div>
+                      );
+                    }
+                    if (hasDropdownData) {
+                      return (
+                        <div key={element.id} className="lg:col-span-2">
+                          <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                        </div>
+                      );
+                    }
+                    return (
                       <ElementPreviewCard
                         key={element.id}
                         element={element}
                         onSelectElement={onSelectElement}
                         showQuality
                       />
-                    )
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

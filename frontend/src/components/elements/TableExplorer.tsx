@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { CellSelectorPopover } from './CellSelectorPopover';
+import { CellSelectorPopover, CellStepData } from './CellSelectorPopover';
 
 interface TableData {
   headers: string[];
@@ -17,9 +17,10 @@ interface TableData {
 interface TableExplorerProps {
   tableData: TableData;
   onClose: () => void;
+  onAddStep?: (step: CellStepData) => void;
 }
 
-export function TableExplorer({ tableData, onClose }: TableExplorerProps) {
+export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerProps) {
   const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ row: number; col: number; selector: string; text: string; position: { top: number; left: number } } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -76,7 +77,7 @@ export function TableExplorer({ tableData, onClose }: TableExplorerProps) {
       <div className="px-3 py-2 bg-teal-50 dark:bg-teal-900/30 border-b border-teal-200 dark:border-teal-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-teal-800 dark:text-teal-200">Table Explorer</span>
-          <span className="text-xs text-teal-600 dark:text-teal-400">Click cells for selectors</span>
+          <span className="text-xs text-teal-600 dark:text-teal-400">{onAddStep ? 'Click cells to add test steps' : 'Click cells for selectors'}</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Copy table selector */}
@@ -169,6 +170,7 @@ export function TableExplorer({ tableData, onClose }: TableExplorerProps) {
             cellText={activeCell.text}
             position={activeCell.position}
             onClose={() => setActiveCell(null)}
+            onAddStep={onAddStep}
           />
         )}
       </div>

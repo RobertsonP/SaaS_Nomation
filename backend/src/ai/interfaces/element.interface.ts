@@ -8,7 +8,7 @@ export interface DetectedElement {
   confidence: number;
   
   // NEW: Discovery context
-  discoveryState?: 'static' | 'after_login' | 'after_interaction' | 'modal' | 'hover' | 'tab';
+  discoveryState?: 'static' | 'after_login' | 'after_interaction' | 'modal' | 'hover' | 'tab' | 'popup';
   discoveryTrigger?: string; // "clicked #menu", "logged in", "hovered .tooltip"
   sourcePageTitle?: string;  // Actual page title
   sourceUrlPath?: string;    // /contact, /dashboard
@@ -184,6 +184,21 @@ export interface DetectedElement {
       headerColumnMap: Record<string, number>;
       hasHeaders: boolean;
       hasTbody: boolean;
+    };
+
+    // Structured dropdown data (for dropdown/select elements)
+    dropdownData?: {
+      triggerSelector: string;
+      isNative: boolean;
+      optionCount: number;
+      options: Array<{
+        value: string;
+        text: string;
+        selected: boolean;
+        selector: string;
+        index: number;
+        cssPreview?: { color: string; backgroundColor: string; fontSize: string };
+      }>;
     };
 
     // Index signature for additional dynamic attributes stored in Prisma JSON field

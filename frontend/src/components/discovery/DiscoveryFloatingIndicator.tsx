@@ -3,7 +3,7 @@ import { Loader2, CheckCircle, AlertCircle, Maximize2, X, ChevronDown, ChevronUp
 import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 
 export function DiscoveryFloatingIndicator() {
-  const { activeDiscovery, isMinimized, restoreDiscovery, clearDiscovery } = useDiscoveryContext();
+  const { activeDiscovery, restoreDiscovery, clearDiscovery } = useDiscoveryContext();
   const [expanded, setExpanded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -17,8 +17,8 @@ export function DiscoveryFloatingIndicator() {
     return () => clearInterval(timer);
   }, [activeDiscovery?.status]);
 
-  // Only show if minimized and has active discovery
-  if (!isMinimized || !activeDiscovery) {
+  // Show whenever there's active discovery
+  if (!activeDiscovery) {
     return null;
   }
 
@@ -126,6 +126,18 @@ export function DiscoveryFloatingIndicator() {
             )}
           </div>
         </div>
+
+        {/* Progress Bar */}
+        {isRunning && (
+          <div className="px-4 pb-2">
+            <div className="h-1.5 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${activeDiscovery.maxPages > 0 ? Math.min(100, Math.round((activeDiscovery.pagesFound / activeDiscovery.maxPages) * 100)) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Expanded section - Recent URLs */}
         {expanded && isRunning && recentUrls.length > 0 && (

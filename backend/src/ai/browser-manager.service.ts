@@ -30,45 +30,59 @@ export class BrowserManagerService {
     }
   }
 
+  /** Common stealth launch args to avoid WAF/bot detection */
+  private get stealthArgs(): string[] {
+    return [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--disable-javascript-harmony-shipping',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-default-apps',
+      '--disable-blink-features=AutomationControlled',
+    ];
+  }
+
+  /** Apply stealth overrides to a browser context (webdriver flag, etc.) */
+  private async applyStealthToContext(context: import('playwright').BrowserContext): Promise<void> {
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    });
+  }
+
   async setupBrowser(): Promise<Browser> {
-    console.log('🚀 Setting up browser with enhanced configuration for slow sites...');
+    console.log('🚀 Setting up browser with stealth configuration...');
 
     const browser = await chromium.launch({
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--disable-images',
-        '--disable-javascript-harmony-shipping',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-default-apps'
-      ]
+      args: this.stealthArgs,
     });
 
     console.log('✅ Browser setup complete');
     return browser;
   }
 
-  async navigateToPage(page: Page, url: string, options?: { fastMode?: boolean }): Promise<void> {
+  async navigateToPage(page: Page, url: string, options?: { fastMode?: boolean }): Promise<{ statusCode?: number }> {
     const fastMode = options?.fastMode ?? false;
     console.log(`🌐 Navigating to ${url} with ${fastMode ? 'FAST' : 'enhanced'} loading strategy...`);
+    let response: import('playwright').Response | null = null;
 
     try {
       // Strategy 1: Try networkidle first (fast sites)
       console.log(`📡 Attempting fast load strategy (networkidle, ${fastMode ? '5s' : '15s'} timeout)...`);
-      await page.goto(url, {
+      response = await page.goto(url, {
         waitUntil: 'networkidle',
         timeout: fastMode ? 5000 : 15000
       });
@@ -80,7 +94,7 @@ export class BrowserManagerService {
 
       try {
         // Strategy 2: Progressive loading for slow sites
-        await page.goto(url, {
+        response = await page.goto(url, {
           waitUntil: 'domcontentloaded',
           timeout: 45000
         });
@@ -120,7 +134,7 @@ export class BrowserManagerService {
         console.log(`🚀 Trying minimal load strategy (domcontentloaded only)...`);
 
         // Strategy 3: Minimal loading for problematic sites
-        await page.goto(url, {
+        response = await page.goto(url, {
           waitUntil: 'domcontentloaded',
           timeout: 60000
         });
@@ -134,6 +148,15 @@ export class BrowserManagerService {
     } else {
       console.log(`⚡ Fast mode - skipping dynamic content waits`);
     }
+
+    // Check HTTP status — reject 4xx/5xx error pages
+    const statusCode = response?.status();
+    if (statusCode && statusCode >= 400) {
+      const statusText = statusCode === 403 ? 'Forbidden' : statusCode === 404 ? 'Not Found' : `Error ${statusCode}`;
+      throw new Error(`HTTP_ERROR: Site returned ${statusCode} ${statusText} — may be blocking automated browsers`);
+    }
+
+    return { statusCode };
   }
 
   private async waitForDynamicContent(page: Page, url: string): Promise<void> {
@@ -186,7 +209,13 @@ export class BrowserManagerService {
   }
 
   async createPage(browser: Browser): Promise<Page> {
-    return browser.newPage();
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      viewport: { width: 1920, height: 1080 },
+      locale: 'en-US',
+    });
+    await this.applyStealthToContext(context);
+    return context.newPage();
   }
 
   /**
@@ -197,20 +226,23 @@ export class BrowserManagerService {
   async createPageForUrl(browser: Browser, url: string, options?: { storageState?: any }): Promise<Page> {
     const isLocal = this.isLocalAddress(url);
 
-    if (options?.storageState || isLocal) {
-      const contextOptions: any = {};
-      if (isLocal) {
-        console.log(`🏠 Localhost detected for ${url} - enabling SSL bypass`);
-        contextOptions.ignoreHTTPSErrors = true;
-      }
-      if (options?.storageState) {
-        console.log(`🔐 Creating authenticated browser context with storageState`);
-        contextOptions.storageState = options.storageState;
-      }
-      const context = await browser.newContext(contextOptions);
-      return context.newPage();
+    const contextOptions: any = {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      viewport: { width: 1920, height: 1080 },
+      locale: 'en-US',
+    };
+
+    if (isLocal) {
+      console.log(`🏠 Localhost detected for ${url} - enabling SSL bypass`);
+      contextOptions.ignoreHTTPSErrors = true;
+    }
+    if (options?.storageState) {
+      console.log(`🔐 Creating authenticated browser context with storageState`);
+      contextOptions.storageState = options.storageState;
     }
 
-    return browser.newPage();
+    const context = await browser.newContext(contextOptions);
+    await this.applyStealthToContext(context);
+    return context.newPage();
   }
 }

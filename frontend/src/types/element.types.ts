@@ -197,6 +197,22 @@ export interface ProjectElement {
     hasHeaders: boolean;
     hasTbody: boolean;
   };
+  // Structured dropdown data (for dropdown/select elements)
+  dropdownData?: {
+    triggerSelector: string;
+    isNative: boolean;
+    optionCount: number;
+    options: Array<{
+      value: string;
+      text: string;
+      selected: boolean;
+      selector: string;
+      index: number;
+      cssPreview?: { color: string; backgroundColor: string; fontSize: string };
+    }>;
+  };
+  // Auth flow that discovered this element (multi-role support)
+  authFlow?: { id: string; name: string } | null;
   screenshot?: string | null; // Base64 encoded screenshot
   
   // Phase 2: Enhanced quality and validation metrics

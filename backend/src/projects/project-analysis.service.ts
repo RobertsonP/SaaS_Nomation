@@ -9,6 +9,7 @@ import { AnalysisRetryService } from '../analysis/analysis-retry.service';
 import { ProjectAnalyzerService } from '../analysis/project-analyzer.service';
 import { GitHubService } from './github.service';
 import { ProjectElementsService } from './project-elements.service';
+import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 
 export interface AnalysisResult {
   url: string;
@@ -101,16 +102,15 @@ export class ProjectAnalysisService {
     );
 
     const authFlows = await this.authFlowsService.getByProject(projectId);
-    const authFlow = authFlows.length > 0 ? authFlows[0] : null;
 
-    if (authFlow) {
+    if (authFlows.length > 0) {
       this.progressGateway.sendProgress(
         projectId,
         'auth_check',
-        `Found authentication flow: ${authFlow.name}`,
+        `Found ${authFlows.length} authentication flow${authFlows.length > 1 ? 's' : ''}: ${authFlows.map(f => f.name).join(', ')}`,
         3,
         4,
-        { authFlow: authFlow.name, loginUrl: authFlow.loginUrl }
+        { authFlowCount: authFlows.length, authFlowNames: authFlows.map(f => f.name) }
       );
     } else {
       this.progressGateway.sendProgress(
@@ -125,16 +125,35 @@ export class ProjectAnalysisService {
     const allResults: AnalysisResult[] = [];
 
     try {
-      if (authFlow) {
+      // Analyze with each auth flow (supports multi-role scenarios)
+      for (let i = 0; i < authFlows.length; i++) {
+        const authFlow = authFlows[i];
+        this.progressGateway.sendProgress(
+          projectId,
+          'auth_check',
+          `Scanning as ${authFlow.name} (${i + 1}/${authFlows.length})...`,
+          3,
+          4
+        );
+
         const authResult = await this.performAuthenticatedAnalysis(
           projectId,
           project,
           urlsToAnalyze,
           authFlow
         );
-        if (authResult) return authResult;
+        if (authResult) {
+          allResults.push(authResult);
+          // If this is the last auth flow and all succeeded, return combined result
+          if (i === authFlows.length - 1) {
+            return this.combineResults(allResults);
+          }
+          continue; // Move to next auth flow
+        }
+        // Auth failed for this flow — continue to next or fall back to standard
       }
 
+      // Run standard (unauthenticated) analysis as fallback or for public elements
       return await this.performStandardAnalysis(projectId, urlsToAnalyze, allResults);
 
     } catch (error) {
@@ -207,7 +226,7 @@ export class ProjectAnalysisService {
           const projectUrl = project.urls.find(pu => pu.url === urlResult.url);
 
           if (projectUrl) {
-            await this.projectElementsService.storeProjectElements(projectId, urlResult.elements, projectUrl.id);
+            await this.projectElementsService.storeProjectElements(projectId, urlResult.elements, projectUrl.id, authFlow.id);
             this.progressGateway.sendProgress(
               projectId,
               'element_storage',
@@ -226,7 +245,7 @@ export class ProjectAnalysisService {
               },
             });
           } else {
-            await this.projectElementsService.storeProjectElements(projectId, urlResult.elements, null);
+            await this.projectElementsService.storeProjectElements(projectId, urlResult.elements, null, authFlow.id);
             this.progressGateway.sendProgress(
               projectId,
               'element_storage',
@@ -301,6 +320,21 @@ export class ProjectAnalysisService {
     return null;
   }
 
+  private combineResults(results: AnalysisResult[]): AnalysisResult {
+    const totalElements = results.reduce((sum, r) => sum + (r.totalElementsStored || r.elements.length), 0);
+    const totalUrls = results.reduce((sum, r) => sum + (r.totalUrls || 0), 0);
+    return {
+      url: `${totalUrls} URLs analyzed across ${results.length} auth flow${results.length !== 1 ? 's' : ''}`,
+      elements: results.flatMap(r => r.elements),
+      analysisDate: new Date(),
+      success: true,
+      totalUrls,
+      successfulUrls: results.reduce((sum, r) => sum + (r.successfulUrls || 0), 0),
+      authenticationUsed: true,
+      totalElementsStored: totalElements,
+    };
+  }
+
   private async performStandardAnalysis(
     projectId: string,
     urlsToAnalyze: Array<{ id: string; url: string }>,
@@ -329,8 +363,11 @@ export class ProjectAnalysisService {
       );
 
       try {
+        // Translate localhost URLs for Docker environment
+        const analysisUrl = normalizeUrlForDocker(projectUrl.url);
+
         const retryResult = await this.retryService.executeWithRetry(
-          () => this.elementAnalyzer.analyzePage(projectUrl.url, {
+          () => this.elementAnalyzer.analyzePage(analysisUrl, {
             onProgress: (stage, percent, detail) => {
               this.progressGateway.sendProgress(
                 projectId,
@@ -404,6 +441,7 @@ export class ProjectAnalysisService {
         } else {
           const errorMessage = analysisResult.errorMessage || 'No elements found';
           const errorCategory = analysisResult.errorCategory;
+          const isHttpError = errorCategory === 'HTTP_ERROR' || errorMessage?.includes('HTTP_ERROR');
 
           if (errorCategory) {
             this.progressGateway.sendError(
@@ -414,7 +452,9 @@ export class ProjectAnalysisService {
                 message: errorMessage,
                 category: errorCategory,
                 url: projectUrl.url,
-                suggestions: []
+                suggestions: isHttpError
+                  ? ['The site may be blocking automated browsers', 'Try re-analyzing — stealth mode is active']
+                  : []
               }
             );
           } else {
@@ -428,6 +468,41 @@ export class ProjectAnalysisService {
             );
           }
 
+          // Don't mark as analyzed on HTTP errors — URL is valid but blocked
+          if (!isHttpError) {
+            await this.prisma.projectUrl.update({
+              where: { id: projectUrl.id },
+              data: {
+                analyzed: true,
+                analysisDate: new Date()
+              },
+            });
+          }
+        }
+
+        allResults.push(analysisResult);
+      } catch (urlError) {
+        const isHttpError = urlError.message?.includes('HTTP_ERROR');
+
+        this.progressGateway.sendError(
+          projectId,
+          'standard_analysis',
+          `Failed to analyze URL ${projectUrl.url}: ${urlError.message}`,
+          {
+            message: urlError.message,
+            url: projectUrl.url,
+            suggestions: isHttpError
+              ? ['The site may be blocking automated browsers', 'Try re-analyzing — stealth mode is active']
+              : [
+                  'Check if the URL is accessible',
+                  'Verify network connectivity',
+                  'Consider if authentication is required'
+                ]
+          }
+        );
+
+        // Don't mark as analyzed on HTTP errors — URL is valid but blocked
+        if (!isHttpError) {
           await this.prisma.projectUrl.update({
             where: { id: projectUrl.id },
             data: {
@@ -437,37 +512,13 @@ export class ProjectAnalysisService {
           });
         }
 
-        allResults.push(analysisResult);
-      } catch (urlError) {
-        this.progressGateway.sendError(
-          projectId,
-          'standard_analysis',
-          `Failed to analyze URL ${projectUrl.url}: ${urlError.message}`,
-          {
-            message: urlError.message,
-            url: projectUrl.url,
-            suggestions: [
-              'Check if the URL is accessible',
-              'Verify network connectivity',
-              'Consider if authentication is required'
-            ]
-          }
-        );
-
-        await this.prisma.projectUrl.update({
-          where: { id: projectUrl.id },
-          data: {
-            analyzed: true,
-            analysisDate: new Date()
-          },
-        });
-
         allResults.push({
           url: projectUrl.url,
           elements: [],
           analysisDate: new Date(),
           success: false,
-          errorMessage: urlError.message
+          errorMessage: urlError.message,
+          errorCategory: isHttpError ? 'HTTP_ERROR' : undefined,
         });
       }
     }

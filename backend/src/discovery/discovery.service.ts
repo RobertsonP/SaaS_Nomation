@@ -1,9 +1,10 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SitemapParserService } from './sitemap-parser.service';
 import { PageCrawlerService } from './page-crawler.service';
 import { LoginFlow } from '../ai/interfaces/element.interface';
 import { normalizeUrlForDocker } from '../utils/docker-url.utils';
+import { DiscoveryProgressGateway } from './discovery-progress.gateway';
 import axios from 'axios';
 import * as https from 'https';
 
@@ -53,6 +54,7 @@ export class DiscoveryService {
     private prisma: PrismaService,
     private sitemapParser: SitemapParserService,
     private pageCrawler: PageCrawlerService,
+    @Optional() private progressGateway?: DiscoveryProgressGateway,
   ) {}
 
   /**
@@ -108,9 +110,15 @@ export class DiscoveryService {
       });
       return true;
     } catch (error) {
+      const isDocker = process.env.RUNNING_IN_DOCKER === 'true';
       if (error.code === 'ECONNREFUSED') {
+        const hint = isLocal && isDocker
+          ? 'Make sure your app is running and accessible from outside its own process (bound to 0.0.0.0, not just 127.0.0.1).'
+          : isLocal
+          ? 'Make sure your app is running on this port.'
+          : 'The server refused the connection.';
         throw new HttpException(
-          `Can't reach ${url}. ${isLocal ? 'Make sure your app is running on this port.' : 'The server refused the connection.'}`,
+          `Can't reach ${url}. ${hint}`,
           HttpStatus.BAD_REQUEST
         );
       }
@@ -308,20 +316,21 @@ export class DiscoveryService {
         currentUrl: baseUrl,
       });
 
+      // Only crawl what's needed beyond sitemap results
+      const remainingPages = Math.max(0, maxPages - discoveredPages.length);
       const crawlResults = await this.pageCrawler.crawlWithDepth(
         baseUrl,
         maxDepth,
-        maxPages,
+        remainingPages,
         authFlow,
-        // Progress callback — updates progress on every page crawled
-        (crawled, total, currentUrl) => {
-          const totalFound = discoveredPages.length + crawled;
+        // Progress callback — reports deduplicated total
+        (crawled, _total, currentUrl) => {
           this.updateProgress(projectId, {
             status: 'discovering',
             phase: 'crawling',
-            discoveredUrls: totalFound,
-            totalUrls: Math.max(totalFound + (total - crawled), maxPages),
-            message: `Crawling page ${crawled} — found ${totalFound} pages so far`,
+            discoveredUrls: Math.min(discoveredPages.length + crawled, maxPages),
+            totalUrls: maxPages,
+            message: `Crawling page ${crawled} — found ${Math.min(discoveredPages.length + crawled, maxPages)} pages so far`,
             urls: [...discoveredPages.map(p => p.url)],
             currentUrl,
           });
@@ -361,6 +370,12 @@ export class DiscoveryService {
             });
           }
         }
+      }
+
+      // Enforce maxPages cap after merging all results
+      if (discoveredPages.length > maxPages) {
+        this.logger.log(`Trimming discovered pages from ${discoveredPages.length} to ${maxPages} (maxPages cap)`);
+        discoveredPages.length = maxPages;
       }
 
       // Update progress with all discovered URLs after crawling
@@ -619,6 +634,20 @@ export class DiscoveryService {
   private updateProgress(projectId: string, progress: DiscoveryProgress) {
     this.discoveryProgress.set(projectId, progress);
     this.logger.log(`Discovery progress [${projectId}]: ${progress.phase} - ${progress.message}`);
+
+    // Emit via WebSocket for real-time frontend updates
+    if (this.progressGateway) {
+      const phase = progress.status === 'complete' ? 'completed'
+        : progress.status === 'failed' ? 'error'
+        : 'crawling';
+      this.progressGateway.sendProgress({
+        projectId,
+        phase: phase as any,
+        message: progress.message,
+        urlsFound: progress.discoveredUrls || 0,
+        timestamp: new Date(),
+      });
+    }
   }
 
   /**

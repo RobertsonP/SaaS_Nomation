@@ -147,7 +147,7 @@ export class ProjectElementsService {
     };
   }
 
-  async storeProjectElements(projectId: string, elements: DetectedElement[], sourceUrlId?: string) {
+  async storeProjectElements(projectId: string, elements: DetectedElement[], sourceUrlId?: string, authFlowId?: string) {
     try {
       console.log(`💾 Attempting to store ${elements.length} elements for project ${projectId}`);
 
@@ -160,6 +160,7 @@ export class ProjectElementsService {
         return {
           projectId,
           sourceUrlId: sourceUrlId || null,
+          authFlowId: authFlowId || null,
           selector: element.selector,
           elementType: element.elementType,
           description: element.description,
