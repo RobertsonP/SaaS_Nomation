@@ -169,8 +169,9 @@ backend/*.png
 # Development logs (if keeping local only)
 # claude.log.md (uncomment to exclude from commits)
 
-# MCP configuration (if contains sensitive data)
-# mcp.config.json (uncomment if needed)
+# MCP configuration (contains tokens/credentials)
+.mcp.json
+mcp.config.json
 
 # Handoff & Prompt Files (Transient)
 CLAUDE_PROMPT.txt
