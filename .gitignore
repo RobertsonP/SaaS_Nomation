@@ -179,5 +179,8 @@ GEMINI-HANDOFF-*.md
 Issues_for_this_session.md
 Issues_for_this_session.md.bak
 
+# Private Claude config (contains credentials)
+CLAUDE.local.md
+
 # Temp Scripts
 validate-selectors.js
