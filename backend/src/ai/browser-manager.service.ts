@@ -14,6 +14,7 @@ export class BrowserManagerService {
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
         hostname === '::1' ||
+        hostname === 'host.docker.internal' ||
         hostname.endsWith('.localhost') ||
         hostname.startsWith('192.168.') ||
         hostname.startsWith('10.') ||
@@ -41,7 +42,6 @@ export class BrowserManagerService {
       '--disable-features=VizDisplayCompositor',
       '--disable-extensions',
       '--disable-plugins',
-      '--disable-images',
       '--disable-javascript-harmony-shipping',
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
@@ -65,9 +65,16 @@ export class BrowserManagerService {
   async setupBrowser(): Promise<Browser> {
     console.log('🚀 Setting up browser with stealth configuration...');
 
+    const args = [...this.stealthArgs];
+
+    // In Docker, help Chromium resolve host.docker.internal to the host machine
+    if (process.env.RUNNING_IN_DOCKER === 'true') {
+      args.push('--host-resolver-rules=MAP host.docker.internal host-gateway');
+    }
+
     const browser = await chromium.launch({
       headless: true,
-      args: this.stealthArgs,
+      args,
     });
 
     console.log('✅ Browser setup complete');

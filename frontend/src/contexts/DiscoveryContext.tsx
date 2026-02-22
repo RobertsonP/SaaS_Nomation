@@ -9,8 +9,8 @@ export interface DiscoveryState {
   status: 'pending' | 'discovering' | 'complete' | 'failed';
   phase: string;
   pagesFound: number;
-  maxPages: number;  // Track max pages for progress bar
-  currentUrl?: string;  // Currently being crawled
+  maxPages: number;
+  currentUrl?: string;
   discoveredUrls: string[];
   result?: {
     pages: any[];
@@ -27,7 +27,7 @@ interface DiscoveryContextType {
     projectName: string,
     rootUrl: string,
     options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean; authFlowId?: string }
-  ) => Promise<void>;
+  ) => void;
   minimizeDiscovery: () => void;
   restoreDiscovery: () => void;
   clearDiscovery: () => void;
@@ -39,7 +39,7 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
   const [activeDiscovery, setActiveDiscovery] = useState<DiscoveryState | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const pollIntervalRef = useRef<number>(3000);
+  const pollIntervalRef = useRef<number>(2000);
   const errorCountRef = useRef<number>(0);
   const { showSuccess, showError, showInfo } = useNotification();
 
@@ -52,85 +52,72 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const pollProgress = useCallback(async (projectId: string) => {
-    if (!activeDiscovery || activeDiscovery.projectId !== projectId) return;
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
-    try {
-      const progressData = await projectsAPI.getDiscoveryProgress(projectId);
+  // Progress polling — runs alongside the main API call
+  const startPolling = useCallback((projectId: string) => {
+    pollIntervalRef.current = 2000;
+    errorCountRef.current = 0;
 
-      if (progressData) {
-        // Reset backoff on success
-        pollIntervalRef.current = 3000;
-        errorCountRef.current = 0;
+    const poll = async () => {
+      try {
+        const progressData = await projectsAPI.getDiscoveryProgress(projectId);
 
-        setActiveDiscovery(prev => {
-          if (!prev || prev.projectId !== projectId) return prev;
-          return {
-            ...prev,
-            phase: progressData.phase,
-            pagesFound: progressData.discoveredUrls,
-            discoveredUrls: progressData.urls || prev.discoveredUrls,
-            status: progressData.status,
-          };
-        });
+        if (progressData) {
+          pollIntervalRef.current = 2000;
+          errorCountRef.current = 0;
 
-        // Check if discovery is complete
-        if (progressData.status === 'complete' || progressData.status === 'failed') {
-          if (pollRef.current) {
-            clearTimeout(pollRef.current);
-            pollRef.current = null;
+          setActiveDiscovery(prev => {
+            if (!prev || prev.projectId !== projectId) return prev;
+            // Don't overwrite 'complete' or 'failed' states set by the main API call
+            if (prev.status === 'complete' || prev.status === 'failed') return prev;
+            return {
+              ...prev,
+              phase: progressData.phase || prev.phase,
+              pagesFound: progressData.discoveredUrls ?? prev.pagesFound,
+              discoveredUrls: progressData.urls || prev.discoveredUrls,
+              // Only update status from progress if still discovering
+              ...(progressData.status === 'complete' || progressData.status === 'failed'
+                ? {} // Let the main API call handle final state
+                : { status: progressData.status }),
+            };
+          });
+
+          // Stop polling if progress says complete/failed (main API will finalize)
+          if (progressData.status === 'complete' || progressData.status === 'failed') {
+            return; // Don't schedule another poll
           }
+        }
+      } catch {
+        errorCountRef.current += 1;
+        pollIntervalRef.current = Math.min(pollIntervalRef.current * 1.5, 15000);
 
-          if (progressData.status === 'complete') {
-            showSuccess(
-              'Discovery Complete',
-              `Found ${progressData.discoveredUrls} pages on ${activeDiscovery.rootUrl}`
-            );
-          } else {
-            showError('Discovery Failed', progressData.message || 'An error occurred');
-          }
-          return;
+        if (errorCountRef.current >= 15) {
+          return; // Stop polling after too many errors
         }
       }
-    } catch {
-      // Exponential backoff
-      errorCountRef.current += 1;
-      pollIntervalRef.current = Math.min(pollIntervalRef.current * 2, 30000);
 
-      // Stop after too many failures
-      if (errorCountRef.current >= 10) {
-        setActiveDiscovery(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            status: 'failed',
-            error: 'Lost connection to server',
-          };
-        });
-        showError('Discovery Error', 'Lost connection to the server');
-        return;
-      }
-    }
+      // Schedule next poll
+      pollRef.current = setTimeout(poll, pollIntervalRef.current);
+    };
 
-    // Schedule next poll
-    pollRef.current = setTimeout(() => pollProgress(projectId), pollIntervalRef.current);
-  }, [activeDiscovery, showSuccess, showError]);
+    // Start first poll after a short delay (give backend time to initialize)
+    pollRef.current = setTimeout(poll, 1500);
+  }, []);
 
-  const startBackgroundDiscovery = useCallback(async (
+  const startBackgroundDiscovery = useCallback((
     projectId: string,
     projectName: string,
     rootUrl: string,
     options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean; authFlowId?: string }
   ) => {
     // Clear any existing poll
-    if (pollRef.current) {
-      clearTimeout(pollRef.current);
-      pollRef.current = null;
-    }
-
-    // Reset polling state
-    pollIntervalRef.current = 3000;
-    errorCountRef.current = 0;
+    stopPolling();
 
     // Initialize discovery state
     setActiveDiscovery({
@@ -140,49 +127,52 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       status: 'discovering',
       phase: 'initialization',
       pagesFound: 0,
-      maxPages: options?.maxPages || 50,  // Default to 50 if not provided
+      maxPages: options?.maxPages || 50,
       currentUrl: rootUrl,
       discoveredUrls: [],
     });
 
-    try {
-      const result = await projectsAPI.startDiscovery(projectId, rootUrl, options);
+    // Don't minimize — modal stays open
+    setIsMinimized(false);
 
-      setActiveDiscovery(prev => {
-        if (!prev || prev.projectId !== projectId) return prev;
-        return {
-          ...prev,
-          status: 'complete',
-          phase: 'complete',
-          pagesFound: result.pages?.length || 0,
-          result,
-        };
+    // Start progress polling alongside the API call
+    startPolling(projectId);
+
+    // Fire the main discovery API call (long-running)
+    projectsAPI.startDiscovery(projectId, rootUrl, options)
+      .then((result) => {
+        stopPolling();
+        setActiveDiscovery(prev => {
+          if (!prev || prev.projectId !== projectId) return prev;
+          return {
+            ...prev,
+            status: 'complete',
+            phase: 'complete',
+            pagesFound: result.pages?.length || 0,
+            result,
+          };
+        });
+        showSuccess('Discovery Complete', `Found ${result.pages?.length || 0} pages`);
+      })
+      .catch((err: any) => {
+        stopPolling();
+        const errorMessage = err?.response?.data?.message || err?.message || 'Discovery failed';
+        setActiveDiscovery(prev => {
+          if (!prev || prev.projectId !== projectId) return prev;
+          return {
+            ...prev,
+            status: 'failed',
+            error: errorMessage,
+          };
+        });
+        showError('Discovery Failed', errorMessage);
       });
-
-      showSuccess(
-        'Discovery Complete',
-        `Found ${result.pages?.length || 0} pages`
-      );
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || err.message || 'Discovery failed';
-
-      setActiveDiscovery(prev => {
-        if (!prev || prev.projectId !== projectId) return prev;
-        return {
-          ...prev,
-          status: 'failed',
-          error: errorMessage,
-        };
-      });
-
-      showError('Discovery Failed', errorMessage);
-    }
-  }, [showSuccess, showError]);
+  }, [stopPolling, startPolling, showSuccess, showError]);
 
   const minimizeDiscovery = useCallback(() => {
     setIsMinimized(true);
     if (activeDiscovery?.status === 'discovering') {
-      showInfo('Discovery Running', 'Discovery is running in the background. You\'ll be notified when complete.');
+      showInfo('Discovery Running', 'Discovery continues in the background.');
     }
   }, [activeDiscovery, showInfo]);
 
@@ -191,13 +181,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearDiscovery = useCallback(() => {
-    if (pollRef.current) {
-      clearTimeout(pollRef.current);
-      pollRef.current = null;
-    }
+    stopPolling();
     setActiveDiscovery(null);
     setIsMinimized(false);
-  }, []);
+  }, [stopPolling]);
 
   return (
     <DiscoveryContext.Provider

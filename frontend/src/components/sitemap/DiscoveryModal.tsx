@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock } from 'lucide-react';
 import { SiteMapGraph } from './SiteMapGraph';
-import { useDiscovery, useSiteMapData, SiteMapNodeData, SiteMapEdgeData } from './useSiteMapData';
+import { useSiteMapData, SiteMapNodeData, SiteMapEdgeData } from './useSiteMapData';
 import { authFlowsAPI } from '../../lib/api';
+import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 
 interface AuthFlow {
   id: string;
@@ -10,14 +11,8 @@ interface AuthFlow {
   loginUrl: string;
 }
 
-interface DiscoveryPhase {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  status: 'pending' | 'active' | 'completed' | 'error';
-}
-
 const DISCOVERY_PHASES: Array<{ id: string; label: string; icon: React.ElementType }> = [
+  { id: 'initialization', label: 'Initializing', icon: Globe },
   { id: 'connectivity', label: 'Checking connectivity', icon: Globe },
   { id: 'sitemap', label: 'Looking for sitemap', icon: Map },
   { id: 'crawling', label: 'Crawling pages', icon: LinkIcon },
@@ -26,17 +21,12 @@ const DISCOVERY_PHASES: Array<{ id: string; label: string; icon: React.ElementTy
 
 /**
  * Normalize URL by adding protocol if missing
- * Uses http:// for localhost/127.0.0.1/private IPs, https:// for all others
  */
 function normalizeUrl(url: string): string {
   const trimmed = url.trim();
-
-  // Already has protocol
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
   }
-
-  // Check if it's a local/private address that should use http://
   const localPatterns = [
     /^localhost(:\d+)?/i,
     /^127\.0\.0\.1(:\d+)?/,
@@ -45,11 +35,8 @@ function normalizeUrl(url: string): string {
     /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?/,
     /^0\.0\.0\.0(:\d+)?/,
   ];
-
   const isLocal = localPatterns.some(pattern => pattern.test(trimmed));
-  const protocol = isLocal ? 'http://' : 'https://';
-
-  return protocol + trimmed;
+  return (isLocal ? 'http://' : 'https://') + trimmed;
 }
 
 interface ProjectUrl {
@@ -63,6 +50,7 @@ interface DiscoveryModalProps {
   onClose: () => void;
   onMinimize?: () => void;
   projectId: string;
+  projectName?: string;
   initialUrl?: string;
   projectUrls?: ProjectUrl[];
   onDiscoveryComplete?: (selectedUrls: string[]) => void;
@@ -74,138 +62,92 @@ export function DiscoveryModal({
   onClose,
   onMinimize,
   projectId,
+  projectName = '',
   initialUrl = '',
   projectUrls = [],
   onDiscoveryComplete,
   onAnalyzePages,
 }: DiscoveryModalProps) {
+  const { activeDiscovery, startBackgroundDiscovery, minimizeDiscovery, clearDiscovery } = useDiscoveryContext();
+
   const [rootUrl, setRootUrl] = useState(initialUrl);
   const [useCustomUrl, setUseCustomUrl] = useState(!initialUrl && projectUrls.length === 0);
   const [customUrl, setCustomUrl] = useState('');
-  const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
   const [maxDepth, setMaxDepth] = useState(3);
   const [maxPages, setMaxPages] = useState(50);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-  const [discoveryStarted, setDiscoveryStarted] = useState(false);
   const [siteMapData, setSiteMapData] = useState<{ nodes: SiteMapNodeData[]; edges: SiteMapEdgeData[] } | null>(null);
-  const [currentPhase, setCurrentPhase] = useState<string>('');
-  const [pagesFound, setPagesFound] = useState(0);
-  const progressPollRef = useRef<NodeJS.Timeout | null>(null);
-  const pollIntervalRef = useRef<number>(3000); // Start at 3 seconds
-  const errorCountRef = useRef<number>(0);
-  const [pollError, setPollError] = useState<string | null>(null);
-  const [discoveryStartTime, setDiscoveryStartTime] = useState<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Auth flow state for authenticated discovery
+  // Auth flow state
   const [authFlows, setAuthFlows] = useState<AuthFlow[]>([]);
   const [selectedAuthFlowId, setSelectedAuthFlowId] = useState<string>('');
   const [loadingAuthFlows, setLoadingAuthFlows] = useState(false);
 
-  const { discovering, error, startDiscovery, progress, checkProgress } = useDiscovery(projectId);
-  const { data: existingData, loading: loadingExisting } = useSiteMapData(projectId);
+  // Elapsed time
+  const [discoveryStartTime, setDiscoveryStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Fetch auth flows for the project when modal opens
+  // Derive state from context
+  const isDiscovering = activeDiscovery?.status === 'discovering' && activeDiscovery.projectId === projectId;
+  const isComplete = activeDiscovery?.status === 'complete' && activeDiscovery.projectId === projectId;
+  const isFailed = activeDiscovery?.status === 'failed' && activeDiscovery.projectId === projectId;
+  const discoveryError = isFailed ? activeDiscovery?.error : null;
+
+  // Fetch auth flows when modal opens
   useEffect(() => {
     if (isOpen && projectId) {
       setLoadingAuthFlows(true);
       authFlowsAPI.getByProject(projectId)
-        .then((response) => {
-          setAuthFlows(response.data || []);
-        })
-        .catch((err) => {
-          console.error('Failed to fetch auth flows:', err);
-          setAuthFlows([]);
-        })
-        .finally(() => {
-          setLoadingAuthFlows(false);
-        });
+        .then((response) => setAuthFlows(response.data || []))
+        .catch(() => setAuthFlows([]))
+        .finally(() => setLoadingAuthFlows(false));
     }
   }, [isOpen, projectId]);
 
   // Elapsed time timer during discovery
   useEffect(() => {
-    if (!discovering || !discoveryStartTime) return;
+    if (!isDiscovering || !discoveryStartTime) return;
     const timer = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - discoveryStartTime) / 1000));
     }, 1000);
     return () => clearInterval(timer);
-  }, [discovering, discoveryStartTime]);
+  }, [isDiscovering, discoveryStartTime]);
 
-  // Poll for discovery progress during discovery with exponential backoff
+  // Build sitemap data when discovery completes
   useEffect(() => {
-    if (discovering && projectId) {
-      // Reset polling state when starting
-      pollIntervalRef.current = 3000; // Start at 3 seconds
-      errorCountRef.current = 0;
-      setPollError(null);
+    if (isComplete && activeDiscovery?.result?.pages && !siteMapData) {
+      const nodes: SiteMapNodeData[] = activeDiscovery.result.pages.map((page: any, index: number) => ({
+        id: `discovered-${index}`,
+        url: page.url,
+        title: page.title || 'Discovered Page',
+        analyzed: false,
+        verified: false,
+        requiresAuth: page.requiresAuth,
+        pageType: page.pageType,
+        discovered: true,
+        depth: page.depth,
+        screenshot: page.screenshot,
+      }));
 
-      const pollProgress = async () => {
-        try {
-          const progressData = await checkProgress();
-          if (progressData) {
-            // Success - reset backoff
-            pollIntervalRef.current = 3000;
-            errorCountRef.current = 0;
-            setPollError(null);
+      const edges: SiteMapEdgeData[] = (activeDiscovery.result.relationships || []).map((rel: any, index: number) => ({
+        id: `edge-${index}`,
+        source: nodes.find(n => n.url === rel.sourceUrl)?.id || '',
+        target: nodes.find(n => n.url === rel.targetUrl)?.id || '',
+        linkText: rel.linkText,
+        linkType: rel.linkType,
+      })).filter((e: SiteMapEdgeData) => e.source && e.target);
 
-            setCurrentPhase(progressData.phase);
-            setPagesFound(progressData.discoveredUrls);
-            // Track discovered URLs for live display
-            if (progressData.urls && progressData.urls.length > 0) {
-              setDiscoveredUrls(progressData.urls);
-            }
-
-            // Stop polling when complete or failed
-            if (progressData.status === 'complete' || progressData.status === 'failed') {
-              if (progressPollRef.current) {
-                clearTimeout(progressPollRef.current);
-                progressPollRef.current = null;
-              }
-              return;
-            }
-          }
-        } catch (err) {
-          // Exponential backoff on errors (3s -> 6s -> 12s -> max 30s)
-          errorCountRef.current += 1;
-          pollIntervalRef.current = Math.min(pollIntervalRef.current * 2, 30000);
-
-          // Show error after 3 consecutive failures
-          if (errorCountRef.current >= 3) {
-            setPollError(`Connection issues (retrying every ${Math.round(pollIntervalRef.current / 1000)}s)...`);
-          }
-
-          // Stop polling after 10 consecutive failures
-          if (errorCountRef.current >= 10) {
-            setPollError('Unable to check progress. The discovery may still be running in the background.');
-            if (progressPollRef.current) {
-              clearTimeout(progressPollRef.current);
-              progressPollRef.current = null;
-            }
-            return;
-          }
-        }
-
-        // Schedule next poll with current interval
-        progressPollRef.current = setTimeout(pollProgress, pollIntervalRef.current);
-      };
-
-      // Start first poll
-      progressPollRef.current = setTimeout(pollProgress, pollIntervalRef.current);
-
-      return () => {
-        if (progressPollRef.current) {
-          clearTimeout(progressPollRef.current);
-          progressPollRef.current = null;
-        }
-      };
+      setSiteMapData({ nodes, edges });
+      setSelectedNodes(nodes.map(n => n.id));
     }
-  }, [discovering, projectId, checkProgress]);
+  }, [isComplete, activeDiscovery?.result, siteMapData]);
 
-  // Compute phase statuses based on current phase
+  // Compute phase statuses
   const getPhaseStatus = (phaseId: string): 'pending' | 'active' | 'completed' | 'error' => {
-    if (error && currentPhase === phaseId) return 'error';
-    const phaseOrder = ['connectivity', 'sitemap', 'crawling', 'saving', 'complete'];
+    if (!activeDiscovery) return 'pending';
+    const currentPhase = activeDiscovery.phase;
+    if (isFailed && currentPhase === phaseId) return 'error';
+    const phaseOrder = ['initialization', 'connectivity', 'sitemap', 'crawling', 'saving', 'complete'];
     const currentIndex = phaseOrder.indexOf(currentPhase);
     const phaseIndex = phaseOrder.indexOf(phaseId);
     if (currentIndex === -1) return 'pending';
@@ -214,72 +156,28 @@ export function DiscoveryModal({
     return 'pending';
   };
 
-  const handleStartDiscovery = async () => {
+  const handleStartDiscovery = () => {
     const urlToUse = useCustomUrl ? customUrl : rootUrl;
     if (!urlToUse.trim()) return;
 
-    // Reset progress tracking
-    setCurrentPhase('initialization');
-    setPagesFound(0);
-    setDiscoveredUrls([]);
+    const normalizedUrl = normalizeUrl(urlToUse);
     setDiscoveryStartTime(Date.now());
     setElapsedSeconds(0);
+    setSiteMapData(null);
 
-    // Close the modal — floating indicator handles progress display
-    setTimeout(() => onClose(), 500); // Let the request start first
+    // Use context — modal stays open showing progress
+    startBackgroundDiscovery(projectId, projectName, normalizedUrl, {
+      maxDepth,
+      maxPages,
+      useSitemap: true,
+      authFlowId: selectedAuthFlowId || undefined,
+    });
+  };
 
-    try {
-      // Normalize URL - auto-add protocol if missing
-      const normalizedUrl = normalizeUrl(urlToUse);
-      const result = await startDiscovery(normalizedUrl, {
-        maxDepth,
-        maxPages,
-        useSitemap: true,
-        authFlowId: selectedAuthFlowId || undefined,  // Pass auth flow if selected
-      });
-
-      if (result && result.pages) {
-        // Transform pages to nodes format
-        const nodes: SiteMapNodeData[] = result.pages.map((page: {
-          url: string;
-          title: string;
-          pageType: string;
-          requiresAuth: boolean;
-          depth: number;
-        }, index: number) => ({
-          id: `discovered-${index}`,
-          url: page.url,
-          title: page.title || 'Discovered Page',
-          analyzed: false,
-          verified: false,
-          requiresAuth: page.requiresAuth,
-          pageType: page.pageType,
-          discovered: true,
-          depth: page.depth,
-        }));
-
-        // Transform relationships to edges format
-        const edges: SiteMapEdgeData[] = (result.relationships || []).map((rel: {
-          sourceUrl: string;
-          targetUrl: string;
-          linkText: string;
-          linkType: string;
-        }, index: number) => ({
-          id: `edge-${index}`,
-          source: nodes.find(n => n.url === rel.sourceUrl)?.id || '',
-          target: nodes.find(n => n.url === rel.targetUrl)?.id || '',
-          linkText: rel.linkText,
-          linkType: rel.linkType,
-        })).filter((e: SiteMapEdgeData) => e.source && e.target);
-
-        setSiteMapData({ nodes, edges });
-        setDiscoveryStarted(true);
-        // Select all nodes by default
-        setSelectedNodes(nodes.map(n => n.id));
-      }
-    } catch {
-      // Error is handled by the hook
-    }
+  const handleMinimize = () => {
+    minimizeDiscovery();
+    onMinimize?.();
+    onClose();
   };
 
   const handleNodeSelect = (nodeId: string, selected: boolean) => {
@@ -291,21 +189,14 @@ export function DiscoveryModal({
   };
 
   const handleSelectAll = () => {
-    if (siteMapData) {
-      setSelectedNodes(siteMapData.nodes.map(n => n.id));
-    }
+    if (siteMapData) setSelectedNodes(siteMapData.nodes.map(n => n.id));
   };
 
-  const handleSelectNone = () => {
-    setSelectedNodes([]);
-  };
+  const handleSelectNone = () => setSelectedNodes([]);
 
   const handleConfirmSelection = () => {
-    // Pass actual URLs from selected nodes instead of internal IDs
     const selectedUrls = siteMapData
-      ? siteMapData.nodes
-          .filter(n => selectedNodes.includes(n.id))
-          .map(n => n.url)
+      ? siteMapData.nodes.filter(n => selectedNodes.includes(n.id)).map(n => n.url)
       : [];
     onDiscoveryComplete?.(selectedUrls);
     onClose();
@@ -313,22 +204,36 @@ export function DiscoveryModal({
 
   if (!isOpen) return null;
 
+  // Determine which view to show
+  const showForm = !isDiscovering && !isComplete && !isFailed;
+  const showProgress = isDiscovering;
+  const showResults = (isComplete || isFailed) && siteMapData;
+  const showError = isFailed && !siteMapData;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Discover Pages</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Automatically find pages on your website</p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              {showResults ? 'Discovery Results' : showProgress ? 'Discovering Pages...' : 'Discover Pages'}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {showProgress
+                ? `${activeDiscovery?.pagesFound || 0} pages found so far`
+                : showResults
+                ? `${siteMapData?.nodes.length || 0} pages discovered`
+                : 'Automatically find pages on your website'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Minimize button - only show during discovery */}
-            {discovering && onMinimize && (
+            {/* Minimize button — during discovery */}
+            {showProgress && (
               <button
-                onClick={onMinimize}
+                onClick={handleMinimize}
                 className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                title="Minimize - discovery will continue in background"
+                title="Minimize — discovery continues in background"
               >
                 <Minimize2 className="w-5 h-5" />
               </button>
@@ -344,9 +249,9 @@ export function DiscoveryModal({
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {!discoveryStarted ? (
+          {showForm && (
             /* Discovery Form */
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
               <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <Search className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
@@ -408,9 +313,7 @@ export function DiscoveryModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Max Depth
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Depth</label>
                   <select
                     value={maxDepth}
                     onChange={(e) => setMaxDepth(Number(e.target.value))}
@@ -424,9 +327,7 @@ export function DiscoveryModal({
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">How deep to follow links from the root</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Max Pages
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Pages</label>
                   <select
                     value={maxPages}
                     onChange={(e) => setMaxPages(Number(e.target.value))}
@@ -441,7 +342,7 @@ export function DiscoveryModal({
                 </div>
               </div>
 
-              {/* Authentication Flow Selector */}
+              {/* Auth Flow Selector */}
               {authFlows.length === 0 && !loadingAuthFlows && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
@@ -449,10 +350,7 @@ export function DiscoveryModal({
                     <div>
                       <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">No Authentication Configured</h3>
                       <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                        Only public pages will be discovered. To find pages behind login (dashboards, settings, etc.), close this dialog and set up an authentication flow in the <strong>Authentication</strong> tab first.
-                      </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                        You can still discover public pages without authentication.
+                        Only public pages will be discovered. To find pages behind login, set up an authentication flow first.
                       </p>
                     </div>
                   </div>
@@ -469,7 +367,7 @@ export function DiscoveryModal({
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-amber-900 dark:text-amber-200">Authenticated Discovery</h3>
                       <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 mb-3">
-                        Select an auth flow to discover pages that require login (like dashboards, settings, etc.)
+                        Select an auth flow to discover pages that require login
                       </p>
                       <select
                         value={selectedAuthFlowId}
@@ -494,49 +392,120 @@ export function DiscoveryModal({
                   </div>
                 </div>
               )}
+            </div>
+          )}
 
-              {pollError && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-sm">{pollError}</span>
-                  </div>
+          {showProgress && (
+            /* Discovery Progress View */
+            <div className="p-6 space-y-6">
+              {/* Phase Progress */}
+              <div className="space-y-3">
+                {DISCOVERY_PHASES.map((phase) => {
+                  const status = getPhaseStatus(phase.id);
+                  const Icon = phase.icon;
+                  return (
+                    <div key={phase.id} className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        status === 'completed' ? 'bg-green-100 dark:bg-green-900/40' :
+                        status === 'active' ? 'bg-blue-100 dark:bg-blue-900/40' :
+                        status === 'error' ? 'bg-red-100 dark:bg-red-900/40' :
+                        'bg-gray-100 dark:bg-gray-700'
+                      }`}>
+                        {status === 'completed' ? (
+                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        ) : status === 'active' ? (
+                          <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
+                        ) : status === 'error' ? (
+                          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${
+                        status === 'completed' ? 'text-green-700 dark:text-green-300' :
+                        status === 'active' ? 'text-blue-700 dark:text-blue-300 font-medium' :
+                        status === 'error' ? 'text-red-700 dark:text-red-300' :
+                        'text-gray-400 dark:text-gray-500'
+                      }`}>
+                        {phase.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Progress Bar */}
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <span>{activeDiscovery?.pagesFound || 0} pages found</span>
+                  <span>
+                    {activeDiscovery?.maxPages
+                      ? `${Math.round(((activeDiscovery.pagesFound || 0) / activeDiscovery.maxPages) * 100)}%`
+                      : ''}
+                    {elapsedSeconds > 0 ? ` · ${elapsedSeconds}s` : ''}
+                  </span>
                 </div>
-              )}
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all duration-500 ease-out"
+                    style={{
+                      width: `${activeDiscovery?.maxPages
+                        ? Math.min(100, Math.round(((activeDiscovery.pagesFound || 0) / activeDiscovery.maxPages) * 100))
+                        : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
 
-              {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="text-sm font-medium">Discovery failed</span>
+              {/* Recently discovered URLs */}
+              {activeDiscovery?.discoveredUrls && activeDiscovery.discoveredUrls.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Recent pages:</div>
+                  <div className="space-y-1">
+                    {activeDiscovery.discoveredUrls.slice(-8).reverse().map((url, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                        <Globe className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{(() => { try { return new URL(url).pathname; } catch { return url; } })()}</span>
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-sm text-red-600 dark:text-red-300 mt-1">{error}</p>
                 </div>
               )}
             </div>
-          ) : (
-            /* Site Map View */
+          )}
+
+          {showError && (
+            /* Error View */
+            <div className="p-6">
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">Discovery failed</span>
+                </div>
+                <p className="text-sm text-red-600 dark:text-red-300 mt-1">{discoveryError}</p>
+              </div>
+            </div>
+          )}
+
+          {showResults && siteMapData && (
+            /* Site Map Results View */
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Next Steps Guidance Panel */}
               <div className="p-4 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
                     <h3 className="text-sm font-medium text-green-900 dark:text-green-100">
-                      Discovery Complete - {siteMapData?.nodes.length || 0} pages found!
+                      Discovery Complete — {siteMapData.nodes.length} pages found!
                     </h3>
                     <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                      <strong>Next step:</strong> Select the pages you want to add to your project, then click "Add Pages".
-                      After adding, you can analyze these pages to find clickable elements for testing.
+                      <strong>Next step:</strong> Select pages to add, then click "Add Pages".
                     </p>
                     {onAnalyzePages && (
                       <button
                         onClick={() => {
-                          const urls = siteMapData
-                            ? siteMapData.nodes
-                                .filter(n => selectedNodes.includes(n.id))
-                                .map(n => n.url)
-                            : [];
+                          const urls = siteMapData.nodes
+                            .filter(n => selectedNodes.includes(n.id))
+                            .map(n => n.url);
                           onAnalyzePages(urls);
                         }}
                         disabled={selectedNodes.length === 0}
@@ -554,42 +523,30 @@ export function DiscoveryModal({
               <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-gray-600 dark:text-gray-300">
-                    <strong>{selectedNodes.length}</strong> of {siteMapData?.nodes.length || 0} pages selected
+                    <strong>{selectedNodes.length}</strong> of {siteMapData.nodes.length} pages selected
                   </span>
                   <div className="flex gap-2">
-                    <button
-                      onClick={handleSelectAll}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
+                    <button onClick={handleSelectAll} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
                       Select All
                     </button>
                     <span className="text-gray-300 dark:text-gray-500">|</span>
-                    <button
-                      onClick={handleSelectNone}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
+                    <button onClick={handleSelectNone} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
                       Select None
                     </button>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  <span className="text-gray-600 dark:text-gray-300">Click nodes to select/deselect</span>
                 </div>
               </div>
 
               {/* Graph */}
               <div className="flex-1 min-h-[400px]">
-                {siteMapData && (
-                  <SiteMapGraph
-                    nodes={siteMapData.nodes}
-                    edges={siteMapData.edges}
-                    selectedNodes={selectedNodes}
-                    onNodeSelect={handleNodeSelect}
-                    selectable
-                    className="w-full h-full"
-                  />
-                )}
+                <SiteMapGraph
+                  nodes={siteMapData.nodes}
+                  edges={siteMapData.edges}
+                  selectedNodes={selectedNodes}
+                  onNodeSelect={handleNodeSelect}
+                  selectable
+                  className="w-full h-full"
+                />
               </div>
             </div>
           )}
@@ -601,13 +558,13 @@ export function DiscoveryModal({
             onClick={onClose}
             className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
           >
-            Cancel
+            {showProgress ? 'Close' : 'Cancel'}
           </button>
           <div className="flex gap-3">
-            {discoveryStarted && (
+            {showResults && (
               <button
                 onClick={() => {
-                  setDiscoveryStarted(false);
+                  clearDiscovery();
                   setSiteMapData(null);
                   setSelectedNodes([]);
                 }}
@@ -616,25 +573,38 @@ export function DiscoveryModal({
                 Start Over
               </button>
             )}
-            {!discoveryStarted ? (
+            {showForm && (
               <button
                 onClick={handleStartDiscovery}
-                disabled={discovering || (useCustomUrl ? !customUrl.trim() : !rootUrl.trim())}
+                disabled={useCustomUrl ? !customUrl.trim() : !rootUrl.trim()}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {discovering ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Discovering...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    Start Discovery
-                  </>
-                )}
+                <Search className="w-4 h-4" />
+                Start Discovery
               </button>
-            ) : (
+            )}
+            {showProgress && (
+              <button
+                onClick={handleMinimize}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Minimize2 className="w-4 h-4" />
+                Minimize
+              </button>
+            )}
+            {showError && (
+              <button
+                onClick={() => {
+                  clearDiscovery();
+                  setSiteMapData(null);
+                }}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Search className="w-4 h-4" />
+                Try Again
+              </button>
+            )}
+            {showResults && (
               <button
                 onClick={handleConfirmSelection}
                 disabled={selectedNodes.length === 0}

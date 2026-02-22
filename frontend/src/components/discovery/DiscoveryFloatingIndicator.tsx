@@ -3,7 +3,7 @@ import { Loader2, CheckCircle, AlertCircle, Maximize2, X, ChevronDown, ChevronUp
 import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 
 export function DiscoveryFloatingIndicator() {
-  const { activeDiscovery, restoreDiscovery, clearDiscovery } = useDiscoveryContext();
+  const { activeDiscovery, isMinimized, restoreDiscovery, clearDiscovery } = useDiscoveryContext();
   const [expanded, setExpanded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -17,8 +17,8 @@ export function DiscoveryFloatingIndicator() {
     return () => clearInterval(timer);
   }, [activeDiscovery?.status]);
 
-  // Show whenever there's active discovery
-  if (!activeDiscovery) {
+  // Only show when minimized (modal handles the full view)
+  if (!activeDiscovery || !isMinimized) {
     return null;
   }
 

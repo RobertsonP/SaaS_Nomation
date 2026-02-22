@@ -253,8 +253,8 @@ export class PageCrawlerService implements OnModuleInit {
         try {
           const screenshotBuffer = await page.screenshot({
             type: 'jpeg',
-            quality: 50,
-            clip: { x: 0, y: 0, width: 1280, height: 720 },
+            quality: 30,
+            clip: { x: 0, y: 0, width: 640, height: 360 },
             timeout: 5000,
           });
           screenshot = `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`;
@@ -520,7 +520,7 @@ export class PageCrawlerService implements OnModuleInit {
 
         try {
           const result = await this.crawlPage(normalizedUrl, baseDomain, {
-            skipScreenshot: results.size >= 10,
+            skipScreenshot: results.size >= 30,
           });
           results.set(normalizedUrl, result);
 

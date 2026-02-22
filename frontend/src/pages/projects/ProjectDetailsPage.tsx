@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
@@ -102,7 +102,7 @@ interface Project {
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { showSuccess, showError } = useNotification();
-  const { minimizeDiscovery, activeDiscovery } = useDiscoveryContext();
+  const { activeDiscovery, isMinimized } = useDiscoveryContext();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sitemap' | 'urls' | 'elements' | 'auth'>('overview');
@@ -144,6 +144,17 @@ export function ProjectDetailsPage() {
   const [showSiteMap, setShowSiteMap] = useState(false);
   const [showDiscoveryModal, setShowDiscoveryModal] = useState(false);
   const { data: siteMapData, loading: siteMapLoading, refetch: refetchSiteMap } = useSiteMapData(projectId);
+
+  // Auto-show discovery modal when floating indicator is restored (minimize → restore)
+  const wasMinimizedRef = useRef(false);
+  useEffect(() => {
+    if (isMinimized) {
+      wasMinimizedRef.current = true;
+    } else if (wasMinimizedRef.current && activeDiscovery && activeDiscovery.projectId === projectId) {
+      wasMinimizedRef.current = false;
+      setShowDiscoveryModal(true);
+    }
+  }, [isMinimized, activeDiscovery, projectId]);
 
   // Technical details state
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
@@ -848,7 +859,6 @@ export function ProjectDetailsPage() {
         isOpen={showDiscoveryModal}
         onClose={() => setShowDiscoveryModal(false)}
         onMinimize={() => {
-          minimizeDiscovery();
           setShowDiscoveryModal(false);
         }}
         projectId={projectId || ''}

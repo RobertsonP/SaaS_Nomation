@@ -1326,10 +1326,11 @@ export class ElementDetectionService {
               }
             };
 
-            // Mark interactive elements for screenshot capture (buttons, inputs, links, forms, images)
-            const interactiveTypes = ['button', 'input', 'link', 'form', 'image'];
+            // Flag elements containing images for screenshot capture
+            const isImageElement = element.tagName.toLowerCase() === 'img';
+            const containsChildImage = !isImageElement && element.querySelector('img') !== null;
             const hasBackgroundImage = cssProps.backgroundImage !== 'none';
-            if (interactiveTypes.includes(elementType) || hasBackgroundImage) {
+            if (isImageElement || containsChildImage || hasBackgroundImage) {
               detectedElement.needsScreenshot = true;
             }
 
@@ -1396,10 +1397,36 @@ export class ElementDetectionService {
       });
 
     // Skip second-pass advanced selector regeneration — first pass CSS selectors are sufficient
-    // Advanced selectors can be generated on-demand if needed
     console.log(`✅ Element extraction complete — ${extractedElements.length} elements with CSS selectors (no second pass)`);
 
-    // Clean up needsScreenshot flags (screenshots always skipped for speed)
+    // Capture screenshots for image-containing elements (max 20 to keep it fast)
+    if (!skipScreenshots) {
+      const imageElements = extractedElements.filter((el: any) => el.needsScreenshot);
+      const screenshotLimit = Math.min(imageElements.length, 20);
+      if (screenshotLimit > 0) {
+        console.log(`📸 Capturing screenshots for ${screenshotLimit}/${imageElements.length} image elements...`);
+        for (let i = 0; i < screenshotLimit; i++) {
+          const el = imageElements[i];
+          try {
+            const locator = page.locator(el.selector).first();
+            const isVisible = await locator.isVisible().catch(() => false);
+            if (isVisible) {
+              const screenshotBuffer = await locator.screenshot({
+                type: 'jpeg',
+                quality: 50,
+                timeout: 3000,
+              });
+              el.screenshot = `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`;
+            }
+          } catch {
+            // Skip silently — element may not be screenshottable
+          }
+        }
+        console.log(`📸 Screenshot capture complete`);
+      }
+    }
+
+    // Clean up internal flags
     extractedElements.forEach((el: any) => delete el.needsScreenshot);
 
     return extractedElements;

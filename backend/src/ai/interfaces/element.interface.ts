@@ -14,7 +14,8 @@ export interface DetectedElement {
   sourceUrlPath?: string;    // /contact, /dashboard
   requiresAuth?: boolean;
   isModal?: boolean;
-  
+  screenshot?: string;  // Base64 JPEG screenshot for image-containing elements
+
   attributes: {
     role?: string;
     'aria-label'?: string;

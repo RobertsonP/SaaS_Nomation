@@ -133,8 +133,19 @@ export function ElementPreviewCard({
         </p>
       </div>
 
-      {/* CSS Preview */}
-      {element.attributes?.cssInfo && (
+      {/* Screenshot or CSS Preview */}
+      {element.screenshot ? (
+        <div className="px-3 pt-2">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded overflow-hidden max-h-24">
+            <img
+              src={element.screenshot}
+              alt={element.description}
+              className="w-full h-full object-cover object-top"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      ) : element.attributes?.cssInfo ? (
         <div className="px-3 pt-2">
           <div className="bg-gray-50 dark:bg-gray-900 rounded p-1.5 max-h-20 overflow-hidden">
             <CSSPreviewRenderer
@@ -146,7 +157,7 @@ export function ElementPreviewCard({
             />
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Selector + Copy */}
       <div className="px-3 pt-2 flex items-center gap-1.5">
