@@ -145,11 +145,11 @@ export function ElementLibrarySidebar({
           onClose={handleCloseLiveElementPicker}
         />
       )}
-    <div className={`bg-white border-r border-gray-200 flex flex-col h-full ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full ${className}`}>
       {/* Compact Header with Type and URL Filters */}
-      <div className="border-b border-gray-200 p-3">
+      <div className="border-b border-gray-200 dark:border-gray-700 p-3">
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-gray-900">Elements</h2>
+          <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100">Elements</h2>
           
           {/* Filter Dropdowns */}
           <div className="space-y-2">
@@ -157,7 +157,7 @@ export function ElementLibrarySidebar({
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
               title="Filter by element type"
             >
               {elementTypes.map(type => (
@@ -172,7 +172,7 @@ export function ElementLibrarySidebar({
               <select
                 value={selectedUrl}
                 onChange={(e) => setSelectedUrl(e.target.value)}
-                className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
                 title="Filter by source URL"
               >
                 <option value="all">🌐 All Pages ({elements.length})</option>
@@ -191,7 +191,7 @@ export function ElementLibrarySidebar({
             <select
               value={selectedDiscovery}
               onChange={(e) => setSelectedDiscovery(e.target.value)}
-              className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200"
               title="Filter by discovery method"
             >
               <option value="all">🔍 All Discovery ({elements.length})</option>
@@ -207,7 +207,7 @@ export function ElementLibrarySidebar({
           
           {/* Live Element Picker Button */}
           {projectId && (
-            <div className="pt-2 border-t border-gray-100">
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={handleOpenLiveElementPicker}
                 className="w-full px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-2 text-sm font-medium shadow-sm"
@@ -216,7 +216,7 @@ export function ElementLibrarySidebar({
                 <span className="text-lg">🎯</span>
                 <span>Live Element Picker</span>
               </button>
-              <p className="text-xs text-gray-500 mt-1 text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">
                 Revolutionary: Select elements from live websites
               </p>
             </div>
@@ -228,16 +228,16 @@ export function ElementLibrarySidebar({
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="p-4 text-center">
-            <div className="text-gray-400 text-2xl mb-2">⏳</div>
-            <div className="text-sm text-gray-500">Loading elements...</div>
+            <div className="text-gray-400 dark:text-gray-500 text-2xl mb-2">⏳</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Loading elements...</div>
           </div>
         ) : filteredElements.length === 0 ? (
           <div className="p-4 text-center">
-            <div className="text-gray-400 text-4xl mb-2">📦</div>
-            <div className="text-sm text-gray-500 mb-1">
+            <div className="text-gray-400 dark:text-gray-500 text-4xl mb-2">📦</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
               {elements.length === 0 ? 'No elements found' : 'No matching elements'}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-400 dark:text-gray-500">
               {elements.length === 0 
                 ? projectId 
                   ? 'Run project analysis to discover elements, or use the Live Element Picker above'

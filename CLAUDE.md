@@ -135,5 +135,31 @@ Date: YYYY-MM-DD
 
 ---
 
+## Current State (Updated April 2026)
+
+### BROKEN — Fix before any feature work:
+- `components/test-results/` directory missing — TestResultsPage and SuiteResultsPage crash
+- Live browser `executeAction` only handles click/hover/type — 11 other actions silently broken
+- Two execution engines (`execution.service.ts` vs `execution-queue.processor.ts`) behave differently
+- WebSocket CORS hardcoded to localhost in 3 gateway files
+
+### HALF-BUILT — Work carefully:
+- MCP module is 100% placeholder (800 lines of TODO) — don't build on it
+- AI `callAIAPI` returns empty — placeholder for cloud AI integration
+- `SmartWaitService` exists but only connected to queue processor
+- Multiple element card buttons are TODO placeholders
+- Interactive element discovery exists but is DISABLED in master
+
+### KNOWN GOTCHAS (from deep investigation):
+- Element detection misses React components with onClick (no HTML onclick attribute)
+- Duplicate buttons on listing pages get non-unique selectors
+- Crawler follows ALL links including content items — overfetches on content-heavy sites
+- Billing uses mock Stripe key `sk_test_mock`
+- Password reset feature does not exist
+- File storage is local filesystem only (`uploads/` directory)
+- Docker URL translation code (`host.docker.internal`) scattered across 10+ files
+
+---
+
 ## External References
 - Notion Sprint Board ID: `2f73dc30-e837-80fb-80a0-c1dc93070e5a`

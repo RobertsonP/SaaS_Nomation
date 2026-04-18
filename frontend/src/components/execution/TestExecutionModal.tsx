@@ -186,9 +186,9 @@ export function TestExecutionModal({
 
   return (
     <div className={`fixed ${isMinimized ? 'bottom-4 right-4 w-96' : 'inset-0 bg-black bg-opacity-50 flex items-center justify-center'} z-50`}>
-      <div className={`bg-white rounded-lg shadow-xl ${isMinimized ? 'w-96' : 'w-full max-w-2xl max-h-[90vh]'} flex flex-col`}>
+      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl ${isMinimized ? 'w-96' : 'w-full max-w-2xl max-h-[90vh]'} flex flex-col`}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-700">
           <div className="flex items-center space-x-3">
             <div className={`w-3 h-3 rounded-full ${
               executionResult.status === 'running' ? 'bg-blue-500 animate-pulse' :
@@ -197,20 +197,20 @@ export function TestExecutionModal({
             }`} />
             <div>
               <h2 className="text-xl font-bold">🧪 Test Execution (Live)</h2>
-              <p className="text-sm text-gray-600">{testName}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{testName}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsMinimized(!isMinimized)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title={isMinimized ? 'Maximize' : 'Minimize'}
             >
               {isMinimized ? '⬆️' : '⬇️'}
             </button>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title="Close"
             >
               ✕
@@ -224,14 +224,14 @@ export function TestExecutionModal({
             {/* Overall Progress */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Overall Progress: {completedSteps}/{totalSteps} steps
                 </span>
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {Math.round(progress)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
                 <div
                   className={`h-3 rounded-full transition-all duration-300 ${
                     executionResult.status === 'passed' ? 'bg-green-500' :
@@ -261,9 +261,9 @@ export function TestExecutionModal({
 
             {/* Steps List */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Execution Steps:</h3>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Execution Steps:</h3>
               {executionResult.steps.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <div className="animate-pulse">Initializing test execution...</div>
                 </div>
               ) : (
@@ -291,7 +291,7 @@ export function TestExecutionModal({
                            step.stepIndex + 1}
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                             Step {step.stepIndex + 1}: {step.description}
                           </p>
                           {step.error && (
@@ -301,7 +301,7 @@ export function TestExecutionModal({
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         {step.status === 'passed' && '✅'}
                         {step.status === 'failed' && '❌'}
                         {step.status === 'running' && (
@@ -335,7 +335,7 @@ export function TestExecutionModal({
                       Test {executionResult.status === 'passed' ? 'Passed' : 'Failed'}
                     </h3>
                     {executionResult.duration && (
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         Duration: {(executionResult.duration / 1000).toFixed(2)}s
                       </p>
                     )}
@@ -353,18 +353,18 @@ export function TestExecutionModal({
 
         {/* Minimized Footer */}
         {isMinimized && (
-          <div className="px-6 py-3 border-t border-gray-200">
+          <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">
                 {executionResult.status === 'running' ? 'Running...' :
                  executionResult.status === 'passed' ? 'Passed ✅' :
                  'Failed ❌'}
               </span>
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
                 {completedSteps}/{totalSteps} steps
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mt-2">
               <div
                 className={`h-2 rounded-full transition-all ${
                   executionResult.status === 'passed' ? 'bg-green-500' :

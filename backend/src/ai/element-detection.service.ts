@@ -32,6 +32,8 @@ export class ElementDetectionService {
         return [
           // Core interactive elements (single query)
           'button', 'input', 'textarea', 'select', 'a',
+          // Form containers
+          'form',
           // Elements with roles
           '[role="button"]', '[role="link"]', '[role="textbox"]', '[role="checkbox"]',
           '[role="radio"]', '[role="menuitem"]', '[role="tab"]', '[role="combobox"]',
@@ -39,8 +41,8 @@ export class ElementDetectionService {
           '[data-testid]', '[data-test]', '[data-cy]',
           // Elements with interactive attributes
           '[onclick]', '[tabindex]', '[aria-label]',
-          // Important text elements
-          'h1', 'h2', 'h3', 'label',
+          // All heading levels
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'label',
           // Media
           'img[alt]', 'video', 'iframe'
         ].join(', ');
@@ -67,10 +69,11 @@ export class ElementDetectionService {
       // Helper function: Quick visibility check (BEFORE expensive CSS extraction)
       const isQuickVisible = (el: Element): boolean => {
         const rect = el.getBoundingClientRect();
-        // Skip elements with no size (unless they're inputs which can be hidden)
+        // Skip elements with no size (unless they're form elements or structural containers)
         if (rect.width === 0 && rect.height === 0) {
           const tag = el.tagName.toLowerCase();
-          if (!['input', 'textarea', 'select'].includes(tag)) {
+          // Form elements can be hidden inputs; structural containers wrap children without own size
+          if (!['input', 'textarea', 'select', 'form', 'fieldset'].includes(tag)) {
             return false;
           }
         }
@@ -127,7 +130,9 @@ export class ElementDetectionService {
         const cellSelectors: string[][] = [];
         const dataRows = bodyRows;
         const startIdx = headerRowOffset;
-        const maxRows = Math.min(startIdx + 50, dataRows.length);
+        const maxRows = Math.min(startIdx + 500, dataRows.length);
+
+        const cellActions: Array<Array<Array<{ text: string; selector: string; tag: string }>>> = [];
 
         for (let i = startIdx; i < maxRows; i++) {
           const row = dataRows[i];
@@ -137,12 +142,26 @@ export class ElementDetectionService {
 
           const cells: string[] = [];
           const rowCellSelectors: string[] = [];
+          const rowCellActions: Array<Array<{ text: string; selector: string; tag: string }>> = [];
           row.querySelectorAll('td, th').forEach((cell, cellIdx) => {
             cells.push((cell.textContent || '').trim().substring(0, 100));
             rowCellSelectors.push(`${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1})`);
+
+            // Detect action buttons/links inside each cell
+            const cellActionsList: Array<{ text: string; selector: string; tag: string }> = [];
+            cell.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]').forEach((actionEl) => {
+              const actionText = (actionEl.textContent || '').trim();
+              if (actionText && actionText.length < 50) {
+                const actionTag = actionEl.tagName.toLowerCase();
+                const actionSelector = `${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1}) ${actionTag}:has-text("${actionText.replace(/'/g, "\\'")}")`;
+                cellActionsList.push({ text: actionText, selector: actionSelector, tag: actionTag });
+              }
+            });
+            rowCellActions.push(cellActionsList);
           });
           sampleData.push(cells);
           cellSelectors.push(rowCellSelectors);
+          cellActions.push(rowCellActions);
         }
 
         // Column selectors: select all cells in column N
@@ -176,6 +195,7 @@ export class ElementDetectionService {
               rowSelectors,
               columnSelectors,
               cellSelectors,
+              cellActions,
               headerColumnMap,
               hasHeaders,
               hasTbody,
@@ -355,9 +375,74 @@ export class ElementDetectionService {
                   classList.includes('link');
                 const inlinePointer = (element as HTMLElement).style?.cursor === 'pointer';
 
-                if (!hasClickableClass && !inlinePointer) {
+                // Check computed cursor style (catches CSS-applied pointer cursors)
+                let computedPointer = false;
+                try {
+                  const earlyComputedStyle = window.getComputedStyle(element);
+                  computedPointer = earlyComputedStyle.cursor === 'pointer';
+                } catch (e) { /* ignore */ }
+
+                // Check for React/Vue/Angular event bindings on the DOM element
+                let hasFrameworkBinding = false;
+                try {
+                  const keys = Object.keys(element);
+                  hasFrameworkBinding = keys.some(key =>
+                    key.startsWith('__reactFiber$') ||
+                    key.startsWith('__reactProps$') ||
+                    key.startsWith('__reactEvents$') ||
+                    key.startsWith('__vue') ||
+                    key.startsWith('__ng')
+                  );
+                } catch (e) { /* Object.keys may fail on some elements */ }
+
+                // If framework-bound or computed pointer, apply stricter filtration
+                // to avoid overfilling with non-interactive elements
+                if (!hasClickableClass && !inlinePointer && !computedPointer && !hasFrameworkBinding) {
                   skippedEarly++;
                   return;
+                }
+
+                // Framework-bound or computed-pointer element: validate it's meaningful
+                if (!hasClickableClass && !inlinePointer && (computedPointer || hasFrameworkBinding)) {
+                  // Must NOT be a standard interactive element (those are already captured)
+                  const isStandardInteractive = ['button', 'input', 'textarea', 'select', 'a'].includes(tagName) ||
+                    element.getAttribute('role') === 'button' ||
+                    element.getAttribute('role') === 'link';
+
+                  if (!isStandardInteractive) {
+                    // Skip table/list items — pointer cursor from CSS row selection, not button behavior
+                    if (['tr', 'td', 'th', 'li', 'ul', 'ol', 'dl', 'dt', 'dd'].includes(tagName)) {
+                      skippedEarly++;
+                      return;
+                    }
+
+                    // Skip wrapper elements that contain child interactive elements
+                    const hasChildInteractives = element.querySelector('button, a, input, select, textarea');
+                    if (hasChildInteractives) {
+                      skippedEarly++;
+                      return;
+                    }
+
+                    const elText = (element.textContent || '').trim();
+                    const hasContent = !!(
+                      // Require text length > 1 to filter out single-char icon elements
+                      elText.length > 1 ||
+                      element.getAttribute('aria-label') ||
+                      element.getAttribute('role') ||
+                      element.getAttribute('title')
+                    );
+                    const elRect = element.getBoundingClientRect();
+                    const hasSize = elRect.width > 10 && elRect.height > 10;
+
+                    if (hasContent && hasSize) {
+                      // Mark as framework-detected so type detection can assign 'button'
+                      (element as any).__nomation_framework_detected = true;
+                    } else {
+                      // Fails content/size filter — skip
+                      skippedEarly++;
+                      return;
+                    }
+                  }
                 }
               }
 
@@ -400,11 +485,12 @@ export class ElementDetectionService {
             const elementRole = element.getAttribute('role');
             const hasInteractiveRole = elementRole && interactiveRoles.includes(elementRole);
 
-            // QUATERNARY: Clickable elements (pointer cursor)
+            // QUATERNARY: Clickable elements (pointer cursor or framework binding)
             const isClickable =
               element.hasAttribute('onclick') ||
               (element as HTMLElement).style?.cursor === 'pointer' ||
-              computedStyle.cursor === 'pointer';
+              computedStyle.cursor === 'pointer' ||
+              (element as any).__nomation_framework_detected;
 
             // QUINARY: Images with alt text (for visual verification)
             const isDescriptiveImage = tagName === 'img' &&
@@ -478,10 +564,10 @@ export class ElementDetectionService {
             // Very lenient size requirements
             if (isInteractiveElement || hasInteractiveAttributes) {
               // Interactive elements - allow very small sizes (for hidden inputs, etc.)
+              // Only skip truly zero-sized elements that are type="hidden" or have no type
               if (rect.width === 0 && rect.height === 0 &&
-                  !element.hasAttribute('type') ||
-                  element.getAttribute('type') === 'hidden') {
-                return; // Only skip truly zero-sized non-hidden elements
+                  (!element.hasAttribute('type') || element.getAttribute('type') === 'hidden')) {
+                return;
               }
             } else {
               // Non-interactive elements need some size unless they have special attributes
@@ -826,9 +912,14 @@ export class ElementDetectionService {
               // Image elements
               if (tagName === 'img' || tagName === 'svg' || tagName === 'canvas') return 'image';
 
+              // Heading elements (distinct from generic text)
+              if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) return 'heading';
+
               // Text elements
-              if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) return 'text';
               if (tagName === 'p' || tagName === 'span' || tagName === 'div' && el.textContent?.trim()) return 'text';
+
+              // Framework-detected clickable elements (React/Vue/Angular onClick) → treat as button
+              if ((el as any).__nomation_framework_detected) return 'button';
 
               return 'element';
             };
@@ -949,13 +1040,70 @@ export class ElementDetectionService {
                 return `Button${location}`;
               }
 
+              // Headings get a descriptive prefix with level
+              if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+                const level = tagName.charAt(1);
+                if (text) return `Heading ${level}: ${text.slice(0, 50)}${location}`;
+                return `Heading ${level}${location}`;
+              }
+
               // Default logic for other elements
               const baseDescription = ariaLabel || text.slice(0, 50) || placeholder || title || `${tagName} element`;
               return `${baseDescription}${location}`;
             };
 
             const elementType = getElementType(element);
-            const selector = generateSelector(element, Array.from(allElements));
+            const cssSelector = generateSelector(element, Array.from(allElements));
+
+            // Generate native Playwright locator (preferred over CSS)
+            let playwrightLocator = '';
+            if (elementType !== 'table') {
+              const elRole = element.getAttribute('role') || '';
+              const elAriaLabel = element.getAttribute('aria-label') || '';
+              const elText = (element.textContent || '').trim().substring(0, 50);
+              const elPlaceholder = element.getAttribute('placeholder') || '';
+              const elTestId = element.getAttribute('data-testid') || element.getAttribute('data-test') || element.getAttribute('data-cy') || '';
+              const elTitle = element.getAttribute('title') || '';
+
+              // Escape single quotes in values
+              const esc = (s: string) => s.replace(/'/g, "\\'");
+
+              // Determine implicit role from tag name
+              let implicitRole = elRole;
+              if (!implicitRole) {
+                const tagLower = element.tagName.toLowerCase();
+                if (tagLower === 'button' || (tagLower === 'input' && (element.getAttribute('type') === 'submit' || element.getAttribute('type') === 'button'))) implicitRole = 'button';
+                else if (tagLower === 'a' && element.getAttribute('href')) implicitRole = 'link';
+                else if (tagLower === 'input' && element.getAttribute('type') === 'checkbox') implicitRole = 'checkbox';
+                else if (tagLower === 'input' && element.getAttribute('type') === 'radio') implicitRole = 'radio';
+                else if (tagLower === 'select') implicitRole = 'combobox';
+                else if (tagLower === 'textarea' || (tagLower === 'input' && !['submit', 'button', 'checkbox', 'radio', 'hidden', 'file'].includes(element.getAttribute('type') || ''))) implicitRole = 'textbox';
+                else if (tagLower === 'h1' || tagLower === 'h2' || tagLower === 'h3') implicitRole = 'heading';
+                else if (tagLower === 'img') implicitRole = 'img';
+                else if (tagLower === 'nav') implicitRole = 'navigation';
+              }
+
+              // Priority: testId > role+name > label > placeholder > text > title
+              if (elTestId) {
+                playwrightLocator = `getByTestId('${esc(elTestId)}')`;
+              } else if (implicitRole && elAriaLabel) {
+                playwrightLocator = `getByRole('${implicitRole}', { name: '${esc(elAriaLabel)}' })`;
+              } else if (implicitRole && elText && elText.length > 0 && elText.length < 40) {
+                playwrightLocator = `getByRole('${implicitRole}', { name: '${esc(elText)}' })`;
+              } else if (elAriaLabel) {
+                playwrightLocator = `getByLabel('${esc(elAriaLabel)}')`;
+              } else if (elPlaceholder) {
+                playwrightLocator = `getByPlaceholder('${esc(elPlaceholder)}')`;
+              } else if (elText && elText.length > 0 && elText.length < 40) {
+                playwrightLocator = `getByText('${esc(elText)}')`;
+              } else if (elTitle) {
+                playwrightLocator = `getByTitle('${esc(elTitle)}')`;
+              }
+            }
+
+            // Use native locator as primary when available, CSS as fallback
+            const selector = playwrightLocator || cssSelector;
+            const fallbackSelectors = playwrightLocator ? [cssSelector] : [];
 
             // Extract CSS properties
             const cssProps = extractValidatedCSSProperties(element, computedStyle);
@@ -974,6 +1122,7 @@ export class ElementDetectionService {
             // Create element object
             const detectedElement: any = {
               selector,
+              fallbackSelectors: fallbackSelectors.length > 0 ? fallbackSelectors : undefined,
               elementType,
               description: getDescription(element),
               confidence: Math.round(qualityScore * 100) / 100,
@@ -1092,7 +1241,8 @@ export class ElementDetectionService {
                 dropdownData: (() => {
                   if (elementType !== 'dropdown') return null;
                   const tagName = element.tagName.toLowerCase();
-                  const parentSelector = selector;
+                  // Always use CSS selector for building child option selectors
+                  const parentSelector = cssSelector;
                   const isNative = tagName === 'select';
 
                   if (isNative) {
@@ -1356,19 +1506,30 @@ export class ElementDetectionService {
         const finalElements = extractedElements.map((element, index) => {
           let selector = element.selector;
           let counter = 1;
+          let fellBackToCSS = false;
 
           // If selector is not unique, modify it
           while (uniqueSelectors.has(selector)) {
-            // Try adding an index suffix
-            if (selector.includes(':nth-of-type(')) {
-              // Already has nth-of-type, increment it
-              selector = selector.replace(/:nth-of-type\(\d+\)/, `:nth-of-type(${counter + 1})`);
-            } else if (selector.includes(':nth-child(')) {
-              // Already has nth-child, increment it
-              selector = selector.replace(/:nth-child\(\d+\)/, `:nth-child(${counter + 1})`);
+            if (selector.startsWith('getBy') && !fellBackToCSS) {
+              // Native locators can't be suffixed with CSS pseudo-selectors.
+              // Fall back to the CSS selector from fallbackSelectors if available.
+              if (element.fallbackSelectors && element.fallbackSelectors.length > 0) {
+                selector = element.fallbackSelectors[0];
+                element.fallbackSelectors = undefined;
+                fellBackToCSS = true;
+              } else {
+                // No fallback — append Playwright nth selector
+                selector = `${element.selector} >> nth=${counter}`;
+              }
             } else {
-              // Add nth-of-type to make it unique
-              selector = `${selector}:nth-of-type(${counter + 1})`;
+              // CSS selector dedup: try adding an index suffix
+              if (selector.includes(':nth-of-type(')) {
+                selector = selector.replace(/:nth-of-type\(\d+\)/, `:nth-of-type(${counter + 1})`);
+              } else if (selector.includes(':nth-child(')) {
+                selector = selector.replace(/:nth-child\(\d+\)/, `:nth-child(${counter + 1})`);
+              } else {
+                selector = `${selector}:nth-of-type(${counter + 1})`;
+              }
             }
             counter++;
           }
@@ -1396,8 +1557,8 @@ export class ElementDetectionService {
         return cappedElements;
       });
 
-    // Skip second-pass advanced selector regeneration — first pass CSS selectors are sufficient
-    console.log(`✅ Element extraction complete — ${extractedElements.length} elements with CSS selectors (no second pass)`);
+    // Skip second-pass advanced selector regeneration — native locators generated inline
+    console.log(`✅ Element extraction complete — ${extractedElements.length} elements with native Playwright locators + CSS fallbacks`);
 
     // Capture screenshots for image-containing elements (max 20 to keep it fast)
     if (!skipScreenshots) {
@@ -1408,7 +1569,12 @@ export class ElementDetectionService {
         for (let i = 0; i < screenshotLimit; i++) {
           const el = imageElements[i];
           try {
-            const locator = page.locator(el.selector).first();
+            // Use CSS fallback selector for page.locator() since native locator
+            // strings (getByRole etc.) are method calls, not valid selector strings
+            const screenshotSelector = (el.selector && el.selector.startsWith('getBy') && el.fallbackSelectors?.length > 0)
+              ? el.fallbackSelectors[0]
+              : el.selector;
+            const locator = page.locator(screenshotSelector).first();
             const isVisible = await locator.isVisible().catch(() => false);
             if (isVisible) {
               const screenshotBuffer = await locator.screenshot({

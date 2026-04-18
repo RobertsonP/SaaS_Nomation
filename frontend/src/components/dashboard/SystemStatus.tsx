@@ -83,9 +83,9 @@ interface SystemStatusProps {
 
 export function SystemStatus({ items, title = 'System Status' }: SystemStatusProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="font-bold text-gray-900">{title}</h2>
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+        <h2 className="font-bold text-gray-900 dark:text-gray-100">{title}</h2>
       </div>
       <div className="p-6 space-y-4">
         {items.map((item, index) => (

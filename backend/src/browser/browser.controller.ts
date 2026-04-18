@@ -10,10 +10,10 @@ export class BrowserController {
 
   @Post('sessions')
   async createSession(
-    @Body() body: { projectId: string; authFlow?: LoginFlow },
+    @Body() body: { projectId: string; authFlow?: LoginFlow; startUrl?: string },
     @Req() req: any
   ) {
-    return this.liveBrowserService.createSession(body.projectId, body.authFlow);
+    return this.liveBrowserService.createSession(body.projectId, body.authFlow, body.startUrl);
   }
 
   @Post('sessions/:sessionToken/navigate')

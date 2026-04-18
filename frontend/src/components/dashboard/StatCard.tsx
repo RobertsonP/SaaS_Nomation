@@ -39,13 +39,13 @@ interface StatCardProps {
 export function StatCard({ label, value, icon: Icon, color, bg, onClick }: StatCardProps) {
   const card = (
     <div
-      className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm ${onClick ? 'cursor-pointer hover:border-gray-300 transition-colors' : ''}`}
+      className={`bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm ${onClick ? 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{value}</p>
         </div>
         <div className={`${bg} p-3 rounded-lg`}>
           <Icon className={`w-6 h-6 ${color}`} />

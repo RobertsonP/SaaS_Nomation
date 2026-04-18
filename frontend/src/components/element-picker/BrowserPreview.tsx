@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { browserAPI } from '../../lib/api';
+import { useNotification } from '../../contexts/NotificationContext';
 import { createLogger } from '../../lib/logger';
 
 const logger = createLogger('BrowserPreview');
@@ -25,6 +26,7 @@ export function BrowserPreview({
   onElementSelected, 
   className = '' 
 }: BrowserPreviewProps) {
+  const { showInfo, showSuccess, showError } = useNotification();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,10 +135,10 @@ export function BrowserPreview({
     // Show cross-origin specific instructions
     setTimeout(() => {
       if (isPickingMode) {
-        alert(`🎯 Cross-Origin Element Picker Active!\n\nSince this website blocks direct interaction, we're using advanced detection:\n\n1. Click anywhere on the page to capture that area\n2. Our backend will analyze the page and find selectable elements\n3. Elements will be automatically detected and added\n\nClick anywhere on the page to start!`);
+        showInfo('Cross-Origin Element Picker Active', 'Click anywhere on the page to detect elements. Our backend will analyze the area and find selectable elements.');
       }
     }, 2500);
-  }, [isPickingMode]);
+  }, [isPickingMode, showInfo]);
 
   // Handle cross-origin clicks
   const handleCrossOriginClick = useCallback(async (event: React.MouseEvent) => {
@@ -175,14 +177,14 @@ export function BrowserPreview({
           onElementSelected(elementData);
         });
         
-        alert(`✅ Found ${analysisResult.elements.length} elements near your click!\n\nElements have been automatically added to your selection.`);
+        showSuccess('Elements Found', `Found ${analysisResult.elements.length} elements near your click. They have been added to your selection.`);
       } else {
-        alert('❌ No elements detected at that location. Try clicking on a different area.');
+        showInfo('No Elements Found', 'No elements detected at that location. Try clicking on a different area.');
       }
-      
+
     } catch (error) {
       logger.error('Cross-origin element detection failed', error);
-      alert('❌ Element detection failed. The page may be too complex or protected.');
+      showError('Detection Failed', 'Element detection failed. The page may be too complex or protected.');
     } finally {
       setIsLoading(false);
     }
@@ -701,8 +703,8 @@ export function BrowserPreview({
 
   if (!url) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-        <div className="text-center text-gray-500">
+      <div className={`flex items-center justify-center bg-gray-100 dark:bg-gray-700 ${className}`}>
+        <div className="text-center text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-2">🌐</div>
           <p>Enter a URL to preview</p>
         </div>
@@ -714,7 +716,7 @@ export function BrowserPreview({
     <div className={`relative ${className}`} ref={overlayRef}>
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center z-10">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
               <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24">
@@ -722,8 +724,8 @@ export function BrowserPreview({
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
             </div>
-            <p className="text-gray-600">Loading website...</p>
-            <p className="text-sm text-gray-500 mt-1">{new URL(url).hostname}</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading website...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{new URL(url).hostname}</p>
           </div>
         </div>
       )}
@@ -733,8 +735,8 @@ export function BrowserPreview({
         <div className="absolute inset-0 bg-red-50 flex items-center justify-center z-10">
           <div className="text-center max-w-md p-6">
             <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-lg font-semibold text-red-800 mb-2">Cannot Load Website</h3>
-            <p className="text-red-700 mb-4">{loadError}</p>
+            <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Cannot Load Website</h3>
+            <p className="text-red-700 dark:text-red-300 mb-4">{loadError}</p>
             
             {/* Retry and dismiss buttons */}
             <div className="flex items-center justify-center space-x-3 mb-4">
@@ -751,13 +753,13 @@ export function BrowserPreview({
               )}
               <button
                 onClick={() => setLoadError(null)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
               >
                 Dismiss
               </button>
             </div>
             
-            <div className="bg-red-100 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+            <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-800 dark:text-red-200">
               <div className="font-medium mb-1">Common solutions:</div>
               <ul className="text-left space-y-1">
                 <li>• Check if the URL is correct and accessible</li>

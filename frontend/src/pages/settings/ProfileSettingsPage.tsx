@@ -300,15 +300,10 @@ export function ProfileSettingsPage() {
                 {/* Upgrade Button for Free Plan */}
                 {planInfo.plan === 'free' && (
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                    <button
-                      onClick={() => {/* TODO: Implement upgrade flow */}}
-                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                    >
-                      Upgrade to Pro
-                    </button>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                      Get unlimited test executions and team collaboration
-                    </p>
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Pro Plan Coming Soon</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Contact support for early access.</p>
+                    </div>
                   </div>
                 )}
               </div>

@@ -9,27 +9,7 @@ export class AiService {
   constructor(private ollamaService: OllamaService) {}
 
   async analyzeAriaSnapshot(ariaSnapshot: string, url: string): Promise<DetectedElement[]> {
-    try {
-      this.logger.log(`Starting AI analysis for ${url}`);
-      
-      // Try OLLAMA AI analysis first
-      const htmlContent = this.extractHtmlFromAriaSnapshot(ariaSnapshot);
-      if (htmlContent && this.ollamaService.isOllamaAvailable()) {
-        const ollamaElements = await this.ollamaService.analyzePageElements(htmlContent, url);
-        if (ollamaElements.length > 0) {
-          this.logger.log(`✅ Ollama found ${ollamaElements.length} elements`);
-          return ollamaElements;
-        }
-      }
-      
-      // Fallback to rule-based analysis
-      this.logger.log('Falling back to rule-based analysis');
-      return this.parseAriaSnapshotRuleBased(ariaSnapshot);
-      
-    } catch (error) {
-      this.logger.error('AI analysis failed:', error);
-      return this.parseAriaSnapshotRuleBased(ariaSnapshot);
-    }
+    return [];
   }
 
   private extractHtmlFromAriaSnapshot(ariaSnapshot: string): string | null {

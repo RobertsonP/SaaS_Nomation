@@ -226,11 +226,11 @@ export function SuiteDetailsPage() {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{testSuite.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{testSuite.name}</h1>
             {testSuite.description && (
-              <p className="text-gray-600 mt-2">{testSuite.description}</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">{testSuite.description}</p>
             )}
-            <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
+            <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
               <span>📋 {testSuite.tests.length} tests</span>
               <span>📅 Created {new Date(testSuite.createdAt).toLocaleDateString()}</span>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -272,16 +272,16 @@ export function SuiteDetailsPage() {
       </div>
 
       {/* Tests in Suite */}
-      <div className="bg-white rounded-lg shadow border">
-        <div className="p-4 border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold">Tests in Suite ({testSuite.tests.length})</h2>
         </div>
         
         {testSuite.tests.length === 0 ? (
           <div className="p-8 text-center">
             <div className="text-4xl mb-4">📝</div>
-            <p className="text-gray-500 mb-4">No tests in this suite yet</p>
-            <p className="text-sm text-gray-400 mb-6">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">No tests in this suite yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
               Add existing tests or create new ones to build your test suite.
             </p>
             <div className="space-x-4">
@@ -301,16 +301,16 @@ export function SuiteDetailsPage() {
             </div>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y dark:divide-gray-700">
             {testSuite.tests.map((suiteTest, index) => {
               // Handle both nested structure from backend and direct test object
               const test = isTestSuiteTest(suiteTest) ? suiteTest.test : suiteTest
               return (
-                <div key={test.id} className="p-4 hover:bg-gray-50">
+                <div key={test.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-gray-500 font-mono">#{index + 1}</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">#{index + 1}</span>
                         <h3 className="text-lg font-medium">{test.name}</h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           test.status === 'active' 
@@ -321,9 +321,9 @@ export function SuiteDetailsPage() {
                         </span>
                       </div>
                       {test.description && (
-                        <p className="text-gray-600 mb-2">{test.description}</p>
+                        <p className="text-gray-600 dark:text-gray-400 mb-2">{test.description}</p>
                       )}
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                         <span>⚡ {test.steps?.length || 0} steps</span>
                         <span>📅 {new Date(test.createdAt).toLocaleDateString()}</span>
                         {test.startingUrl && (
@@ -356,19 +356,19 @@ export function SuiteDetailsPage() {
       {/* Add Existing Tests Modal */}
       {showAddTestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-hidden">
-            <div className="p-6 border-b">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-hidden">
+            <div className="p-6 border-b dark:border-gray-700">
               <h3 className="text-lg font-semibold">Add Existing Tests to Suite</h3>
             </div>
             <div className="p-6 overflow-y-auto max-h-64">
               {getUnassignedTests().length === 0 ? (
-                <p className="text-gray-500 text-center py-4">
+                <p className="text-gray-500 dark:text-gray-400 text-center py-4">
                   All available tests are already in this suite.
                 </p>
               ) : (
                 <div className="space-y-3">
                   {getUnassignedTests().map(test => (
-                    <label key={test.id} className="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer">
+                    <label key={test.id} className="flex items-center p-3 border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectedTests.includes(test.id)}
@@ -384,9 +384,9 @@ export function SuiteDetailsPage() {
                       <div className="flex-1">
                         <div className="font-medium">{test.name}</div>
                         {test.description && (
-                          <div className="text-sm text-gray-500">{test.description}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{test.description}</div>
                         )}
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                           {test.steps.length} steps • {new Date(test.createdAt).toLocaleDateString()}
                         </div>
                       </div>
@@ -395,7 +395,7 @@ export function SuiteDetailsPage() {
                 </div>
               )}
             </div>
-            <div className="p-6 border-t flex space-x-3">
+            <div className="p-6 border-t dark:border-gray-700 flex space-x-3">
               <button
                 onClick={handleAddExistingTests}
                 disabled={selectedTests.length === 0}
@@ -408,7 +408,7 @@ export function SuiteDetailsPage() {
                   setShowAddTestModal(false)
                   setSelectedTests([])
                 }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Cancel
               </button>
@@ -420,13 +420,13 @@ export function SuiteDetailsPage() {
       {/* Create New Test Modal */}
       {showCreateTestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Create New Test</h3>
               <form onSubmit={handleCreateNewTest}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Test Name
                     </label>
                     <input
@@ -434,24 +434,24 @@ export function SuiteDetailsPage() {
                       required
                       value={newTest.name}
                       onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       placeholder="Enter test name"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Description
                     </label>
                     <textarea
                       value={newTest.description}
                       onChange={(e) => setNewTest({ ...newTest, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       placeholder="Enter test description"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Starting URL
                     </label>
                     <input
@@ -459,7 +459,7 @@ export function SuiteDetailsPage() {
                       required
                       value={newTest.startingUrl}
                       onChange={(e) => setNewTest({ ...newTest, startingUrl: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       placeholder="https://example.com"
                     />
                   </div>
@@ -477,7 +477,7 @@ export function SuiteDetailsPage() {
                       setShowCreateTestModal(false)
                       setNewTest({ name: '', description: '', startingUrl: '' })
                     }}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     Cancel
                   </button>

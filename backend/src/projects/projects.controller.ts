@@ -105,8 +105,24 @@ export class ProjectsController {
 
   @Get(':id/elements')
   @UseGuards(OrganizationGuard)
-  async getProjectElements(@Request() req, @Param('id') id: string) {
-    return this.projectElementsService.getProjectElements(req.organization.id, id);
+  async getProjectElements(
+    @Request() req,
+    @Param('id') id: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+    @Query('type') type?: string,
+    @Query('sourceUrlId') sourceUrlId?: string,
+  ) {
+    return this.projectElementsService.getProjectElements(
+      req.organization.id,
+      id,
+      {
+        skip: skip ? parseInt(skip, 10) : undefined,
+        take: take ? parseInt(take, 10) : undefined,
+        type: type || undefined,
+        sourceUrlId: sourceUrlId || undefined,
+      },
+    );
   }
 
   @Post(':id/elements')

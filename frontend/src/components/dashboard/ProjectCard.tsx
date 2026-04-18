@@ -45,18 +45,18 @@ export function ProjectCard({
   return (
     <div
       onClick={onClick}
-      className="group border border-gray-100 p-4 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer transition-all"
+      className="group border border-gray-100 dark:border-gray-700 p-4 rounded-xl hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 cursor-pointer transition-all"
     >
       <div className="flex justify-between items-start mb-2">
-        <h3 className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
+        <h3 className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
           {name}
         </h3>
         <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400" />
       </div>
-      <p className="text-sm text-gray-500 line-clamp-1 mb-3">
+      <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 mb-3">
         {description || 'No description provided'}
       </p>
-      <div className="flex items-center space-x-3 text-xs text-gray-400">
+      <div className="flex items-center space-x-3 text-xs text-gray-400 dark:text-gray-500">
         <span className="flex items-center">
           <Zap className="w-3 h-3 mr-1" /> {testCount} tests
         </span>

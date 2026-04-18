@@ -16,19 +16,19 @@ export class PublicBrowserController {
 
   @Post('sessions')
   async createSession(
-    @Body() body: { projectId: string; authFlow?: any }
+    @Body() body: { projectId: string; authFlow?: any; startUrl?: string }
   ) {
     console.log(`🚀 Creating session for projectId: ${body.projectId}`);
-    
+
     // Use first available project if no projectId provided or if projectId is empty/invalid
     let projectId = body.projectId;
-    
+
     if (!projectId || projectId === 'test' || projectId === '' || projectId === 'default') {
       projectId = 'cmdblq3vu0004dksu7uaxdrxe'; // Use existing project from database
       console.log(`⚠️ Using fallback projectId: ${projectId}`);
     }
-    
-    return this.liveBrowserService.createSession(projectId, body.authFlow);
+
+    return this.liveBrowserService.createSession(projectId, body.authFlow, body.startUrl);
   }
 
   @Post('sessions/:sessionToken/navigate')

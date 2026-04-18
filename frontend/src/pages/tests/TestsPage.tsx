@@ -4,8 +4,10 @@ import { testsAPI, projectsAPI } from '../../lib/api'
 import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 import { TestExecutionModal } from '../../components/execution/TestExecutionModal'
 import { useTestExecution } from '../../hooks/useTestExecution'
+import { useNotification } from '../../contexts/NotificationContext'
 import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
+import { Zap, Plus } from 'lucide-react'
 
 const logger = createLogger('TestsPage')
 
@@ -36,6 +38,7 @@ interface Project {
 
 export function TestsPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const { showSuccess, showError, showWarning } = useNotification()
   const [tests, setTests] = useState<Test[]>([])
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,7 +98,7 @@ export function TestsPage() {
 
   const handleRunTest = async (testId: string) => {
     if (isExecuting) {
-      alert('A test is already running. Please wait.')
+      showWarning('Test Running', 'A test is already running. Please wait.')
       return
     }
 
@@ -107,8 +110,11 @@ export function TestsPage() {
       setCurrentlyRunningTestId(null)
       // Reload tests to show status update
       loadProjectAndTests()
-      // Optional: Show notification
-      alert(`Test execution completed: ${result.success ? 'PASSED' : 'FAILED'}`)
+      if (result.success) {
+        showSuccess('Test Passed', 'Test execution completed successfully.')
+      } else {
+        showError('Test Failed', 'Test execution completed with failures.')
+      }
     })
   }
 
@@ -129,7 +135,7 @@ export function TestsPage() {
       loadProjectAndTests()
     } catch (error) {
       logger.error('Failed to delete test', error)
-      alert('Failed to delete test. Please try again.')
+      showError('Delete Failed', 'Failed to delete test. Please try again.')
     }
   }
 
@@ -249,16 +255,21 @@ export function TestsPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
         {tests.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No tests created yet</p>
-            <div className="space-y-4">
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Create Test
-              </button>
+          <div className="p-12 text-center">
+            <div className="bg-gray-50 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Zap className="w-8 h-8 text-gray-400 dark:text-gray-500" />
             </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tests yet</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
+              Create your first test to start automated testing for this project.
+            </p>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Test
+            </button>
           </div>
         ) : (
           <div className="divide-y dark:divide-gray-700">

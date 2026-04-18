@@ -442,6 +442,7 @@ export class PageCrawlerService implements OnModuleInit {
     maxPages: number = 100,
     authFlow?: LoginFlow,
     onProgress?: (crawled: number, total: number, currentUrl: string) => void,
+    options?: { shouldCancel?: () => boolean },
   ): Promise<Map<string, CrawlResult>> {
     const results = new Map<string, CrawlResult>();
     const visited = new Set<string>();
@@ -511,6 +512,10 @@ export class PageCrawlerService implements OnModuleInit {
 
     try {
       while (queue.length > 0 && results.size < maxPages) {
+        if (options?.shouldCancel?.()) {
+          this.logger.log('Crawl cancelled by user');
+          break;
+        }
         const { url, depth } = queue.shift()!;
 
         // Normalize URL

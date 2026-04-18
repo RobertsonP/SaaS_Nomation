@@ -1,81 +1,75 @@
-# 🚀 NOMATION - QUICK START GUIDE
+# Nomation — Quick Start Guide
 
-## 📁 Project Management Commands
+## Hybrid Mode (Recommended)
 
-Use these 3 simple batch files to manage your Nomation project:
+Databases run in Docker. Application runs natively on your machine.
 
-### ▶️ `start.bat` - Start Project
-```
-Double-click or run: start.bat
-```
-**What it does:**
-- Starts all services (Database, Backend, Frontend, AI)
-- Sets up Ollama AI with required models
-- Shows service status and access URLs
-- **Use this for normal project startup**
+### Prerequisites
+- Docker Desktop (for PostgreSQL and Redis)
+- Node.js LTS (22+)
+- Git for Windows
 
-### 🔄 `restart.bat` - Complete Restart
-```
-Double-click or run: restart.bat
-```
-**What it does:**
-- Stops all services completely
-- Rebuilds Docker images from scratch
-- Starts fresh containers
-- Reapplies database migrations
-- **Use this when you have issues or after code changes**
+### One-Command Start
+Double-click `new_start.bat` in the project root. It handles everything automatically.
 
-### ⏹️ `stop.bat` - Stop Project
-```
-Double-click or run: stop.bat
-```
-**What it does:**
-- Gracefully stops all services
-- Preserves database data
-- Cleans up Docker networks
-- **Use this to shut down the project**
-
-## 🌐 Access URLs (After Start)
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **Frontend** | http://localhost:3001 | Main application interface |
-| **Backend API** | http://localhost:3002 | REST API endpoints |
-| **Database Admin** | http://localhost:5555 | Prisma Studio (optional) |
-
-## 🔐 Default Login
-- **Email:** `test@test.com`
-- **Password:** `test`
-
-## 🆘 Troubleshooting
-
-### If services fail to start:
-1. Run `restart.bat` for a fresh start
-2. Check Docker Desktop is running
-3. Ensure ports 3001, 3002, 5432, 11434 are available
-
-### If AI features don't work:
-1. Wait for Ollama model download to complete
-2. Check logs: `docker-compose logs -f ollama`
-
-### View detailed logs:
+### Manual Start
 ```bash
-docker-compose logs -f [service-name]
-# Examples:
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f ollama
+# Terminal 1: Start databases
+docker compose -f docker-compose.dev.yml up -d
+
+# Terminal 2: Start backend
+cd backend
+set DATABASE_URL=postgresql://nomation_user:nomation_password@localhost:5432/nomation
+set REDIS_HOST=localhost
+set REDIS_PORT=6379
+set JWT_SECRET=nomation-secret-key-2024-ultra-secure-development-only
+set PORT=3002
+set CORS_ORIGIN=http://localhost:3001
+npm run dev
+
+# Terminal 3: Start frontend
+cd frontend
+set VITE_API_URL=http://localhost:3002
+npm run dev
 ```
 
-## 🎯 Next Steps
+### URLs
+- Frontend: http://localhost:3001
+- Backend API: http://localhost:3002
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
 
-1. **Start the project:** Double-click `start.bat`
-2. **Open browser:** Navigate to http://localhost:3001
-3. **Login or register** a new account
-4. **Create your first project** with multiple URLs
-5. **Test AI element analysis** on your web pages
-6. **Build automated tests** with the visual test builder
+### Stop
+Run `new_stop.bat` or:
+```bash
+docker compose -f docker-compose.dev.yml down
+# Then close the backend and frontend terminal windows
+```
+
+### First Time Setup
+After cloning the repo:
+```bash
+cd backend && npm install
+cd ../frontend && npm install
+cd ../backend && npx playwright install chromium
+```
 
 ---
 
-🎉 **You're ready to use Nomation's no-code test automation platform!**
+## Full Docker Mode (Legacy)
+
+Everything runs inside Docker containers.
+
+```bash
+docker compose up --build
+```
+
+### URLs
+- Frontend: http://localhost:3001
+- Backend API: http://localhost:3002
+- Prisma Studio: http://localhost:5555 (with --profile tools)
+
+### Stop
+```bash
+docker compose down
+```

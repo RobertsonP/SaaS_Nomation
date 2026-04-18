@@ -1,0 +1,52 @@
+# Hybrid development mode: databases only
+# Backend and frontend run natively with npm run dev
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nomation-dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nomation}
+      POSTGRES_USER: ${POSTGRES_USER:-nomation_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nomation_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - nomation-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nomation_user -d nomation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nomation-dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dev_redis_data:/data
+    networks:
+      - nomation-dev-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dev_postgres_data:
+    driver: local
+  dev_redis_data:
+    driver: local
+
+networks:
+  nomation-dev-network:
+    driver: bridge

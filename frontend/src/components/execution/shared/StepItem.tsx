@@ -45,9 +45,9 @@ const statusConfig = {
     icon: '⟳',
   },
   pending: {
-    bg: 'bg-gray-50',
-    border: 'border-gray-200',
-    badge: 'bg-gray-300 text-gray-600',
+    bg: 'bg-gray-50 dark:bg-gray-900',
+    border: 'border-gray-200 dark:border-gray-700',
+    badge: 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400',
     icon: '',
   },
 };
@@ -76,7 +76,7 @@ export function StepItem({
             {config.icon || (showNumber ? index + 1 : '')}
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
               Step {index + 1}: {description}
             </p>
             {error && (
@@ -84,7 +84,7 @@ export function StepItem({
             )}
           </div>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           {status === 'passed' && '✅'}
           {status === 'failed' && '❌'}
           {status === 'running' && (
@@ -131,7 +131,7 @@ interface StepListProps {
 export function StepList({ steps, emptyMessage = 'No steps to display' }: StepListProps) {
   if (steps.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
         <div className="animate-pulse">{emptyMessage}</div>
       </div>
     );

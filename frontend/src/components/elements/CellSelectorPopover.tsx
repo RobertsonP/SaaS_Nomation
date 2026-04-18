@@ -8,15 +8,22 @@ export interface CellStepData {
   description: string;
 }
 
+interface CellAction {
+  text: string;
+  selector: string;
+  tag: string;
+}
+
 interface CellSelectorPopoverProps {
   cellSelector: string;
   cellText: string;
   position: { top: number; left: number };
   onClose: () => void;
   onAddStep?: (step: CellStepData) => void;
+  cellActions?: CellAction[];
 }
 
-export function CellSelectorPopover({ cellSelector, cellText, position, onClose, onAddStep }: CellSelectorPopoverProps) {
+export function CellSelectorPopover({ cellSelector, cellText, position, onClose, onAddStep, cellActions }: CellSelectorPopoverProps) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   const truncatedText = cellText.length > 50 ? cellText.substring(0, 50) + '...' : cellText;
@@ -80,6 +87,34 @@ export function CellSelectorPopover({ cellSelector, cellText, position, onClose,
             </svg>
           </button>
         </div>
+
+        {/* Actions found inside the cell */}
+        {onAddStep && cellActions && cellActions.length > 0 && (
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1.5">Actions in this cell</div>
+            <div className="flex flex-col gap-1.5">
+              {cellActions.map((action, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (onAddStep) {
+                      onAddStep({
+                        type: 'click',
+                        selector: action.selector,
+                        value: '',
+                        description: `Click ${action.text}`,
+                      });
+                      onClose();
+                    }
+                  }}
+                  className="px-2 py-1.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors text-left"
+                >
+                  Click {action.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Add to test actions */}
         {onAddStep && (

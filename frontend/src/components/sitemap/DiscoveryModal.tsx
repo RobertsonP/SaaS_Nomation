@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock } from 'lucide-react';
+import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock, StopCircle } from 'lucide-react';
 import { SiteMapGraph } from './SiteMapGraph';
 import { useSiteMapData, SiteMapNodeData, SiteMapEdgeData } from './useSiteMapData';
 import { authFlowsAPI } from '../../lib/api';
@@ -16,6 +16,7 @@ const DISCOVERY_PHASES: Array<{ id: string; label: string; icon: React.ElementTy
   { id: 'connectivity', label: 'Checking connectivity', icon: Globe },
   { id: 'sitemap', label: 'Looking for sitemap', icon: Map },
   { id: 'crawling', label: 'Crawling pages', icon: LinkIcon },
+  { id: 'processing', label: 'Processing results', icon: Database },
   { id: 'saving', label: 'Saving results', icon: Database },
 ];
 
@@ -68,7 +69,7 @@ export function DiscoveryModal({
   onDiscoveryComplete,
   onAnalyzePages,
 }: DiscoveryModalProps) {
-  const { activeDiscovery, startBackgroundDiscovery, minimizeDiscovery, clearDiscovery } = useDiscoveryContext();
+  const { activeDiscovery, startBackgroundDiscovery, cancelDiscovery, minimizeDiscovery, clearDiscovery } = useDiscoveryContext();
 
   const [rootUrl, setRootUrl] = useState(initialUrl);
   const [useCustomUrl, setUseCustomUrl] = useState(!initialUrl && projectUrls.length === 0);
@@ -86,6 +87,10 @@ export function DiscoveryModal({
   // Elapsed time
   const [discoveryStartTime, setDiscoveryStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Stop confirmation state
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Derive state from context
   const isDiscovering = activeDiscovery?.status === 'discovering' && activeDiscovery.projectId === projectId;
@@ -147,7 +152,7 @@ export function DiscoveryModal({
     if (!activeDiscovery) return 'pending';
     const currentPhase = activeDiscovery.phase;
     if (isFailed && currentPhase === phaseId) return 'error';
-    const phaseOrder = ['initialization', 'connectivity', 'sitemap', 'crawling', 'saving', 'complete'];
+    const phaseOrder = ['initialization', 'connectivity', 'sitemap', 'crawling', 'processing', 'saving', 'complete'];
     const currentIndex = phaseOrder.indexOf(currentPhase);
     const phaseIndex = phaseOrder.indexOf(phaseId);
     if (currentIndex === -1) return 'pending';
@@ -172,6 +177,13 @@ export function DiscoveryModal({
       useSitemap: true,
       authFlowId: selectedAuthFlowId || undefined,
     });
+  };
+
+  const handleStopDiscovery = async () => {
+    setIsCancelling(true);
+    await cancelDiscovery();
+    setIsCancelling(false);
+    setShowStopConfirm(false);
   };
 
   const handleMinimize = () => {
@@ -228,15 +240,24 @@ export function DiscoveryModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Minimize button — during discovery */}
+            {/* Stop and Minimize buttons — during discovery */}
             {showProgress && (
-              <button
-                onClick={handleMinimize}
-                className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                title="Minimize — discovery continues in background"
-              >
-                <Minimize2 className="w-5 h-5" />
-              </button>
+              <>
+                <button
+                  onClick={() => setShowStopConfirm(true)}
+                  className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                  title="Stop discovery"
+                >
+                  <StopCircle className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleMinimize}
+                  className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                  title="Minimize — discovery continues in background"
+                >
+                  <Minimize2 className="w-5 h-5" />
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -471,6 +492,46 @@ export function DiscoveryModal({
                   </div>
                 </div>
               )}
+
+              {/* Stop Discovery Confirmation */}
+              {showStopConfirm && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <StopCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                        Stop discovery?
+                      </h4>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                        {activeDiscovery?.pagesFound || 0} URLs found so far will be saved.
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => setShowStopConfirm(false)}
+                          disabled={isCancelling}
+                          className="px-3 py-1.5 text-xs bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                        >
+                          Continue Discovery
+                        </button>
+                        <button
+                          onClick={handleStopDiscovery}
+                          disabled={isCancelling}
+                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {isCancelling ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Stopping...
+                            </>
+                          ) : (
+                            'Stop & Save'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -584,13 +645,22 @@ export function DiscoveryModal({
               </button>
             )}
             {showProgress && (
-              <button
-                onClick={handleMinimize}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Minimize2 className="w-4 h-4" />
-                Minimize
-              </button>
+              <>
+                <button
+                  onClick={() => setShowStopConfirm(true)}
+                  className="px-4 py-2 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  Stop Discovery
+                </button>
+                <button
+                  onClick={handleMinimize}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Minimize2 className="w-4 h-4" />
+                  Minimize
+                </button>
+              </>
             )}
             {showError && (
               <button

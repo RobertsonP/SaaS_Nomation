@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SmartWaitService } from './smart-wait.service';
+import { StepExecutorService } from './step-executor.service';
 import { ExecutionProgressGateway } from './execution.gateway';
 import { ExecutionService } from './execution.service';
 import { ExecutionController } from './execution.controller';
@@ -16,7 +17,7 @@ import { QueueModule } from '../queue/queue.module';
     AuthModule
   ],
   controllers: [ExecutionController],
-  providers: [SmartWaitService, ExecutionProgressGateway, ExecutionService],
-  exports: [SmartWaitService, ExecutionProgressGateway, ExecutionService],
+  providers: [SmartWaitService, StepExecutorService, ExecutionProgressGateway, ExecutionService],
+  exports: [SmartWaitService, StepExecutorService, ExecutionProgressGateway, ExecutionService],
 })
 export class ExecutionModule {}

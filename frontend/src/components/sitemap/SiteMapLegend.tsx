@@ -29,20 +29,20 @@ export function SiteMapLegend() {
   ];
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-lg shadow px-3 py-2 text-xs">
-      <div className="font-medium text-gray-700 mb-2">Legend</div>
+    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow px-3 py-2 text-xs">
+      <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legend</div>
       <div className="space-y-1.5">
         {items.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.color}`}>
               {item.icon}
             </div>
-            <span className="text-gray-600">{item.label}</span>
+            <span className="text-gray-600 dark:text-gray-400">{item.label}</span>
           </div>
         ))}
       </div>
-      <div className="mt-2 pt-2 border-t border-gray-200">
-        <div className="flex items-center gap-2 text-gray-500">
+      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <Minus className="w-4 h-4" />
           <span>Link between pages</span>
         </div>

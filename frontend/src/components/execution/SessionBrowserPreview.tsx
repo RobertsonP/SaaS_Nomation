@@ -53,8 +53,8 @@ export function SessionBrowserPreview({
 
   if (!sessionToken) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-        <div className="text-center text-gray-500">
+      <div className={`flex items-center justify-center bg-gray-100 dark:bg-gray-700 ${className}`}>
+        <div className="text-center text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-2">🌐</div>
           <p>No active browser session</p>
           <p className="text-sm mt-1">Start test execution to view live browser</p>
@@ -65,7 +65,7 @@ export function SessionBrowserPreview({
 
   if (isLoading && !sessionInfo) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
+      <div className={`flex items-center justify-center bg-gray-100 dark:bg-gray-700 ${className}`}>
         <div className="text-center">
           <div className="flex items-center justify-center mb-4">
             <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24">
@@ -73,7 +73,7 @@ export function SessionBrowserPreview({
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           </div>
-          <p className="text-gray-600">Connecting to browser session...</p>
+          <p className="text-gray-600 dark:text-gray-400">Connecting to browser session...</p>
         </div>
       </div>
     );
@@ -81,7 +81,7 @@ export function SessionBrowserPreview({
 
   if (error) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
+      <div className={`flex items-center justify-center bg-gray-100 dark:bg-gray-700 ${className}`}>
         <div className="text-center text-red-600">
           <div className="text-4xl mb-2">⚠️</div>
           <h3 className="text-lg font-semibold mb-2">Session Connection Failed</h3>
@@ -93,8 +93,8 @@ export function SessionBrowserPreview({
 
   if (!sessionView?.screenshot) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 ${className}`}>
-        <div className="text-center text-gray-500">
+      <div className={`flex items-center justify-center bg-gray-100 dark:bg-gray-700 ${className}`}>
+        <div className="text-center text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-2">🔄</div>
           <p>Waiting for screenshot...</p>
         </div>

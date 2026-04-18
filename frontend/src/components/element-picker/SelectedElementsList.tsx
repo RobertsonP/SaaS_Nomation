@@ -62,8 +62,9 @@ export function SelectedElementsList({
       case 'link': 
       case 'a': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'form': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'navigation': 
+      case 'navigation':
       case 'nav': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }, []);
@@ -86,19 +87,19 @@ export function SelectedElementsList({
   if (elements.length === 0) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-900">Selected Elements</h3>
-          <p className="text-sm text-gray-600 mt-1">Elements will appear here as you select them</p>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Selected Elements</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Elements will appear here as you select them</p>
         </div>
         
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="text-center">
             <div className="text-4xl mb-3">🎯</div>
-            <h4 className="font-medium text-gray-900 mb-2">No Elements Selected</h4>
-            <p className="text-sm text-gray-600 mb-4">
+            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">No Elements Selected</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Enable picking mode and click on elements in the preview to select them.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <div className="text-xs text-blue-800">
                 <div className="font-medium mb-1">💡 Quick Tips:</div>
                 <ul className="text-left space-y-1">
@@ -118,9 +119,9 @@ export function SelectedElementsList({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-gray-900">Selected Elements</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Selected Elements</h3>
           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
             {elements.length}
           </span>
@@ -152,7 +153,7 @@ export function SelectedElementsList({
             return (
               <div
                 key={element.id}
-                className="bg-white border border-gray-200 rounded-lg p-3 hover:border-gray-300 transition-colors"
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
               >
                 {/* Element Summary */}
                 <div className="flex items-start justify-between">
@@ -171,12 +172,12 @@ export function SelectedElementsList({
                         </span>
                       </div>
                       
-                      <h4 className="font-medium text-sm text-gray-900 truncate mb-1">
+                      <h4 className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate mb-1">
                         {element.description}
                       </h4>
                       
                       {element.text && (
-                        <p className="text-xs text-gray-600 truncate">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
                           "{element.text}"
                         </p>
                       )}
@@ -186,7 +187,7 @@ export function SelectedElementsList({
                   <div className="flex items-center space-x-1 ml-2">
                     <button
                       onClick={() => toggleElementExpansion(element.id)}
-                      className="p-1 text-gray-400 hover:text-gray-600 text-xs"
+                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs"
                       title={isExpanded ? "Collapse" : "Expand details"}
                     >
                       {isExpanded ? '▼' : '▶️'}
@@ -203,9 +204,9 @@ export function SelectedElementsList({
 
                 {/* Selector Preview */}
                 <div className="mt-2">
-                  <div className="bg-gray-50 rounded p-2">
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded p-2">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-600">Selector</span>
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Selector</span>
                       <button
                         onClick={() => handleCopySelector(element.selector)}
                         className="text-xs text-blue-600 hover:text-blue-800"
@@ -214,7 +215,7 @@ export function SelectedElementsList({
                         📋 Copy
                       </button>
                     </div>
-                    <code className="text-xs text-gray-700 bg-white px-2 py-1 rounded border block truncate">
+                    <code className="text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-2 py-1 rounded border dark:border-gray-600 block truncate">
                       {element.selector}
                     </code>
                   </div>
@@ -222,19 +223,19 @@ export function SelectedElementsList({
 
                 {/* Expanded Details */}
                 {isExpanded && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
                     {/* Position Information */}
                     <div>
-                      <h5 className="text-xs font-medium text-gray-700 mb-1">Position & Size</h5>
+                      <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Position & Size</h5>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="text-gray-600">Position:</span>
+                        <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                          <span className="text-gray-600 dark:text-gray-400">Position:</span>
                           <div className="font-mono">
                             x: {Math.round(element.position.x)}, y: {Math.round(element.position.y)}
                           </div>
                         </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="text-gray-600">Size:</span>
+                        <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                          <span className="text-gray-600 dark:text-gray-400">Size:</span>
                           <div className="font-mono">
                             {Math.round(element.position.width)} × {Math.round(element.position.height)}
                           </div>
@@ -244,29 +245,29 @@ export function SelectedElementsList({
 
                     {/* Attributes */}
                     <div>
-                      <h5 className="text-xs font-medium text-gray-700 mb-1">Attributes</h5>
-                      <div className="bg-gray-50 rounded p-2 max-h-32 overflow-y-auto">
+                      <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Attributes</h5>
+                      <div className="bg-gray-50 dark:bg-gray-900 rounded p-2 max-h-32 overflow-y-auto">
                         {Object.keys(element.attributes).length > 0 ? (
                           <div className="space-y-1">
                             {Object.entries(element.attributes).slice(0, 10).map(([key, value]) => (
                               <div key={key} className="flex items-start space-x-2 text-xs">
-                                <span className="text-gray-600 font-mono font-medium min-w-0 flex-shrink-0">
+                                <span className="text-gray-600 dark:text-gray-400 font-mono font-medium min-w-0 flex-shrink-0">
                                   {key}:
                                 </span>
-                                <span className="text-gray-700 font-mono truncate flex-1">
+                                <span className="text-gray-700 dark:text-gray-300 font-mono truncate flex-1">
                                   {String(value).substring(0, 50)}
                                   {String(value).length > 50 && '...'}
                                 </span>
                               </div>
                             ))}
                             {Object.keys(element.attributes).length > 10 && (
-                              <div className="text-xs text-gray-500 italic">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
                                 ... and {Object.keys(element.attributes).length - 10} more attributes
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="text-xs text-gray-500 italic">No attributes</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 italic">No attributes</div>
                         )}
                       </div>
                     </div>
@@ -279,12 +280,6 @@ export function SelectedElementsList({
                       >
                         📋 Copy Selector
                       </button>
-                      <button
-                        onClick={() => {/* TODO: Add validate functionality */}}
-                        className="flex-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200 transition-colors"
-                      >
-                        🔍 Validate
-                      </button>
                     </div>
                   </div>
                 )}
@@ -295,8 +290,8 @@ export function SelectedElementsList({
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
-        <div className="text-xs text-gray-600 text-center mb-2">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+        <div className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
           {elements.length} element{elements.length !== 1 ? 's' : ''} ready to add to your test library
         </div>
         <button

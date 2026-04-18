@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ProjectElement } from '../../types/element.types';
 import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
 import { DropdownPreviewCard } from '../elements/DropdownPreviewCard';
 import { CellStepData } from '../elements/CellSelectorPopover';
 import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
+import { projectsAPI } from '../../lib/api';
 
 interface ProjectUrl {
   id: string;
@@ -13,8 +14,11 @@ interface ProjectUrl {
   analyzed: boolean;
 }
 
+const PAGE_SIZE = 50;
+
 interface ElementLibraryPanelProps {
-  elements: ProjectElement[];
+  elements?: ProjectElement[];
+  projectId?: string;
   onSelectElement: (element: ProjectElement) => void;
   onAddStep?: (step: CellStepData) => void;
   isLoading: boolean;
@@ -41,6 +45,7 @@ const TYPE_FILTERS = [
   { value: 'link', label: 'Links' },
   { value: 'table', label: 'Tables' },
   { value: 'form', label: 'Forms' },
+  { value: 'heading', label: 'Headings' },
   { value: 'navigation', label: 'Nav' },
 ] as const;
 
@@ -54,7 +59,8 @@ function getPathFromUrl(url: string): string {
 }
 
 export function ElementLibraryPanel({
-  elements,
+  elements: elementsProp,
+  projectId,
   onSelectElement,
   onAddStep,
   isLoading,
@@ -69,6 +75,55 @@ export function ElementLibraryPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Pagination state (only used when projectId is provided)
+  const [paginatedElements, setPaginatedElements] = useState<ProjectElement[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [paginationLoading, setPaginationLoading] = useState(false);
+  const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+
+  const usePagination = !!projectId;
+  const elements = usePagination ? paginatedElements : (elementsProp || []);
+
+  // Fetch paginated elements from backend
+  const fetchElements = useCallback(async (skip: number, append: boolean) => {
+    if (!projectId) return;
+    const isInitial = !append;
+    if (isInitial) setPaginationLoading(true);
+    else setLoadMoreLoading(true);
+
+    try {
+      const params: { skip: number; take: number; type?: string } = {
+        skip,
+        take: PAGE_SIZE,
+      };
+      // Send type filter to backend when paginating
+      if (typeFilter !== 'all') params.type = typeFilter;
+
+      const result = await projectsAPI.getElementsPaginated(projectId, params);
+      setPaginatedElements(prev => append ? [...prev, ...result.elements] : result.elements);
+      setTotalCount(result.total);
+    } catch (error) {
+      console.error('Failed to load elements:', error);
+    } finally {
+      if (isInitial) setPaginationLoading(false);
+      else setLoadMoreLoading(false);
+    }
+  }, [projectId, typeFilter]);
+
+  // Load first page when projectId or type filter changes
+  useEffect(() => {
+    if (usePagination) {
+      setPaginatedElements([]);
+      fetchElements(0, false);
+    }
+  }, [usePagination, fetchElements]);
+
+  const handleLoadMore = () => {
+    fetchElements(paginatedElements.length, true);
+  };
+
+  const hasMore = usePagination && paginatedElements.length < totalCount;
 
   // Handle analyze button
   const handleAnalyzeClick = () => {
@@ -86,13 +141,13 @@ export function ElementLibraryPanel({
     }
   };
 
-  // Filter elements
+  // Filter elements (type filter is handled server-side in pagination mode)
   const filteredElements = useMemo(() => {
     return elements.filter(el => {
-      // Type filter
-      if (typeFilter !== 'all' && el.elementType !== typeFilter) return false;
+      // Type filter — skip in pagination mode since backend already filtered
+      if (!usePagination && typeFilter !== 'all' && el.elementType !== typeFilter) return false;
 
-      // Search filter
+      // Search filter (always client-side)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matches =
@@ -106,7 +161,7 @@ export function ElementLibraryPanel({
 
       return true;
     });
-  }, [elements, typeFilter, searchQuery]);
+  }, [elements, typeFilter, searchQuery, usePagination]);
 
   // Group by source URL
   const groupedElements = useMemo(() => {
@@ -138,7 +193,7 @@ export function ElementLibraryPanel({
     });
   };
 
-  if (isLoading) {
+  if (isLoading || paginationLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
@@ -184,7 +239,12 @@ export function ElementLibraryPanel({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Elements
             <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-              {filteredElements.length}{filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}
+              {usePagination
+                ? (searchQuery.trim()
+                    ? `${filteredElements.length} matching of ${paginatedElements.length} loaded (${totalCount} total)`
+                    : `${paginatedElements.length} of ${totalCount}`)
+                : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`
+              }
             </span>
           </h3>
           <div className="flex gap-2">
@@ -247,9 +307,10 @@ export function ElementLibraryPanel({
         <div className="flex flex-wrap gap-1.5 mb-2">
           {TYPE_FILTERS.map(f => {
             const count = f.value === 'all'
-              ? elements.length
+              ? (usePagination ? totalCount : elements.length)
               : elements.filter(e => e.elementType === f.value).length;
-            if (count === 0 && f.value !== 'all') return null;
+            // In pagination mode, show all filter options; in non-paginated mode, hide empty types
+            if (!usePagination && count === 0 && f.value !== 'all') return null;
             return (
               <button
                 key={f.value}
@@ -261,7 +322,7 @@ export function ElementLibraryPanel({
                 }`}
               >
                 {f.label}
-                <span className="ml-1 opacity-70">{count}</span>
+                {!usePagination && <span className="ml-1 opacity-70">{count}</span>}
               </button>
             );
           })}
@@ -305,21 +366,21 @@ export function ElementLibraryPanel({
 
               {/* Group Elements */}
               {!isCollapsed && (
-                <div className="px-4 pb-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="px-4 pb-3 grid grid-cols-1 gap-3">
                   {group.elements.map(element => {
                     const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
                     const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
 
                     if (hasTableData) {
                       return (
-                        <div key={element.id} className="lg:col-span-2">
+                        <div key={element.id}>
                           <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
                         </div>
                       );
                     }
                     if (hasDropdownData) {
                       return (
-                        <div key={element.id} className="lg:col-span-2">
+                        <div key={element.id}>
                           <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
                         </div>
                       );
@@ -338,6 +399,33 @@ export function ElementLibraryPanel({
             </div>
           );
         })}
+
+        {/* Load More */}
+        {hasMore && (
+          <div className="px-4 py-4 text-center border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Showing {paginatedElements.length} of {totalCount} elements
+            </p>
+            <button
+              onClick={handleLoadMore}
+              disabled={loadMoreLoading}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                loadMoreLoading
+                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {loadMoreLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  Loading...
+                </span>
+              ) : (
+                `Load More (${Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)`
+              )}
+            </button>
+          </div>
+        )}
 
         {/* No Results */}
         {filteredElements.length === 0 && elements.length > 0 && (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProjectElement } from '../../types/element.types';
 import { api } from '../../lib/api';
+import { useNotification } from '../../contexts/NotificationContext';
 
 interface ElementVisualPreviewProps {
   element: ProjectElement;
@@ -59,6 +60,7 @@ function getElementTypeIcon(type: string): string {
 }
 
 export function ElementVisualPreview({ element, className = '', onUpdate }: ElementVisualPreviewProps) {
+  const { showError } = useNotification();
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function ElementVisualPreview({ element, className = '', onUpdate }: Elem
 
     // Validate required fields
     if (!element.projectId) {
-      alert('Cannot capture screenshot: projectId missing');
+      showError('Capture Failed', 'Cannot capture screenshot: project ID is missing.');
       return;
     }
 
@@ -108,7 +110,7 @@ export function ElementVisualPreview({ element, className = '', onUpdate }: Elem
     } catch (error: any) {
       console.error('Failed to capture screenshot:', error);
       const errorMsg = error.response?.data?.message || 'Failed to capture screenshot';
-      alert(`${errorMsg}. Please ensure the backend is running.`);
+      showError('Capture Failed', `${errorMsg}. Please ensure the backend is running.`);
     } finally {
       setIsCapturing(false);
     }
@@ -228,7 +230,7 @@ export function ElementVisualPreview({ element, className = '', onUpdate }: Elem
     }
 
     // Fallback
-    return <span className="text-sm text-gray-400">No preview</span>;
+    return <span className="text-sm text-gray-400 dark:text-gray-500">No preview</span>;
   };
 
   return (
@@ -243,7 +245,7 @@ export function ElementVisualPreview({ element, className = '', onUpdate }: Elem
       </div>
 
       {/* Preview Area */}
-      <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded flex items-center justify-center min-h-[70px] max-h-[80px] overflow-hidden">
+      <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded flex items-center justify-center min-h-[70px] max-h-[140px] overflow-hidden">
         {renderContent()}
       </div>
 
@@ -251,7 +253,7 @@ export function ElementVisualPreview({ element, className = '', onUpdate }: Elem
       <div className="flex gap-2 justify-end">
         <button
           onClick={handlePreviewClick}
-          className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
+          className="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded transition-colors"
           title="View Details"
         >
           👁️ Preview
@@ -316,7 +318,7 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
       : '#1f2937';
 
     return (
-      <div className="bg-white p-4 rounded border border-gray-200 flex items-center justify-center w-full">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-600 flex items-center justify-center w-full">
         <div
           style={{
             // Scaled dimensions
@@ -361,24 +363,24 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-          <h3 className="text-lg font-semibold text-gray-900">Element Details</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Element Details</h3>
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl font-bold">&times;</button>
         </div>
 
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left: Image/Preview */}
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Visual Preview</h4>
-              <div className="border rounded p-4 flex items-center justify-center bg-gray-100 min-h-[200px]">
+              <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Visual Preview</h4>
+              <div className="border dark:border-gray-700 rounded p-4 flex items-center justify-center bg-gray-100 dark:bg-gray-700 min-h-[200px]">
                 {image ? (
                   <img src={image} alt="Preview" className="max-w-full object-contain" />
                 ) : visualData?.type === 'css' ? (
                   renderCSSMockup()
                 ) : (
-                  <div className="text-gray-400 text-center">
+                  <div className="text-gray-400 dark:text-gray-500 text-center">
                     <p>No screenshot available</p>
                     <p className="text-xs mt-1">Click "Capture" to take a screenshot</p>
                   </div>
@@ -389,12 +391,12 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
             {/* Right: Details */}
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Description</h4>
-                <p className="text-gray-900">{element.description}</p>
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Description</h4>
+                <p className="text-gray-900 dark:text-gray-100">{element.description}</p>
               </div>
-              
+
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Selector</h4>
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Selector</h4>
                 <div className="bg-gray-800 text-green-400 p-3 rounded font-mono text-sm break-all">
                   {element.selector}
                 </div>
@@ -402,13 +404,13 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Type</h4>
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Type</h4>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                     {element.elementType}
                   </span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Confidence</h4>
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Confidence</h4>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     (element.confidence || 0) >= 0.8 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                   }`}>
@@ -419,8 +421,8 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
 
               {element.attributes?.visualData?.type === 'css' && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Detected Attributes</h4>
-                  <div className="bg-gray-50 p-2 rounded text-xs text-gray-600 font-mono space-y-1">
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">Detected Attributes</h4>
+                  <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs text-gray-600 dark:text-gray-400 font-mono space-y-1">
                     <p>Color: {element.attributes.visualData.colors?.color}</p>
                     <p>Bg: {element.attributes.visualData.colors?.backgroundColor}</p>
                     <p>Font: {element.attributes.visualData.typography?.fontFamily}</p>
@@ -431,10 +433,10 @@ function ElementPreviewModal({ element, image, onClose }: { element: ProjectElem
           </div>
         </div>
         
-        <div className="p-4 border-t bg-gray-50 flex justify-end">
-          <button 
+        <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-end">
+          <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors"
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
           >
             Close
           </button>

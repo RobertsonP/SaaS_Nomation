@@ -5,6 +5,9 @@ import { AuthFlowsService } from '../auth-flows/auth-flows.service';
 import { UnifiedAuthService } from '../auth/unified-auth.service';
 import { LoginFlow } from '../ai/interfaces/element.interface';
 import { ExecutionProgressGateway } from './execution.gateway';
+import { SmartWaitService } from './smart-wait.service';
+import { StepExecutorService } from './step-executor.service';
+import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 
 interface TestStep {
   id: string;
@@ -23,7 +26,9 @@ export class ExecutionService {
     private prisma: PrismaService,
     private authFlowsService: AuthFlowsService,
     private unifiedAuthService: UnifiedAuthService,
-    private progressGateway: ExecutionProgressGateway
+    private progressGateway: ExecutionProgressGateway,
+    private smartWaitService: SmartWaitService,
+    private stepExecutor: StepExecutorService,
   ) {}
 
   async executeTest(testId: string) {
@@ -104,6 +109,8 @@ export class ExecutionService {
               throw new Error(`Authentication failed: ${authResult.result.errorMessage}`);
             }
 
+            // Close the original page before replacing with auth result page
+            await page.close().catch(() => {});
             // Update browser and page references
             browser = authResult.browser;
             page = authResult.page;
@@ -129,8 +136,10 @@ export class ExecutionService {
           }
         } else {
           // No authentication required, navigate directly
-          console.log(`🔍 Executing test without authentication for URL: ${test.startingUrl}`);
-          await page.goto(test.startingUrl);
+          const dockerUrl = normalizeUrlForDocker(test.startingUrl);
+          console.log(`🔍 Executing test without authentication for URL: ${test.startingUrl} → ${dockerUrl}`);
+          await page.goto(dockerUrl);
+          await this.smartWaitService.waitForNetworkIdle(page, 2000).catch(() => {});
         }
         
         // Capture initial screenshot
@@ -242,192 +251,8 @@ export class ExecutionService {
     }
   }
 
-  /**
-   * NEW: Get reliable locator with fallback selector support
-   * Tries primary selector first, then fallback selectors until one works
-   */
-  private async getReliableLocator(page: Page, step: TestStep) {
-    const selectors = [
-      step.selector,
-      ...(step.fallbackSelectors || [])
-    ];
-
-    console.log(`🎯 Attempting ${selectors.length} selector(s) for "${step.description || step.type}"`);
-
-    for (let i = 0; i < selectors.length; i++) {
-      const selector = selectors[i];
-      try {
-        const locator = page.locator(selector);
-
-        // Check if locator actually finds element(s)
-        const count = await locator.count();
-
-        if (count > 0) {
-          if (i === 0) {
-            console.log(`✅ Primary selector works: ${selector}`);
-          } else {
-            console.log(`⚠️ Primary failed, using fallback #${i}: ${selector}`);
-          }
-          return locator.first();
-        } else {
-          console.log(`❌ Selector ${i + 1}/${selectors.length} found 0 elements: ${selector}`);
-        }
-      } catch (error) {
-        console.warn(`❌ Selector ${i + 1}/${selectors.length} failed: ${selector} - ${error.message}`);
-      }
-    }
-
-    // All selectors failed
-    throw new Error(
-      `Element not found. Tried ${selectors.length} selector(s):\n` +
-      selectors.map((s, i) => `  ${i + 1}. ${s}`).join('\n') +
-      `\n\nHint: Element may have changed or not be visible on this page.`
-    );
-  }
-
   private async executeStep(page: Page, step: TestStep) {
-    const timeout = 10000; // 10 seconds timeout
-
-    console.log(`[DEBUG] Executing step: ${step.type} - ${step.description}`);
-
-    try {
-      // Use reliable locator with fallback support
-      const locator = await this.getReliableLocator(page, step);
-
-      switch (step.type) {
-        case 'click':
-          // MODERNIZED: Use locator.click() instead of deprecated page.click()
-          await locator.click({ timeout });
-          console.log(`✓ Clicked element: ${step.selector}`);
-          return { success: true, action: 'click', selector: step.selector };
-
-        case 'type':
-          // MODERNIZED: Use locator.fill() instead of deprecated page.fill()
-          await locator.fill(step.value || '', { timeout });
-          console.log(`✓ Filled element: ${step.selector} with "${step.value}"`);
-          return { success: true, action: 'type', selector: step.selector, value: step.value };
-
-        case 'wait':
-          const rawWaitTime = parseInt(step.value || '1000', 10);
-
-          // Validate timeout: must be positive and capped at 60 seconds
-          if (isNaN(rawWaitTime) || rawWaitTime < 0) {
-            throw new Error(`Invalid wait time: ${step.value}. Must be a positive number.`);
-          }
-
-          const waitTime = Math.min(rawWaitTime, 60000); // Cap at 60 seconds
-
-          if (rawWaitTime > 60000) {
-            console.warn(`⚠️ Wait time ${rawWaitTime}ms exceeded max, capped to 60000ms`);
-          }
-
-          await page.waitForTimeout(waitTime);
-          console.log(`✓ Waited for ${waitTime}ms`);
-          return { success: true, action: 'wait', value: waitTime };
-
-        case 'assert':
-          const textContent = await locator.textContent({ timeout });
-          if (!textContent || !textContent.includes(step.value || '')) {
-            throw new Error(
-              `Assertion failed: Expected "${step.value}" but found "${textContent}"`
-            );
-          }
-          console.log(`✓ Assertion passed: "${step.value}" found in "${textContent}"`);
-          return { success: true, action: 'assert', value: step.value, actual: textContent };
-
-        // NEW ACTIONS - Gemini Implements These
-        case 'hover':
-          await locator.hover({ timeout });
-          console.log(`✓ Hovered over: ${step.selector}`);
-          return { success: true, action: 'hover', selector: step.selector };
-
-        case 'select':
-          await locator.selectOption(step.value || '', { timeout });
-          console.log(`✓ Selected option "${step.value}" in: ${step.selector}`);
-          return { success: true, action: 'select', selector: step.selector, value: step.value };
-
-        case 'check':
-          await locator.check({ timeout });
-          console.log(`✓ Checked: ${step.selector}`);
-          return { success: true, action: 'check', selector: step.selector };
-
-        case 'uncheck':
-          await locator.uncheck({ timeout });
-          console.log(`✓ Unchecked: ${step.selector}`);
-          return { success: true, action: 'uncheck', selector: step.selector };
-
-        case 'navigate':
-          // For navigation, the locator is not relevant, use page.goto
-          await page.goto(step.value || '', {
-            waitUntil: 'domcontentloaded', // Wait for basic page content
-            timeout
-          });
-          console.log(`✓ Navigated to: ${step.value}`);
-          return { success: true, action: 'navigate', url: step.value };
-
-        case 'scroll':
-          await locator.scrollIntoViewIfNeeded({ timeout });
-          console.log(`✓ Scrolled to: ${step.selector}`);
-          return { success: true, action: 'scroll', selector: step.selector };
-
-        case 'press':
-          await page.keyboard.press(step.value || 'Enter'); // Default to Enter key
-          console.log(`✓ Pressed key: ${step.value}`);
-          return { success: true, action: 'press', key: step.value };
-
-        case 'screenshot':
-          const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false, timeout: 5000 });
-          const screenshotBase64 = screenshotBuffer.toString('base64');
-          console.log(`✓ Captured screenshot`);
-          return { success: true, action: 'screenshot', screenshot: `data:image/jpeg;base64,${screenshotBase64}` };
-
-        case 'doubleclick':
-          await locator.dblclick({ timeout });
-          console.log(`✓ Double-clicked: ${step.selector}`);
-          return { success: true, action: 'doubleclick', selector: step.selector };
-
-        case 'rightclick':
-          await locator.click({ button: 'right', timeout });
-          console.log(`✓ Right-clicked: ${step.selector}`);
-          return { success: true, action: 'rightclick', selector: step.selector };
-
-        case 'clear':
-          await locator.clear({ timeout });
-          console.log(`✓ Cleared: ${step.selector}`);
-          return { success: true, action: 'clear', selector: step.selector };
-
-        case 'upload':
-          // step.value should be the path to the file to upload
-          await locator.setInputFiles(step.value || '', { timeout });
-          console.log(`✓ Uploaded file to: ${step.selector}`);
-          return { success: true, action: 'upload', selector: step.selector, filePath: step.value };
-
-        default:
-          throw new Error(`Unknown step type: ${step.type}`);
-      }
-
-      // Wait a bit between steps for stability
-      await page.waitForTimeout(500);
-
-    } catch (error) {
-      // Enhanced error handling with selector information
-      console.error(`✗ Step execution failed:`, {
-        type: step.type,
-        selector: step.selector,
-        value: step.value,
-        error: error.message
-      });
-
-      // Check if it's a selector error
-      if (error.message.includes('selector') || error.message.includes('locator')) {
-        throw new Error(
-          `Invalid selector "${step.selector}": ${error.message}\n` +
-          `Hint: Ensure the selector is valid CSS or Playwright syntax.`
-        );
-      }
-
-      throw error;
-    }
+    return this.stepExecutor.executeStep(page, step);
   }
 
   // NOTE: performAuthentication method removed - now using UnifiedAuthService

@@ -14,7 +14,7 @@ export function LandingPage() {
   }, [isAuthenticated, navigate]);
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-800 font-sans text-gray-900 dark:text-gray-100">
       {/* Navigation */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
         <div className="flex items-center space-x-2">
@@ -28,7 +28,7 @@ export function LandingPage() {
             </Link>
           ) : (
             <>
-              <Link to="/login" className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium">
+              <Link to="/login" className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 font-medium">
                 Log In
               </Link>
               <Link to="/register" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
@@ -44,10 +44,10 @@ export function LandingPage() {
         <div className="inline-block px-3 py-1 mb-6 text-xs font-semibold tracking-wider text-blue-600 uppercase bg-blue-50 rounded-full">
           New: AI-Powered Element Discovery
         </div>
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-8 leading-tight">
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 mb-8 leading-tight">
           Bulletproof Automated Testing for <span className="text-blue-600">Modern SaaS</span>
         </h1>
-        <p className="text-xl md:text-2xl text-gray-600 mb-10 max-w-3xl mx-auto">
+        <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-10 max-w-3xl mx-auto">
           Create, run, and maintain end-to-end tests in minutes.
           Our AI auto-heals broken selectors so your tests never flake.
         </p>
@@ -55,33 +55,33 @@ export function LandingPage() {
           <Link to="/register" className="px-8 py-4 bg-blue-600 text-white text-lg font-bold rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-xl w-full sm:w-auto">
             Start Testing for Free
           </Link>
-          <a href="#features" className="px-8 py-4 bg-white text-gray-700 border border-gray-200 text-lg font-bold rounded-xl hover:bg-gray-50 transition w-full sm:w-auto">
+          <a href="#features" className="px-8 py-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-lg font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition w-full sm:w-auto">
             View Features
           </a>
         </div>
         
         {/* Hero Image / Placeholder */}
-        <div className="mt-16 rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-          <div className="bg-gray-100 p-2 flex items-center space-x-2 border-b border-gray-200">
+        <div className="mt-16 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-100 dark:bg-gray-700 p-2 flex items-center space-x-2 border-b border-gray-200 dark:border-gray-700">
             <div className="w-3 h-3 bg-red-400 rounded-full"></div>
             <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
             <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-            <div className="flex-1 bg-white rounded-md h-6 mx-2"></div>
+            <div className="flex-1 bg-white dark:bg-gray-800 rounded-md h-6 mx-2"></div>
           </div>
-          <div className="bg-white p-8 h-96 flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
+          <div className="bg-white dark:bg-gray-800 p-8 h-96 flex items-center justify-center bg-gradient-to-br from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
             <div className="text-center">
               <div className="text-6xl mb-4">🎥</div>
-              <p className="text-gray-400 font-medium">Video Recording & Time-Travel Debugging Active</p>
+              <p className="text-gray-400 dark:text-gray-500 font-medium">Video Recording & Time-Travel Debugging Active</p>
             </div>
           </div>
         </div>
       </header>
 
       {/* Features Grid */}
-      <section id="features" className="py-20 bg-gray-50">
+      <section id="features" className="py-20 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900">Everything you need to ship with confidence</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Everything you need to ship with confidence</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <FeatureCard 
@@ -119,13 +119,13 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-white py-12 border-t border-gray-200">
+      <footer className="bg-white dark:bg-gray-800 py-12 border-t border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center space-x-2 mb-4 md:mb-0">
             <span className="text-2xl">🤖</span>
-            <span className="font-bold text-gray-900">SaaS Nomation</span>
+            <span className="font-bold text-gray-900 dark:text-gray-100">SaaS Nomation</span>
           </div>
-          <div className="text-gray-500 text-sm">
+          <div className="text-gray-500 dark:text-gray-400 text-sm">
             © 2025 SaaS Nomation. All rights reserved.
           </div>
         </div>
@@ -136,10 +136,10 @@ export function LandingPage() {
 
 function FeatureCard({ icon, title, desc }: { icon: string, title: string, desc: string }) {
   return (
-    <div className="bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition border border-gray-100">
+    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm hover:shadow-md transition border border-gray-100 dark:border-gray-700">
       <div className="text-4xl mb-4">{icon}</div>
-      <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600 leading-relaxed">{desc}</p>
+      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
+      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{desc}</p>
     </div>
   );
 }

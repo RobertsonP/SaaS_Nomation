@@ -13,7 +13,12 @@ export class ProjectElementsService {
     private selectorQualityService: SelectorQualityService,
   ) {}
 
-  async getProjectElements(organizationId: string, projectId: string) {
+  async getProjectElements(organizationId: string, projectId: string, options?: {
+    skip?: number;
+    take?: number;
+    type?: string;
+    sourceUrlId?: string;
+  }) {
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, organizationId },
     });
@@ -22,16 +27,41 @@ export class ProjectElementsService {
       throw new Error('Project not found');
     }
 
-    return this.prisma.projectElement.findMany({
-      where: { projectId },
-      include: { sourceUrl: true },
-      orderBy: [
-        { sourceUrl: { url: 'asc' } },
-        { confidence: 'desc' },
-        { elementType: 'asc' },
-        { createdAt: 'desc' }
-      ]
-    });
+    const where: any = { projectId };
+    if (options?.type) where.elementType = options.type;
+    if (options?.sourceUrlId) where.sourceUrlId = options.sourceUrlId;
+
+    // If no pagination params, return all elements (backwards compatible)
+    if (options?.skip === undefined && options?.take === undefined) {
+      return this.prisma.projectElement.findMany({
+        where,
+        include: { sourceUrl: true },
+        orderBy: [
+          { sourceUrl: { url: 'asc' } },
+          { confidence: 'desc' },
+          { elementType: 'asc' },
+          { createdAt: 'desc' }
+        ]
+      });
+    }
+
+    const [elements, total] = await Promise.all([
+      this.prisma.projectElement.findMany({
+        where,
+        include: { sourceUrl: true },
+        orderBy: [
+          { sourceUrl: { url: 'asc' } },
+          { confidence: 'desc' },
+          { elementType: 'asc' },
+          { createdAt: 'desc' }
+        ],
+        skip: options?.skip,
+        take: options?.take,
+      }),
+      this.prisma.projectElement.count({ where }),
+    ]);
+
+    return { elements, total, skip: options?.skip || 0, take: options?.take };
   }
 
   async createProjectElements(organizationId: string, projectId: string, elements: Array<{

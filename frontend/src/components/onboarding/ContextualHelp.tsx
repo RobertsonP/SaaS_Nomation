@@ -162,7 +162,7 @@ export function ContextualHelp({ page, trigger, isVisible = true }: ContextualHe
   if (!isVisible || isDismissed || !currentTip || tips.length === 0) return null
 
   return (
-    <div className="fixed bottom-4 left-4 max-w-sm bg-white rounded-lg shadow-lg border border-gray-200 z-40 animate-slide-up">
+    <div className="fixed bottom-4 left-4 max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-40 animate-slide-up">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-500 to-blue-600 text-white p-3 rounded-t-lg">
         <div className="flex items-center justify-between">
@@ -192,10 +192,10 @@ export function ContextualHelp({ page, trigger, isVisible = true }: ContextualHe
             expandedTip === currentTip.id ? 'max-h-40' : 'max-h-20'
           } overflow-hidden`}
         >
-          <h4 className="font-medium text-gray-900 text-sm mb-2">
+          <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2">
             {currentTip.title}
           </h4>
-          <p className="text-xs text-gray-600 leading-relaxed">
+          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
             {currentTip.content}
           </p>
         </div>
@@ -221,7 +221,7 @@ export function ContextualHelp({ page, trigger, isVisible = true }: ContextualHe
         )}
 
         {/* Priority Indicator */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center space-x-1">
             {currentTip.priority === 'high' && (
               <div className="flex items-center space-x-1 text-red-600">
@@ -236,8 +236,8 @@ export function ContextualHelp({ page, trigger, isVisible = true }: ContextualHe
               </div>
             )}
             {currentTip.priority === 'low' && (
-              <div className="flex items-center space-x-1 text-gray-500">
-                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <div className="flex items-center space-x-1 text-gray-500 dark:text-gray-400">
+                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
                 <span className="text-xs">Optional</span>
               </div>
             )}
@@ -248,11 +248,11 @@ export function ContextualHelp({ page, trigger, isVisible = true }: ContextualHe
             <button
               onClick={handlePrevious}
               disabled={currentTipIndex === 0}
-              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ← Prev
             </button>
-            <div className="text-xs text-gray-400">|</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500">|</div>
             <button
               onClick={handleNext}
               className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"

@@ -208,9 +208,9 @@ export function SiteMapGraph({
   return (
     <div className={`relative ${className}`}>
       {/* Stats bar */}
-      <div className="absolute top-2 left-2 z-10 bg-white/90 backdrop-blur rounded-lg shadow px-3 py-2 flex gap-4 text-sm">
-        <span className="text-gray-600">
-          <strong className="text-gray-900">{stats.total}</strong> pages
+      <div className="absolute top-2 left-2 z-10 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow px-3 py-2 flex gap-4 text-sm">
+        <span className="text-gray-600 dark:text-gray-400">
+          <strong className="text-gray-900 dark:text-gray-100">{stats.total}</strong> pages
         </span>
         <span className="text-green-600">
           <strong>{stats.analyzed}</strong> analyzed

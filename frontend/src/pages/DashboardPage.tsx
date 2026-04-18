@@ -3,14 +3,14 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useProjects } from '../contexts/ProjectsContext'
 import { OnboardingWizard } from '../components/onboarding/OnboardingWizard'
-import { 
-  Layout, 
-  Play, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Plus, 
-  BarChart3, 
+import { executionAPI } from '../lib/api'
+import {
+  Layout,
+  Play,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Plus,
   ChevronRight,
   Activity,
   Zap
@@ -29,10 +29,35 @@ export function DashboardPage() {
   const { user } = useAuth()
   const { projects, loading, refreshProjects } = useProjects()
 
+  const [executionStats, setExecutionStats] = useState({
+    running: 0,
+    totalToday: 0,
+    passRate7d: 0,
+    totalLast7d: 0,
+  })
+
   // Safety refresh on mount - ensures projects are fresh on dashboard
   useEffect(() => {
     refreshProjects()
   }, [refreshProjects])
+
+  // Fetch real execution stats on mount
+  useEffect(() => {
+    executionAPI.getStats()
+      .then(res => {
+        if (res.data?.success) {
+          setExecutionStats({
+            running: res.data.running,
+            totalToday: res.data.totalToday,
+            passRate7d: res.data.passRate7d,
+            totalLast7d: res.data.totalLast7d,
+          })
+        }
+      })
+      .catch(() => {
+        // Silently fail — dashboard shows zeros which is acceptable
+      })
+  }, [])
 
   // Show wizard if no projects (only check once loading is complete)
   useEffect(() => {
@@ -41,17 +66,17 @@ export function DashboardPage() {
     }
   }, [loading, projects.length])
 
-  // Calculate stats from projects data
+  // Calculate stats from projects data and real execution stats
   const stats = useMemo(() => {
     const totalProjects = projects.length;
     const totalTests = projects.reduce((sum, project) => sum + (project._count?.tests || 0), 0);
     return {
       totalProjects,
       totalTests,
-      activeExecutions: 0,
-      successRate: totalTests > 0 ? 94 : 0
+      activeExecutions: executionStats.running,
+      successRate: executionStats.passRate7d,
     };
-  }, [projects]);
+  }, [projects, executionStats]);
 
   // Build stat cards using calculated stats
   const statCards = useMemo(() => [
@@ -158,8 +183,12 @@ export function DashboardPage() {
                 <h3 className="text-lg font-semibold">Launch Full Regression</h3>
                 <p className="text-blue-100 mt-1 opacity-90">Run all tests across all your projects with one click.</p>
               </div>
-              <button className="px-5 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors">
-                Start Now
+              <button
+                disabled
+                title="Coming soon"
+                className="px-5 py-2 bg-white/50 text-blue-200 rounded-lg font-medium cursor-not-allowed"
+              >
+                Coming Soon
               </button>
             </div>
           </div>
@@ -183,17 +212,14 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-amber-50 dark:bg-amber-900/30 border border-yellow-200 dark:border-amber-800 rounded-xl p-6">
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
             <div className="flex items-center space-x-3 mb-3">
-              <BarChart3 className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-              <h3 className="font-bold text-amber-900 dark:text-amber-200">Optimization Tip</h3>
+              <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <h3 className="font-bold text-blue-900 dark:text-blue-200">Getting Started</h3>
             </div>
-            <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
-              We noticed you have 3 tests using positional selectors. Try using <span className="font-bold">Data Test IDs</span> to improve your suite stability by up to 40%.
+            <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
+              Use <span className="font-bold">data-testid</span> attributes on key elements in your application for the most stable and reliable test selectors.
             </p>
-            <button className="mt-4 text-sm font-bold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300">
-              View brittle selectors →
-            </button>
           </div>
         </div>
       </div>

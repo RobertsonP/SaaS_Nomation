@@ -60,6 +60,7 @@ export function LiveElementPicker({
   const screenshotRef = useRef<HTMLImageElement>(null);
   const screenshotIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickTimeRef = useRef<number>(0);
+  const sessionTokenRef = useRef<string | null>(null);
   const [pendingClick, setPendingClick] = useState<{ x: number; y: number } | null>(null);
 
   // Initialize browser session
@@ -72,8 +73,9 @@ export function LiveElementPicker({
 
       try {
         logger.info('Creating browser session for element picker');
-        const session = await browserAPI.createSession(projectId);
+        const session = await browserAPI.createSession(projectId, undefined, initialUrl);
         setSessionToken(session.sessionToken);
+        sessionTokenRef.current = session.sessionToken;
         logger.info('Session created:', session.sessionToken);
 
         // Navigate to initial URL
@@ -100,16 +102,23 @@ export function LiveElementPicker({
       if (screenshotIntervalRef.current) {
         clearInterval(screenshotIntervalRef.current);
       }
-      if (sessionToken) {
-        browserAPI.closeSession(sessionToken).catch(err =>
+      if (sessionTokenRef.current) {
+        browserAPI.closeSession(sessionTokenRef.current).catch(err =>
           logger.error('Failed to close session:', err)
         );
+        sessionTokenRef.current = null;
       }
     };
   }, [isOpen, projectId, initialUrl]);
 
   // Screenshot polling
   const startScreenshotPolling = useCallback((token: string) => {
+    // Clear any existing polling interval to prevent leaks
+    if (screenshotIntervalRef.current) {
+      clearInterval(screenshotIntervalRef.current);
+      screenshotIntervalRef.current = null;
+    }
+
     const captureScreenshot = async () => {
       try {
         const response = await browserAPI.getSessionScreenshot(token);
@@ -122,8 +131,8 @@ export function LiveElementPicker({
     // Initial capture
     captureScreenshot();
 
-    // Task 1.10: Poll every 500ms for faster updates
-    screenshotIntervalRef.current = setInterval(captureScreenshot, 500);
+    // Poll every 2000ms — fast enough to show page state, slow enough to avoid window flicker
+    screenshotIntervalRef.current = setInterval(captureScreenshot, 2000);
   }, []);
 
   // Handle URL navigation
@@ -175,6 +184,12 @@ export function LiveElementPicker({
     const pageY = Math.round(displayY * scaleY);
 
     logger.info(`Click at display (${displayX}, ${displayY}) → page (${pageX}, ${pageY}) | Mode: ${actionMode}`);
+
+    // Pause screenshot polling during element detection to avoid flicker
+    if (screenshotIntervalRef.current) {
+      clearInterval(screenshotIntervalRef.current);
+      screenshotIntervalRef.current = null;
+    }
 
     // Task 1.10: Show IMMEDIATE visual feedback before API call (optimistic UI)
     setClickPosition({ x: displayX, y: displayY });
@@ -248,6 +263,11 @@ export function LiveElementPicker({
       setIsExecutingAction(false);
       setPendingClick(null);
       setTimeout(() => setClickPosition(null), 300); // Faster feedback clear
+
+      // Resume screenshot polling after detection completes
+      if (sessionToken) {
+        startScreenshotPolling(sessionToken);
+      }
     }
   };
 

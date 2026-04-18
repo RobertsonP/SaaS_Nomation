@@ -28,6 +28,7 @@ interface DiscoveryContextType {
     rootUrl: string,
     options?: { maxDepth?: number; maxPages?: number; useSitemap?: boolean; authFlowId?: string }
   ) => void;
+  cancelDiscovery: () => Promise<{ cancelled: boolean; urlsFound: number } | undefined>;
   minimizeDiscovery: () => void;
   restoreDiscovery: () => void;
   clearDiscovery: () => void;
@@ -169,6 +170,29 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       });
   }, [stopPolling, startPolling, showSuccess, showError]);
 
+  const cancelDiscovery = useCallback(async () => {
+    if (!activeDiscovery?.projectId) return undefined;
+    try {
+      const result = await projectsAPI.cancelDiscovery(activeDiscovery.projectId);
+      stopPolling();
+      setActiveDiscovery(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: 'complete',
+          phase: 'complete',
+          pagesFound: result.urlsFound,
+        };
+      });
+      showSuccess('Discovery Stopped', `${result.urlsFound} pages saved.`);
+      return result;
+    } catch (error) {
+      console.error('Failed to cancel discovery:', error);
+      showError('Cancel Failed', 'Could not stop discovery. It may have already completed.');
+      return undefined;
+    }
+  }, [activeDiscovery?.projectId, stopPolling, showSuccess, showError]);
+
   const minimizeDiscovery = useCallback(() => {
     setIsMinimized(true);
     if (activeDiscovery?.status === 'discovering') {
@@ -192,6 +216,7 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         activeDiscovery,
         isMinimized,
         startBackgroundDiscovery,
+        cancelDiscovery,
         minimizeDiscovery,
         restoreDiscovery,
         clearDiscovery,

@@ -1,6 +1,12 @@
 import { useState, useRef } from 'react';
 import { CellSelectorPopover, CellStepData } from './CellSelectorPopover';
 
+interface CellAction {
+  text: string;
+  selector: string;
+  tag: string;
+}
+
 interface TableData {
   headers: string[];
   rowCount: number;
@@ -9,6 +15,7 @@ interface TableData {
   rowSelectors: string[];
   columnSelectors: string[];
   cellSelectors: string[][];
+  cellActions?: CellAction[][][];
   headerColumnMap: Record<string, number>;
   hasHeaders: boolean;
   hasTbody: boolean;
@@ -22,10 +29,10 @@ interface TableExplorerProps {
 
 export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerProps) {
   const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
-  const [activeCell, setActiveCell] = useState<{ row: number; col: number; selector: string; text: string; position: { top: number; left: number } } | null>(null);
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number; selector: string; text: string; position: { top: number; left: number }; cellActions?: CellAction[] } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const { headers, sampleData, rowSelectors, columnSelectors, cellSelectors, tableSelector, hasTbody } = tableData;
+  const { headers, sampleData, rowSelectors, columnSelectors, cellSelectors, cellActions: cellActionsData, tableSelector, hasTbody } = tableData;
   const displayRows = sampleData || [];
 
   const handleCopySelector = async (selector: string) => {
@@ -47,6 +54,7 @@ export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerPr
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const containerRect = tableRef.current?.getBoundingClientRect() || rect;
 
+    const actions = cellActionsData?.[rowIdx]?.[colIdx];
     setActiveCell({
       row: rowIdx,
       col: colIdx,
@@ -56,6 +64,7 @@ export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerPr
         top: rect.bottom - containerRect.top + 4,
         left: Math.min(rect.left - containerRect.left, containerRect.width - 320),
       },
+      cellActions: actions,
     });
   };
 
@@ -144,20 +153,28 @@ export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerPr
                   )}
                 </td>
                 {/* Data cells — clickable for cell popover */}
-                {row.map((cell, cellIdx) => (
-                  <td
-                    key={cellIdx}
-                    onClick={(e) => handleCellClick(e, rowIdx, cellIdx)}
-                    className={`px-2 py-1.5 truncate max-w-[150px] cursor-pointer transition-colors ${
-                      activeCell?.row === rowIdx && activeCell?.col === cellIdx
-                        ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-teal-50 dark:hover:bg-teal-900/20'
-                    }`}
-                    title={cell || '-'}
-                  >
-                    {cell || '-'}
-                  </td>
-                ))}
+                {row.map((cell, cellIdx) => {
+                  const hasCellActions = cellActionsData?.[rowIdx]?.[cellIdx]?.length;
+                  return (
+                    <td
+                      key={cellIdx}
+                      onClick={(e) => handleCellClick(e, rowIdx, cellIdx)}
+                      className={`px-2 py-1.5 truncate max-w-[150px] cursor-pointer transition-colors ${
+                        activeCell?.row === rowIdx && activeCell?.col === cellIdx
+                          ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-teal-50 dark:hover:bg-teal-900/20'
+                      }`}
+                      title={cell || '-'}
+                    >
+                      <span className="flex items-center gap-1">
+                        {cell || '-'}
+                        {hasCellActions ? (
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" title="Contains clickable actions" />
+                        ) : null}
+                      </span>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -171,6 +188,7 @@ export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerPr
             position={activeCell.position}
             onClose={() => setActiveCell(null)}
             onAddStep={onAddStep}
+            cellActions={activeCell.cellActions}
           />
         )}
       </div>

@@ -80,13 +80,13 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col min-h-[500px] animate-fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col min-h-[500px] animate-fade-in">
         
         {/* Header / Progress */}
         <div className="px-8 py-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
           <div className="flex items-center space-x-2">
             <span className="text-2xl">🚀</span>
-            <span className="font-bold text-gray-800 text-lg">Welcome to Nomation</span>
+            <span className="font-bold text-gray-800 dark:text-gray-200 text-lg">Welcome to Nomation</span>
           </div>
           <div className="flex space-x-2">
             <div className={`w-3 h-3 rounded-full transition-all ${step >= 1 ? 'bg-blue-600 scale-110' : 'bg-gray-300'}`} />
@@ -101,8 +101,8 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
             <div className="space-y-8 animate-slide-up max-w-lg">
               <div className="text-6xl mb-4">👋</div>
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-3">Hi there! I'm your AI QA Partner.</h2>
-                <p className="text-lg text-gray-600">
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3">Hi there! I'm your AI QA Partner.</h2>
+                <p className="text-lg text-gray-600 dark:text-gray-400">
                   I help you create bulletproof automated tests in minutes, not days. 
                   Let's get your first project set up.
                 </p>
@@ -136,7 +136,7 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
               
               <button 
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 text-sm underline"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 text-sm underline"
               >
                 Skip onboarding
               </button>
@@ -146,30 +146,30 @@ export function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps)
           {step === 2 && (
             <form onSubmit={handleSubmit} className="w-full max-w-md space-y-6 animate-slide-up text-left">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">What are we testing?</h2>
-                <p className="text-gray-600">Tell me about your application.</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">What are we testing?</h2>
+                <p className="text-gray-600 dark:text-gray-400">Tell me about your application.</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project Name</label>
                 <input
                   type="text"
                   required
                   autoFocus
                   placeholder="e.g. My E-commerce App"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg dark:bg-gray-700 dark:text-gray-100"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Starting URL</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Starting URL</label>
                 <input
                   type="url"
                   required
                   placeholder="https://example.com"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg font-mono text-blue-600"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg font-mono text-blue-600 dark:bg-gray-700"
                   value={formData.url}
                   onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                 />

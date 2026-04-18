@@ -87,9 +87,9 @@ export function LiveExecutionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className={`px-6 py-4 border-b border-gray-200 ${
+        <div className={`px-6 py-4 border-b border-gray-200 dark:border-gray-700 ${
           result.success 
             ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
             : 'bg-gradient-to-r from-red-500 to-pink-600'
@@ -121,13 +121,13 @@ export function LiveExecutionModal({
           <div className="p-6 space-y-6">
             {/* Step Information */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
                 <span>📋</span>
                 <span>Step Details</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Action</label>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Action</label>
                   <div className="flex items-center space-x-2 mt-1">
                     <span className="text-lg">{getStepIcon(step.type)}</span>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.success)}`}>
@@ -136,20 +136,20 @@ export function LiveExecutionModal({
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Description</label>
-                  <div className="mt-1 text-gray-900">{step.description}</div>
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Description</label>
+                  <div className="mt-1 text-gray-900 dark:text-gray-100">{step.description}</div>
                 </div>
               </div>
               <div className="mt-4">
-                <label className="text-sm font-medium text-gray-600">Selector</label>
-                <div className="mt-1 bg-white p-3 rounded border font-mono text-sm text-gray-800 break-all">
+                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Selector</label>
+                <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 font-mono text-sm text-gray-800 dark:text-gray-200 break-all">
                   {step.selector}
                 </div>
               </div>
               {step.value && (
                 <div className="mt-4">
-                  <label className="text-sm font-medium text-gray-600">Value</label>
-                  <div className="mt-1 bg-white p-3 rounded border text-gray-900">
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Value</label>
+                  <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 text-gray-900 dark:text-gray-100">
                     "{step.value}"
                   </div>
                 </div>
@@ -158,14 +158,14 @@ export function LiveExecutionModal({
 
             {/* Execution Results */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
                 <span>{result.success ? '🎯' : '⚠️'}</span>
                 <span>Execution Results</span>
               </h3>
               
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">Status</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.success)}`}>
                     {result.success ? 'SUCCESS' : 'FAILED'}
                   </span>
@@ -173,8 +173,8 @@ export function LiveExecutionModal({
 
                 {result.timing && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">Duration</span>
-                    <span className="text-sm text-gray-900 font-mono">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Duration</span>
+                    <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">
                       {formatTiming(result.timing.duration)}
                     </span>
                   </div>
@@ -182,7 +182,7 @@ export function LiveExecutionModal({
 
                 {result.elementFound !== undefined && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">Element Found</span>
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Element Found</span>
                     <span className={`text-sm font-medium ${result.elementFound ? 'text-green-600' : 'text-red-600'}`}>
                       {result.elementFound ? '✓ Yes' : '✗ No'}
                     </span>
@@ -191,8 +191,8 @@ export function LiveExecutionModal({
 
                 {result.result && (
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Result</label>
-                    <div className="mt-1 bg-white p-3 rounded border text-gray-900">
+                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Result</label>
+                    <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 text-gray-900 dark:text-gray-100">
                       {result.result}
                     </div>
                   </div>
@@ -212,21 +212,21 @@ export function LiveExecutionModal({
             {/* Screenshot */}
             {result.screenshot && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
                   <span>📸</span>
                   <span>Screenshot</span>
                 </h3>
-                <div className="bg-white p-4 rounded-lg border">
+                <div className="bg-white dark:bg-gray-700 p-4 rounded-lg border dark:border-gray-600">
                   <div className="text-center">
                     <img
-                      src={result.screenshot.startsWith('data:image/') 
-                        ? result.screenshot 
+                      src={result.screenshot.startsWith('data:image/')
+                        ? result.screenshot
                         : `data:image/png;base64,${result.screenshot}`}
                       alt="Step execution screenshot"
-                      className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
+                      className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 dark:border-gray-600"
                       style={{ maxHeight: '500px' }}
                     />
-                    <div className="mt-3 text-sm text-gray-600">
+                    <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
                       Screenshot taken after step execution
                     </div>
                   </div>
@@ -237,7 +237,7 @@ export function LiveExecutionModal({
             {/* Execution Logs */}
             {result.logs && result.logs.length > 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
                   <span>📝</span>
                   <span>Execution Logs</span>
                 </h3>
@@ -262,7 +262,7 @@ export function LiveExecutionModal({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             {result.timing && (
               <span>
                 Executed at {new Date(result.timing.startTime).toLocaleTimeString()}
@@ -280,7 +280,7 @@ export function LiveExecutionModal({
                     : `data:image/png;base64,${result.screenshot || ''}`;
                   link.click();
                 }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm"
               >
                 📥 Download Screenshot
               </button>

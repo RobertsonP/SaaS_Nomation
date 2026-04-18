@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Request, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Request, UseGuards, NotFoundException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { DiscoveryService } from './discovery.service';
@@ -36,6 +36,16 @@ export class DiscoveryController {
         authFlowId: body.authFlowId,
       },
     );
+  }
+
+  /**
+   * Cancel an in-progress discovery
+   * POST /api/projects/:id/discover/cancel
+   */
+  @Post(':id/discover/cancel')
+  @UseGuards(OrganizationGuard)
+  async cancelDiscovery(@Request() req, @Param('id') projectId: string) {
+    return this.discoveryService.cancelDiscovery(projectId, req.organization.id);
   }
 
   /**

@@ -50,9 +50,9 @@ export function ExecutionVideoPlayer({ executionId, testName, videoPath, thumbna
   }
 
   return (
-    <div className="bg-white rounded-lg shadow border overflow-hidden mb-6">
-      <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-        <h3 className="font-semibold text-gray-800 flex items-center">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 overflow-hidden mb-6">
+      <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+        <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
           <span className="mr-2">🎥</span> Execution Recording
         </h3>
         <a 
@@ -89,7 +89,7 @@ export function ExecutionVideoPlayer({ executionId, testName, videoPath, thumbna
         )}
       </div>
       
-      <div className="p-3 bg-gray-50 text-xs text-gray-500 flex justify-between">
+      <div className="p-3 bg-gray-50 dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
         <span>Format: WebM (VP8/VP9)</span>
         <span>Resolution: 1920x1080</span>
       </div>

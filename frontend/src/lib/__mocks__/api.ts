@@ -32,6 +32,7 @@ export const projectsAPI = {
   delete: jest.fn(),
   analyze: jest.fn(),
   getElements: jest.fn(),
+  getElementsPaginated: jest.fn(),
   validateSelector: jest.fn(),
   validateSelectorAcrossProject: jest.fn(),
   captureElementScreenshot: jest.fn(),

@@ -83,8 +83,8 @@ function QualityBadge({
       </button>
       
       {!isValidated && (
-        <span 
-          className="px-1 py-0.5 text-xs bg-gray-100 text-gray-600 rounded border border-gray-200" 
+        <span
+          className="px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-700"
           title="Element not validated with Phase 2 quality metrics"
         >
           ❓
@@ -111,12 +111,12 @@ function DetailedQualityView({
   const overallQuality = element.overallQuality || 0;
 
   return (
-    <div className={`quality-detailed-view bg-white border border-gray-200 rounded-lg p-4 ${className}`}>
+    <div className={`quality-detailed-view bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 ${className}`}>
       {/* Header with overall score */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <QualityBadge quality={overallQuality} isValidated={element.isValidated || false} />
-          <span className="text-sm font-medium text-gray-700">Quality Assessment</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Quality Assessment</span>
         </div>
         
         {onImprove && overallQuality < 0.8 && (
@@ -187,17 +187,17 @@ function DashboardQualityView({
   const { color, icon } = getQualityStyle(overallQuality);
 
   return (
-    <div className={`quality-dashboard-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow ${className}`}>
+    <div className={`quality-dashboard-item flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm transition-shadow ${className}`}>
       <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${color}`}>
           {icon}
         </div>
         
         <div>
-          <div className="font-medium text-sm text-gray-900">
+          <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
             {element.description}
           </div>
-          <div className="text-xs text-gray-500 font-mono">
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
             {element.selector.length > 40 ? 
               element.selector.substring(0, 40) + '...' : 
               element.selector
@@ -213,7 +213,7 @@ function DashboardQualityView({
           {Math.round(overallQuality * 100)}%
         </div>
         {qualityMetrics && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 dark:text-gray-400">
             U:{Math.round(qualityMetrics.uniqueness * 100)} 
             S:{Math.round(qualityMetrics.stability * 100)}
           </div>
@@ -241,8 +241,8 @@ function QualityMetricBar({
     <div className="space-y-1">
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-700">{label}</span>
-          <span className="text-xs text-gray-500">({weight})</span>
+          <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">({weight})</span>
         </div>
         <span className={`font-medium ${
           score >= 0.8 ? 'text-green-700' : 
@@ -253,7 +253,7 @@ function QualityMetricBar({
         </span>
       </div>
       
-      <div className="w-full bg-gray-200 rounded-full h-2">
+      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
         <div
           className={`h-2 rounded-full transition-all duration-300 ${
             score >= 0.8 ? 'bg-green-500' : 
@@ -264,7 +264,7 @@ function QualityMetricBar({
         />
       </div>
       
-      <p className="text-xs text-gray-600">{description}</p>
+      <p className="text-xs text-gray-600 dark:text-gray-400">{description}</p>
     </div>
   );
 }
@@ -272,22 +272,22 @@ function QualityMetricBar({
 // Validation status section
 function ValidationStatusSection({ element }: { element: ProjectElement }) {
   return (
-    <div className="mt-4 pt-4 border-t border-gray-200">
+    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700">Validation Status</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Validation Status</span>
         <div className="flex items-center gap-2">
           {element.isValidated ? (
             <span className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-800 rounded border border-green-200">
               ✅ Validated
             </span>
           ) : (
-            <span className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded border border-gray-200">
+            <span className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-700">
               ⏳ Pending
             </span>
           )}
           
           {element.lastValidated && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               {new Date(element.lastValidated).toLocaleDateString()}
             </span>
           )}
@@ -306,15 +306,15 @@ function SuggestionsSection({
   fallbackSelectors?: string[];
 }) {
   return (
-    <div className="mt-4 pt-4 border-t border-gray-200">
-      <h4 className="text-sm font-medium text-gray-700 mb-2">Recommendations</h4>
+    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recommendations</h4>
       
       {validationErrors.length > 0 && (
         <div className="space-y-1 mb-3">
           {validationErrors.slice(0, 3).map((error, index) => (
             <div key={index} className="flex items-start gap-2 text-xs">
               <span className="text-orange-500 mt-0.5">⚠️</span>
-              <span className="text-gray-700">{error}</span>
+              <span className="text-gray-700 dark:text-gray-300">{error}</span>
             </div>
           ))}
         </div>
@@ -322,7 +322,7 @@ function SuggestionsSection({
       
       {fallbackSelectors && fallbackSelectors.length > 0 && (
         <div className="space-y-1">
-          <span className="text-xs font-medium text-gray-600">Alternative selectors:</span>
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Alternative selectors:</span>
           {fallbackSelectors.slice(0, 2).map((selector, index) => (
             <div key={index} className="font-mono text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border">
               {selector}

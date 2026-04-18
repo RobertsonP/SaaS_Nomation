@@ -11,6 +11,7 @@ import { join } from 'path';
 import { writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { SmartWaitService } from '../execution/smart-wait.service';
+import { StepExecutorService } from '../execution/step-executor.service';
 import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 
 interface TestStep {
@@ -33,6 +34,7 @@ export class ExecutionQueueProcessor {
     private unifiedAuthService: UnifiedAuthService,
     private progressGateway: ExecutionProgressGateway,
     private smartWaitService: SmartWaitService,
+    private stepExecutor: StepExecutorService,
   ) {}
 
   @Process('execute-test')
@@ -155,6 +157,7 @@ export class ExecutionQueueProcessor {
           const dockerUrl = normalizeUrlForDocker(test.startingUrl);
           console.log(`🔍 [Job ${job.id}] Executing without authentication for URL: ${test.startingUrl} → ${dockerUrl}`);
           await page.goto(dockerUrl);
+          await this.smartWaitService.waitForNetworkIdle(page, 2000).catch(() => {});
         }
 
         await job.progress(30);
@@ -482,207 +485,10 @@ export class ExecutionQueueProcessor {
   }
 
   /**
-   * Resolve a selector string into a Playwright Locator.
-   * Supports both CSS/XPath selectors and Playwright-native locator strings:
-   *   - getByRole('button', { name: 'Submit' })
-   *   - getByText('Hello')
-   *   - getByLabel('Email')
-   *   - getByTestId('submit-btn')
-   *   - getByPlaceholder('Enter email')
-   *   - getByTitle('Close')
-   *   - Regular CSS/XPath selectors (fallback)
-   */
-  private resolveLocator(page: Page, selector: string) {
-    // Match native locator patterns: getByRole('...', { ... }) or getByText('...')
-    const nativeMatch = selector.match(/^(getByRole|getByText|getByLabel|getByTestId|getByPlaceholder|getByTitle)\(/);
-    if (!nativeMatch) {
-      return page.locator(selector);
-    }
-
-    const method = nativeMatch[1];
-
-    // Extract the first string argument (between first pair of quotes)
-    const firstArgMatch = selector.match(/\(\s*['"]([^'"]*)['"]/);
-    if (!firstArgMatch) {
-      return page.locator(selector); // Fallback if can't parse
-    }
-    const firstArg = firstArgMatch[1];
-
-    // Extract options object if present: { name: '...', exact: true }
-    const optionsMatch = selector.match(/,\s*\{([^}]+)\}/);
-    const options: Record<string, unknown> = {};
-    if (optionsMatch) {
-      const optStr = optionsMatch[1];
-      // Parse name: '...'
-      const nameMatch = optStr.match(/name:\s*['"]([^'"]*)['"]/);
-      if (nameMatch) options.name = nameMatch[1];
-      // Parse exact: true/false
-      const exactMatch = optStr.match(/exact:\s*(true|false)/);
-      if (exactMatch) options.exact = exactMatch[1] === 'true';
-    }
-
-    switch (method) {
-      case 'getByRole':
-        return page.getByRole(firstArg as any, options as any);
-      case 'getByText':
-        return page.getByText(firstArg, options as any);
-      case 'getByLabel':
-        return page.getByLabel(firstArg, options as any);
-      case 'getByTestId':
-        return page.getByTestId(firstArg);
-      case 'getByPlaceholder':
-        return page.getByPlaceholder(firstArg, options as any);
-      case 'getByTitle':
-        return page.getByTitle(firstArg, options as any);
-      default:
-        return page.locator(selector);
-    }
-  }
-
-  /**
-   * Get reliable locator with fallback selector support
-   * Uses smart wait priority: visible > stable > element (GEMINI requirement)
-   * Supports both CSS selectors and Playwright-native locator strings (getByRole, etc.)
-   */
-  private async getReliableLocator(page: Page, step: TestStep) {
-    const selectors = [
-      step.selector,
-      ...(step.fallbackSelectors || [])
-    ].filter(Boolean);
-
-    const timeout = step.timeout || 10000;
-    const isInteractiveAction = ['click', 'hover', 'doubleclick', 'rightclick'].includes(step.type);
-
-    for (let i = 0; i < selectors.length; i++) {
-      const selector = selectors[i];
-      try {
-        const locator = this.resolveLocator(page, selector);
-
-        // PRIORITY 1: Wait for element to be visible (most reliable for interactions)
-        try {
-          await this.smartWaitService.waitForVisible(locator, i === 0 ? timeout / 2 : 3000);
-
-          // PRIORITY 2: For interactive actions, wait for stability (prevent click intercepted errors)
-          if (isInteractiveAction) {
-            await this.smartWaitService.waitForStable(locator, 5000);
-          }
-
-          if (i === 0) {
-            console.log(`✅ Primary selector works: ${selector}`);
-          } else {
-            console.log(`⚠️ Primary failed, using fallback #${i}: ${selector}`);
-          }
-          return locator.first();
-        } catch (visibleError) {
-          // Fallback: PRIORITY 3 - Element exists but not visible, try anyway
-          await this.smartWaitService.waitForElement(locator, i === 0 ? timeout / 2 : 2000);
-          const count = await locator.count();
-
-          if (count > 0) {
-            console.warn(`⚠️ Element found but not visible: ${selector}`);
-            return locator.first();
-          }
-        }
-      } catch (error) {
-        console.warn(`❌ Selector ${i + 1}/${selectors.length} failed: ${selector} - ${error.message}`);
-      }
-    }
-
-    throw new Error(
-      `Element not found. Tried ${selectors.length} selector(s):\n` +
-      selectors.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
-    );
-  }
-
-  /**
-   * Execute a single test step
+   * Execute a single test step — delegates to shared StepExecutorService.
    */
   private async executeStep(page: Page, step: TestStep) {
-    const timeout = step.timeout || 10000;
-
-    // For actions that require a locator
-    const needsLocator = ['click', 'type', 'assert', 'hover', 'select', 'check', 'uncheck', 'scroll', 'doubleclick', 'rightclick', 'clear'].includes(step.type);
-    let locator = null;
-    if (needsLocator) {
-      // getReliableLocator now handles smart wait priority (visible > stable > element)
-      locator = await this.getReliableLocator(page, step);
-    }
-
-    switch (step.type) {
-      case 'click':
-        await locator.click({ timeout });
-        return { success: true, action: 'click', selector: step.selector };
-
-      case 'type':
-        await locator.fill(step.value || '', { timeout });
-        return { success: true, action: 'type', selector: step.selector, value: step.value };
-
-      case 'wait':
-        const waitTime = parseInt(step.value || '1000', 10);
-        await page.waitForTimeout(waitTime);
-        return { success: true, action: 'wait', value: waitTime };
-
-      case 'assert':
-        const textContent = await locator.textContent({ timeout });
-        if (!textContent || !textContent.includes(step.value || '')) {
-          throw new Error(`Assertion failed: Expected "${step.value}" but found "${textContent}"`);
-        }
-        return { success: true, action: 'assert', value: step.value, actual: textContent };
-
-      case 'hover':
-        await locator.hover({ timeout });
-        return { success: true, action: 'hover', selector: step.selector };
-
-      case 'select':
-        await locator.selectOption(step.value || '', { timeout });
-        return { success: true, action: 'select', selector: step.selector, value: step.value };
-
-      case 'check':
-        await locator.check({ timeout });
-        return { success: true, action: 'check', selector: step.selector };
-
-      case 'uncheck':
-        await locator.uncheck({ timeout });
-        return { success: true, action: 'uncheck', selector: step.selector };
-
-      case 'navigate':
-        const navigateUrl = normalizeUrlForDocker(step.value || '');
-        await page.goto(navigateUrl, { waitUntil: 'domcontentloaded', timeout });
-        await this.smartWaitService.waitForNetworkIdle(page, 2000).catch(() => {});
-        return { success: true, action: 'navigate', url: navigateUrl };
-
-      case 'scroll':
-        await locator.scrollIntoViewIfNeeded({ timeout });
-        return { success: true, action: 'scroll', selector: step.selector };
-
-      case 'press':
-        await page.keyboard.press(step.value || 'Enter');
-        return { success: true, action: 'press', key: step.value };
-
-      case 'screenshot':
-        const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 70, fullPage: false, timeout: 5000 });
-        const screenshotBase64 = screenshotBuffer.toString('base64');
-        return { success: true, action: 'screenshot', screenshot: `data:image/jpeg;base64,${screenshotBase64}` };
-
-      case 'doubleclick':
-        await locator.dblclick({ timeout });
-        return { success: true, action: 'doubleclick', selector: step.selector };
-
-      case 'rightclick':
-        await locator.click({ button: 'right', timeout });
-        return { success: true, action: 'rightclick', selector: step.selector };
-
-      case 'clear':
-        await locator.clear({ timeout });
-        return { success: true, action: 'clear', selector: step.selector };
-
-      case 'upload':
-        await locator.setInputFiles(step.value || '', { timeout });
-        return { success: true, action: 'upload', selector: step.selector, filePath: step.value };
-
-      default:
-        throw new Error(`Unknown step type: ${step.type}`);
-    }
+    return this.stepExecutor.executeStep(page, step);
   }
 
   /**

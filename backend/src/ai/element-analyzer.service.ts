@@ -44,6 +44,24 @@ export class ElementAnalyzerService {
       // Enhanced element extraction with CSS information (screenshots always skipped — CSS preview is sufficient)
       const elements = await this.elementDetection.extractAllPageElements(page, { skipScreenshots: true });
       // Interactive discovery (modals, dropdowns, tabs) runs separately via Phase 5 trigger — not during initial scan
+
+      // Discover hidden elements: menus, modals, dropdowns, tabs, accordions
+      if (!options?.fastMode) {
+        try {
+          const hiddenElements = await this.interactiveDiscovery.discoverHiddenElements(
+            page,
+            elements,
+            options?.onProgress ? (msg: string) => options.onProgress('interactive-discovery', 60, msg) : undefined,
+          );
+          if (hiddenElements.length > 0) {
+            elements.push(...hiddenElements);
+            console.log(`🔍 Interactive discovery found ${hiddenElements.length} hidden elements`);
+          }
+        } catch (error) {
+          console.warn('⚠️ Interactive element discovery failed:', error.message);
+        }
+      }
+
       onProgress?.(`Found ${elements.length} elements total`, 90);
 
       console.log(`Found ${elements.length} elements with enhanced data`);
@@ -747,6 +765,34 @@ export class ElementAnalyzerService {
           if (element) element.scrollIntoView();
         }, selector);
         break;
+
+      case 'navigate':
+        await page.goto(value || '', { waitUntil: 'domcontentloaded', timeout: 10000 });
+        break;
+
+      case 'screenshot':
+        // No-op during analysis — screenshots handled separately
+        break;
+
+      case 'doubleclick':
+        await locator.dblclick({ timeout: 5000 });
+        break;
+
+      case 'rightclick':
+        await locator.click({ button: 'right', timeout: 5000 });
+        break;
+
+      case 'upload':
+        await locator.setInputFiles(value || '', { timeout: 5000 });
+        break;
+
+      case 'assert': {
+        const textContent = await locator.textContent({ timeout: 5000 });
+        if (!textContent || !textContent.includes(value || '')) {
+          throw new Error(`Assertion failed: Expected "${value}" but found "${textContent}"`);
+        }
+        break;
+      }
 
       default:
         console.warn(`⚠️ Unknown step type: ${type}, skipping`);

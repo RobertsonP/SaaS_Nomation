@@ -102,7 +102,7 @@ export function ElementPreview({
     <div className="element-preview-container">
       {/* Element Preview */}
       <div
-        className="element-preview relative border-2 border-dashed border-gray-300 hover:border-blue-400 transition-all"
+        className="element-preview relative border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 transition-all"
         style={previewStyles}
         onClick={onClick}
         onMouseEnter={(e) => {
@@ -130,7 +130,7 @@ export function ElementPreview({
                 {element.attributes.text}
               </div>
             ) : (
-              <div className="text-gray-500 text-xs truncate max-w-full">
+              <div className="text-gray-500 dark:text-gray-400 text-xs truncate max-w-full">
                 {element.description}
               </div>
             )}
@@ -172,13 +172,13 @@ export function ElementPreview({
       {/* Selector Information */}
       {showSelector && (
         <div className="mt-2 text-xs">
-          <div className="font-mono text-gray-600 truncate bg-gray-100 px-2 py-1 rounded">
+          <div className="font-mono text-gray-600 dark:text-gray-400 truncate bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
             {element.selector}
           </div>
           
           {/* Additional attributes */}
           {(element.attributes.id || element.attributes['data-testid'] || element.attributes['aria-label']) && (
-            <div className="mt-1 text-gray-500">
+            <div className="mt-1 text-gray-500 dark:text-gray-400">
               {element.attributes.id && (
                 <div>ID: <span className="font-mono">#{element.attributes.id}</span></div>
               )}
@@ -197,7 +197,7 @@ export function ElementPreview({
       {showDiscoveryState && discoveryState && (
         <div className="mt-2 text-xs">
           <div className="flex items-center space-x-2">
-            <span className="text-gray-500">Discovered:</span>
+            <span className="text-gray-500 dark:text-gray-400">Discovered:</span>
             <span 
               className="px-2 py-1 rounded text-xs"
               style={{
@@ -224,7 +224,7 @@ export function ElementPreview({
           </div>
           
           {(element.attributes as any)?.discoveryTrigger && (
-            <div className="mt-1 text-gray-500">
+            <div className="mt-1 text-gray-500 dark:text-gray-400">
               Trigger: <span className="font-mono">{(element.attributes as any).discoveryTrigger}</span>
             </div>
           )}

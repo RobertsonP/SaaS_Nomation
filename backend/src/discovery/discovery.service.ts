@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpException, HttpStatus, Optional } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, Optional, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SitemapParserService } from './sitemap-parser.service';
 import { PageCrawlerService } from './page-crawler.service';
@@ -49,6 +49,7 @@ export interface DiscoveryResult {
 export class DiscoveryService {
   private readonly logger = new Logger(DiscoveryService.name);
   private discoveryProgress = new Map<string, DiscoveryProgress>();
+  private cancellationFlags = new Map<string, boolean>();
 
   constructor(
     private prisma: PrismaService,
@@ -56,6 +57,20 @@ export class DiscoveryService {
     private pageCrawler: PageCrawlerService,
     @Optional() private progressGateway?: DiscoveryProgressGateway,
   ) {}
+
+  /**
+   * Cancel an in-progress discovery and keep URLs found so far
+   */
+  async cancelDiscovery(projectId: string, organizationId: string): Promise<{ cancelled: boolean; urlsFound: number }> {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, organizationId } });
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+    this.cancellationFlags.set(projectId, true);
+    const count = await this.prisma.projectUrl.count({ where: { projectId } });
+    this.logger.log(`Discovery cancellation requested for project ${projectId}. URLs saved so far: ${count}`);
+    return { cancelled: true, urlsFound: count };
+  }
 
   /**
    * Check if URL is a local development address
@@ -157,6 +172,9 @@ export class DiscoveryService {
   ): Promise<DiscoveryResult> {
     const { maxDepth = 3, maxPages = 100, useSitemap = true, authFlowId } = options;
     const startTime = Date.now();
+
+    // Reset cancellation flag
+    this.cancellationFlags.set(projectId, false);
 
     // Verify project belongs to organization
     const project = await this.prisma.project.findFirst({
@@ -316,8 +334,35 @@ export class DiscoveryService {
         currentUrl: baseUrl,
       });
 
+      // Check cancellation before crawling
+      if (this.cancellationFlags.get(projectId)) {
+        this.logger.log(`Discovery cancelled for project ${projectId} before crawling`);
+        this.cancellationFlags.delete(projectId);
+        const savedCount = await this.prisma.projectUrl.count({ where: { projectId } });
+        this.updateProgress(projectId, {
+          status: 'complete',
+          phase: 'complete',
+          discoveredUrls: savedCount,
+          totalUrls: savedCount,
+          message: `Discovery stopped. ${savedCount} pages saved.`,
+          urls: discoveredPages.map(p => p.url),
+        });
+        return {
+          projectId,
+          pages: discoveredPages,
+          relationships,
+          stats: {
+            totalPages: savedCount,
+            pagesRequiringAuth: discoveredPages.filter(p => p.requiresAuth).length,
+            externalLinks: 0,
+            discoveryTime: Date.now() - startTime,
+          },
+        };
+      }
+
       // Only crawl what's needed beyond sitemap results
       const remainingPages = Math.max(0, maxPages - discoveredPages.length);
+      const shouldCancel = () => this.cancellationFlags.get(projectId) === true;
       const crawlResults = await this.pageCrawler.crawlWithDepth(
         baseUrl,
         maxDepth,
@@ -335,10 +380,19 @@ export class DiscoveryService {
             currentUrl,
           });
         },
+        { shouldCancel },
       );
 
-      // Process crawl results
+      // Process crawl results and save incrementally
+      const incrementalBatch: DiscoveredPage[] = [];
+
       for (const [url, result] of crawlResults) {
+        // Check cancellation during result processing
+        if (this.cancellationFlags.get(projectId)) {
+          this.logger.log(`Discovery cancelled for project ${projectId} during result processing`);
+          break;
+        }
+
         // Check if already in discovered pages
         const existing = discoveredPages.find(p => this.normalizeUrl(p.url) === this.normalizeUrl(url));
         if (existing) {
@@ -348,15 +402,17 @@ export class DiscoveryService {
           existing.screenshot = result.screenshot;
           existing.isAccessible = result.isAccessible;
         } else {
-          discoveredPages.push({
+          const page: DiscoveredPage = {
             url,
             title: result.title,
             pageType: result.pageType,
             requiresAuth: result.requiresAuth,
-            depth: 0, // Will be calculated
+            depth: 0,
             screenshot: result.screenshot,
             isAccessible: result.isAccessible,
-          });
+          };
+          discoveredPages.push(page);
+          incrementalBatch.push(page);
         }
 
         // Process links for relationships
@@ -370,6 +426,44 @@ export class DiscoveryService {
             });
           }
         }
+
+        // Save incrementally every 5 new pages
+        if (incrementalBatch.length >= 5) {
+          await this.saveUrlBatch(projectId, incrementalBatch, urlToId);
+          incrementalBatch.length = 0;
+        }
+      }
+
+      // Save any remaining pages in the incremental batch
+      if (incrementalBatch.length > 0) {
+        await this.saveUrlBatch(projectId, incrementalBatch, urlToId);
+        incrementalBatch.length = 0;
+      }
+
+      // Check if cancelled during processing
+      const wasCancelled = this.cancellationFlags.get(projectId);
+      if (wasCancelled) {
+        this.cancellationFlags.delete(projectId);
+        const savedCount = await this.prisma.projectUrl.count({ where: { projectId } });
+        this.updateProgress(projectId, {
+          status: 'complete',
+          phase: 'complete',
+          discoveredUrls: savedCount,
+          totalUrls: savedCount,
+          message: `Discovery stopped. ${savedCount} pages saved.`,
+          urls: discoveredPages.map(p => p.url),
+        });
+        return {
+          projectId,
+          pages: discoveredPages,
+          relationships,
+          stats: {
+            totalPages: savedCount,
+            pagesRequiringAuth: discoveredPages.filter(p => p.requiresAuth).length,
+            externalLinks: relationships.filter(r => r.linkType === 'external').length,
+            discoveryTime: Date.now() - startTime,
+          },
+        };
       }
 
       // Enforce maxPages cap after merging all results
@@ -388,7 +482,7 @@ export class DiscoveryService {
         urls: discoveredPages.map(p => p.url),
       });
 
-      // Step 3: Save to database
+      // Step 3: Reconciliation pass — save any pages not yet in the database
       this.updateProgress(projectId, {
         status: 'discovering',
         phase: 'saving',
@@ -417,7 +511,7 @@ export class DiscoveryService {
         }
       }
 
-      // Batch create new URLs
+      // Batch create new URLs (reconciliation for any missed by incremental saves)
       if (toCreate.length > 0) {
         await this.prisma.projectUrl.createMany({
           data: toCreate.map(page => ({
@@ -500,6 +594,7 @@ export class DiscoveryService {
       }
 
       const discoveryTime = Date.now() - startTime;
+      this.cancellationFlags.delete(projectId);
 
       // Complete - include all discovered URLs in final state
       this.updateProgress(projectId, {
@@ -523,6 +618,7 @@ export class DiscoveryService {
         },
       };
     } catch (error) {
+      this.cancellationFlags.delete(projectId);
       this.logger.error(`Discovery failed for project ${projectId}: ${error.message}`);
       this.updateProgress(projectId, {
         status: 'failed',
@@ -626,6 +722,46 @@ export class DiscoveryService {
         projectId,
       },
     });
+  }
+
+  /**
+   * Save a batch of discovered pages to the database incrementally
+   */
+  private async saveUrlBatch(
+    projectId: string,
+    pages: DiscoveredPage[],
+    urlToId: Map<string, string>,
+  ): Promise<void> {
+    if (pages.length === 0) return;
+
+    try {
+      await this.prisma.projectUrl.createMany({
+        data: pages.map(page => ({
+          projectId,
+          url: page.url,
+          title: page.title || this.generateTitleFromUrl(page.url),
+          discovered: true,
+          discoveryDepth: page.depth,
+          requiresAuth: page.requiresAuth,
+          pageType: page.pageType,
+          screenshot: page.screenshot,
+          verified: page.isAccessible ?? false,
+          lastVerified: page.isAccessible ? new Date() : null,
+        })),
+        skipDuplicates: true,
+      });
+
+      // Fetch created IDs for relationship mapping
+      const created = await this.prisma.projectUrl.findMany({
+        where: { projectId, url: { in: pages.map(p => p.url) } },
+        select: { id: true, url: true },
+      });
+      created.forEach(c => urlToId.set(c.url, c.id));
+
+      this.logger.log(`Incrementally saved ${pages.length} URLs for project ${projectId}`);
+    } catch (error) {
+      this.logger.warn(`Failed to save incremental URL batch: ${error.message}`);
+    }
   }
 
   /**

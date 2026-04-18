@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Query, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException } from '@nestjs/common';
 import { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { join, resolve } from 'path';
@@ -222,6 +222,101 @@ export class ExecutionController {
       return {
         success: false,
         error: error.message || 'Failed to cancel job'
+      };
+    }
+  }
+
+  /**
+   * GET /api/execution/stats
+   * Returns real-time execution statistics scoped to the user's organization.
+   */
+  @Get('stats')
+  @UseGuards(OrganizationGuard)
+  @HttpCode(HttpStatus.OK)
+  async getExecutionStats(@Request() req) {
+    try {
+      const orgProjects = await this.prisma.project.findMany({
+        where: { organizationId: req.organization.id },
+        select: { id: true },
+      });
+      const projectIds = orgProjects.map(p => p.id);
+      const orgFilter = { test: { projectId: { in: projectIds } } };
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const [running, totalToday, passedLast7d, totalLast7d] = await Promise.all([
+        this.prisma.testExecution.count({ where: { ...orgFilter, status: 'running' } }),
+        this.prisma.testExecution.count({ where: { ...orgFilter, startedAt: { gte: today } } }),
+        this.prisma.testExecution.count({ where: { ...orgFilter, status: 'passed', startedAt: { gte: sevenDaysAgo } } }),
+        this.prisma.testExecution.count({ where: { ...orgFilter, startedAt: { gte: sevenDaysAgo } } }),
+      ]);
+
+      return {
+        success: true,
+        running,
+        totalToday,
+        passRate7d: totalLast7d > 0 ? Math.round((passedLast7d / totalLast7d) * 100) : 0,
+        totalLast7d,
+      };
+    } catch (error) {
+      console.error('Failed to get execution stats:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to get execution stats',
+      };
+    }
+  }
+
+  /**
+   * GET /api/execution/trends?days=30
+   * Returns daily pass/fail counts for the specified number of days, scoped to the user's organization.
+   */
+  @Get('trends')
+  @UseGuards(OrganizationGuard)
+  @HttpCode(HttpStatus.OK)
+  async getExecutionTrends(@Request() req, @Query('days') days?: string) {
+    try {
+      const orgProjects = await this.prisma.project.findMany({
+        where: { organizationId: req.organization.id },
+        select: { id: true },
+      });
+      const projectIds = orgProjects.map(p => p.id);
+
+      const numDays = parseInt(days || '30', 10);
+      const since = new Date();
+      since.setDate(since.getDate() - numDays);
+
+      const executions = await this.prisma.testExecution.findMany({
+        where: { test: { projectId: { in: projectIds } }, startedAt: { gte: since } },
+        select: { status: true, startedAt: true },
+        orderBy: { startedAt: 'asc' },
+      });
+
+      const byDay: Record<string, { passed: number; failed: number; total: number }> = {};
+      executions.forEach(e => {
+        const day = e.startedAt.toISOString().split('T')[0];
+        if (!byDay[day]) byDay[day] = { passed: 0, failed: 0, total: 0 };
+        byDay[day].total++;
+        if (e.status === 'passed') byDay[day].passed++;
+        if (e.status === 'failed') byDay[day].failed++;
+      });
+
+      return {
+        success: true,
+        trends: Object.entries(byDay).map(([date, data]) => ({
+          date,
+          ...data,
+          passRate: data.total > 0 ? Math.round((data.passed / data.total) * 100) : 0,
+        })),
+      };
+    } catch (error) {
+      console.error('Failed to get execution trends:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to get execution trends',
+        trends: [],
       };
     }
   }

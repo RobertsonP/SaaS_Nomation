@@ -55,14 +55,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Default error UI
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-lg w-full bg-white rounded-lg shadow-lg border border-gray-200 p-8">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="max-w-lg w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8">
             <div className="text-center">
               <div className="text-6xl mb-4">😵</div>
-              <h1 className="text-xl font-semibold text-gray-900 mb-4">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
                 Oops! Something went wrong
               </h1>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 We encountered an unexpected error. This has been logged and our team will investigate.
               </p>
               
@@ -95,13 +95,13 @@ export class ErrorBoundary extends Component<Props, State> {
                 </button>
                 <button
                   onClick={this.handleGoHome}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   🏠 Go Home
                 </button>
               </div>
               
-              <p className="text-xs text-gray-500 mt-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
                 Error ID: {Date.now().toString(36)}
               </p>
             </div>

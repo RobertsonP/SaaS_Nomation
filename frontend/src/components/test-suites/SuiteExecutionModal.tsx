@@ -317,7 +317,7 @@ export function SuiteExecutionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`bg-white rounded-lg shadow-2xl transition-all duration-300 ${
+      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-2xl transition-all duration-300 ${
         isMinimized
           ? 'w-80 h-20'
           : 'w-full max-w-4xl max-h-[90vh] h-auto'
@@ -380,23 +380,23 @@ export function SuiteExecutionModal({
         {!isMinimized && (
           <>
             {/* Stats Bar */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <div className="grid grid-cols-4 gap-4 text-center">
-                <div className="bg-white rounded-lg p-3 border">
-                  <div className="text-2xl font-bold text-gray-900">{stats.completed}/{totalTests}</div>
-                  <div className="text-xs text-gray-600">Completed</div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border dark:border-gray-700">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.completed}/{totalTests}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Completed</div>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-green-200">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200">
                   <div className="text-2xl font-bold text-green-600">✅ {stats.passed}</div>
-                  <div className="text-xs text-gray-600">Passed</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Passed</div>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-red-200">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-red-200">
                   <div className="text-2xl font-bold text-red-600">❌ {stats.failed}</div>
-                  <div className="text-xs text-gray-600">Failed</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Failed</div>
                 </div>
-                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-200">
                   <div className="text-2xl font-bold text-blue-600">🔄 {stats.running}</div>
-                  <div className="text-xs text-gray-600">Running</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Running</div>
                 </div>
               </div>
             </div>
@@ -478,7 +478,7 @@ export function SuiteExecutionModal({
                           </div>
                         )}
                         {(test.status === 'passed' || test.status === 'failed') && test.duration && (
-                          <div className="text-gray-500">
+                          <div className="text-gray-500 dark:text-gray-400">
                             {formatDuration(test.duration)}
                           </div>
                         )}
@@ -488,7 +488,7 @@ export function SuiteExecutionModal({
                     {/* Individual test progress bar */}
                     {test.status === 'running' && test.totalSteps > 0 && (
                       <div className="mt-2">
-                        <div className="w-full bg-gray-200 rounded-full h-1">
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1">
                           <div
                             className="bg-current h-1 rounded-full transition-all duration-300"
                             style={{ width: `${test.progress}%` }}
@@ -502,9 +502,9 @@ export function SuiteExecutionModal({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <div className="flex justify-between items-center text-sm">
-                <div className="text-gray-600">
+                <div className="text-gray-600 dark:text-gray-400">
                   {isComplete ? (
                     `✅ Suite completed in ${formatDuration(executionProgress.duration)}`
                   ) : (
@@ -512,7 +512,7 @@ export function SuiteExecutionModal({
                   )}
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 dark:text-gray-400">
                     {stats.passed} passed • {stats.failed} failed
                   </span>
                   {!isComplete && (

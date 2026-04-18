@@ -52,8 +52,8 @@ export function LiveSessionBrowser({ sessionToken, isExecuting, currentStep, cla
 
   if (isLoading && !screenshot) {
     return (
-      <div className={`${className} flex items-center justify-center bg-gray-100`}>
-        <div className="text-center text-gray-500">
+      <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-gray-700`}>
+        <div className="text-center text-gray-500 dark:text-gray-400">
           <div className="text-4xl mb-2">⏳</div>
           <p>Loading live browser view...</p>
         </div>
@@ -63,11 +63,11 @@ export function LiveSessionBrowser({ sessionToken, isExecuting, currentStep, cla
 
   if (error && !screenshot) {
     return (
-      <div className={`${className} flex items-center justify-center bg-gray-100`}>
+      <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-gray-700`}>
         <div className="text-center text-red-500">
           <div className="text-4xl mb-2">❌</div>
           <p className="text-sm">Failed to load browser view</p>
-          <p className="text-xs text-gray-500 mt-1">{error}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{error}</p>
           <button
             onClick={captureScreenshot}
             className="mt-3 px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
@@ -80,7 +80,7 @@ export function LiveSessionBrowser({ sessionToken, isExecuting, currentStep, cla
   }
 
   return (
-    <div className={`${className} relative bg-gray-100 flex items-center justify-center`}>
+    <div className={`${className} relative bg-gray-100 dark:bg-gray-700 flex items-center justify-center`}>
       {/* Desktop Browser Frame */}
       <div className="relative w-full h-full flex items-center justify-center">
         {screenshot ? (
@@ -88,7 +88,7 @@ export function LiveSessionBrowser({ sessionToken, isExecuting, currentStep, cla
             <img
               src={screenshot}
               alt="Live browser session"
-              className="max-w-full max-h-full object-contain border-2 border-gray-300 rounded-lg shadow-2xl"
+              className="max-w-full max-h-full object-contain border-2 border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl"
               style={{
                 minHeight: '500px',
                 backgroundColor: 'white',
@@ -103,7 +103,7 @@ export function LiveSessionBrowser({ sessionToken, isExecuting, currentStep, cla
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-500">
+          <div className="text-center text-gray-500 dark:text-gray-400">
             <div className="text-4xl mb-2">🌐</div>
             <p>Connecting to browser session...</p>
           </div>

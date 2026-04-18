@@ -106,7 +106,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
   // Minimized view
   if (isMinimized) {
     return (
-      <div className="fixed top-4 right-4 bg-white rounded-lg shadow-lg border border-gray-200 z-50 animate-slide-up cursor-pointer"
+      <div className="fixed top-4 right-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 animate-slide-up cursor-pointer"
            onClick={handleMaximize}
            title="Click to expand Quick Start Guide">
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 rounded-lg">
@@ -164,7 +164,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
 
   // Expanded view
   return (
-    <div className="fixed top-4 right-4 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 animate-slide-up">
+    <div className="fixed top-4 right-4 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 animate-slide-up">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
@@ -245,14 +245,14 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
                     }`}>
                       {step.title}
                     </h4>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                       {step.description}
                     </p>
                   </div>
 
                   {canExpand && (
                     <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
@@ -278,7 +278,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
         <div className="flex items-center justify-between text-xs">
-          <div className="text-gray-600">
+          <div className="text-gray-600 dark:text-gray-400">
             Step {currentStepIndex + 1} of {steps.length}
           </div>
           {progressPercent === 100 ? (
@@ -287,7 +287,7 @@ export function OnboardingFlow({ currentStep, isVisible, onDismiss }: Onboarding
               <span>Complete!</span>
             </div>
           ) : (
-            <div className="text-gray-600">
+            <div className="text-gray-600 dark:text-gray-400">
               {steps.length - currentStepIndex - 1} steps left
             </div>
           )}

@@ -127,6 +127,20 @@ export const projectsAPI = {
     const response = await api.get(`/projects/${projectId}/elements`);
     return response.data;
   },
+  getElementsPaginated: async (projectId: string, params: {
+    skip?: number;
+    take?: number;
+    type?: string;
+    sourceUrlId?: string;
+  }): Promise<{ elements: ProjectElement[]; total: number; skip: number; take?: number }> => {
+    const searchParams = new URLSearchParams();
+    if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+    if (params.take !== undefined) searchParams.set('take', String(params.take));
+    if (params.type) searchParams.set('type', params.type);
+    if (params.sourceUrlId) searchParams.set('sourceUrlId', params.sourceUrlId);
+    const response = await api.get(`/projects/${projectId}/elements?${searchParams.toString()}`);
+    return response.data;
+  },
   validateSelector: async (projectId: string, selector: string): Promise<SelectorValidationResult> => {
     const response = await api.post(`/projects/${projectId}/validate-selector`, { selector });
     return response.data;
@@ -206,6 +220,11 @@ export const projectsAPI = {
     return response.data;
   },
 
+  cancelDiscovery: async (projectId: string) => {
+    const response = await api.post(`/projects/${projectId}/discover/cancel`);
+    return response.data;
+  },
+
   getDiscoveryProgress: async (projectId: string) => {
     const response = await api.get(`/projects/${projectId}/discover/progress`);
     return response.data;
@@ -236,8 +255,8 @@ export const browserAPI = {
   },
   
   // Create browser session for live interaction
-  createSession: async (projectId: string, authFlow?: AuthFlow) => {
-    const response = await api.post('/api/public/browser/sessions', { projectId, authFlow });
+  createSession: async (projectId: string, authFlow?: AuthFlow, startUrl?: string) => {
+    const response = await api.post('/api/public/browser/sessions', { projectId, authFlow, startUrl });
     return response.data;
   },
   
@@ -300,6 +319,8 @@ export const executionAPI = {
   stop: (executionId: string) => api.post(`/api/execution/${executionId}/stop`),
   getResults: (testId: string) => api.get(`/api/execution/test/${testId}/results`),
   getById: (executionId: string) => api.get(`/api/execution/${executionId}`),
+  getStats: () => api.get('/api/execution/stats'),
+  getTrends: (days = 30) => api.get(`/api/execution/trends?days=${days}`),
 };
 
 // Auth Flows API

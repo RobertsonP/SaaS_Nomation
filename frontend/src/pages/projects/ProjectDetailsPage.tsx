@@ -489,6 +489,7 @@ export function ProjectDetailsPage() {
       case 'link': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'form': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'text': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -501,6 +502,7 @@ export function ProjectDetailsPage() {
       case 'link': return '🔗';
       case 'form': return '📋';
       case 'navigation': return '🧭';
+      case 'heading': return '🔤';
       case 'text': return '📄';
       default: return '📦';
     }
@@ -694,7 +696,7 @@ export function ProjectDetailsPage() {
         {activeTab === 'elements' && (
           <ElementLibraryPanel
             key={elementsKey}
-            elements={project.elements}
+            projectId={projectId}
             onSelectElement={(element) => logger.debug('Element selected', element)}
             selectedElementType={selectedElementType}
             selectedUrl={selectedUrl}

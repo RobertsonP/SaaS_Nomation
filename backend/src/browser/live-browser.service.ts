@@ -19,13 +19,16 @@ export class LiveBrowserService {
     setInterval(() => this.cleanupExpiredSessions(), 30 * 60 * 1000);
   }
 
-  async createSession(projectId: string, authFlow?: LoginFlow): Promise<BrowserSession> {
+  async createSession(projectId: string, authFlow?: LoginFlow, startUrl?: string): Promise<BrowserSession> {
+    // Close existing sessions for this project to prevent accumulation
+    await this.closeAllProjectSessions(projectId);
+
     const sessionToken = uuidv4();
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Launch browser with Docker-compatible settings
     const browser = await chromium.launch({
-      headless: true,
+      headless: false,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -37,11 +40,11 @@ export class LiveBrowserService {
     });
 
     const page = await browser.newPage();
-    
-    // Set desktop viewport for proper desktop view
+
+    // Set viewport for live sessions — 1280x720 matches common laptop screens
     await page.setViewportSize({
-      width: 1920,
-      height: 1080
+      width: 1280,
+      height: 720
     });
     
     // Store browser and page instances
@@ -62,6 +65,11 @@ export class LiveBrowserService {
     // If authFlow provided, execute authentication
     if (authFlow) {
       await this.authenticateSession(sessionToken, authFlow);
+    }
+
+    // Navigate to start URL if provided
+    if (startUrl) {
+      await this.navigateToPage(sessionToken, startUrl);
     }
 
     return session;
@@ -312,29 +320,164 @@ export class LiveBrowserService {
               return;
             }
 
-            // Generate advanced W3Schools CSS + Playwright selectors
-            const selectorOptions = {
-              element,
-              document,
-              prioritizeUniqueness: true,
-              includePlaywrightSpecific: true,
-              testableElementsOnly: true
+            // Inline selector generation (browser context — no Node.js service access)
+            const escapeCSSSelector = (str: string): string => {
+              return str.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
             };
-            
-            const generatedSelectors = this.advancedSelectorGenerator.generateSelectors(selectorOptions);
-            
-            // Use the best selector (highest confidence + uniqueness)
-            const bestSelector = generatedSelectors.find(s => s.isUnique) || generatedSelectors[0];
-            let selector = bestSelector?.selector || selectorType;
-            
-            // Store additional selectors as fallbacks
-            const fallbackSelectors = generatedSelectors.slice(1, 6).map(s => s.selector);
+
+            const testUniqueness = (sel: string): boolean => {
+              try {
+                const matches = document.querySelectorAll(sel);
+                return matches.length === 1 && matches[0] === element;
+              } catch (e) {
+                return false;
+              }
+            };
+
+            const el = element;
+            const tagName = el.tagName.toLowerCase();
+            const elId = el.id || '';
+            const elTestId = el.getAttribute('data-testid') || el.getAttribute('data-test') || el.getAttribute('data-cy') || '';
+            const elName = el.getAttribute('name') || '';
+            const elAriaLabel = el.getAttribute('aria-label') || '';
+            const elRole = el.getAttribute('role') || '';
+            const elType = el.getAttribute('type') || '';
+            const elPlaceholder = el.getAttribute('placeholder') || '';
+            const elTitle = el.getAttribute('title') || '';
+            const elText = (el.textContent || '').trim().substring(0, 50);
+
+            // CSS selector generation — priority chain matching element-detection.service.ts
+            let selector = '';
+            let selectorConfidence = 0.5;
+            let isUnique = false;
+
+            if (elId && elId.trim() !== '') {
+              const idSel = `#${escapeCSSSelector(elId)}`;
+              if (testUniqueness(idSel)) {
+                selector = idSel;
+                selectorConfidence = 0.85;
+                isUnique = true;
+              }
+            }
+            if (!selector && elTestId && elTestId.trim() !== '') {
+              const testIdSel = `[data-testid="${escapeCSSSelector(elTestId)}"]`;
+              if (testUniqueness(testIdSel)) {
+                selector = testIdSel;
+                selectorConfidence = 0.9;
+                isUnique = true;
+              }
+            }
+            if (!selector && elName && elName.trim() !== '') {
+              const nameSel = `${tagName}[name="${escapeCSSSelector(elName)}"]`;
+              if (testUniqueness(nameSel)) {
+                selector = nameSel;
+                selectorConfidence = 0.75;
+                isUnique = true;
+              }
+            }
+            if (!selector && elAriaLabel && elAriaLabel.trim() !== '') {
+              const ariaSel = `[aria-label="${escapeCSSSelector(elAriaLabel)}"]`;
+              if (testUniqueness(ariaSel)) {
+                selector = ariaSel;
+                selectorConfidence = 0.8;
+                isUnique = true;
+              }
+            }
+            if (!selector && elType) {
+              const typeSel = `${tagName}[type="${elType}"]`;
+              if (testUniqueness(typeSel)) {
+                selector = typeSel;
+                selectorConfidence = 0.7;
+                isUnique = true;
+              }
+            }
+            if (!selector && el.className && typeof el.className === 'string' && el.className.trim() !== '') {
+              const classes = el.className.split(' ')
+                .filter(c => c.trim() !== '')
+                .filter(c => !c.match(/^(active|hover|focus|selected|disabled|loading)$/))
+                .filter(c => c.length > 2 && !c.match(/^(ng-|_|css-)/))
+                .slice(0, 3);
+              if (classes.length > 0) {
+                const classSel = `${tagName}.${classes.map(c => escapeCSSSelector(c)).join('.')}`;
+                if (testUniqueness(classSel)) {
+                  selector = classSel;
+                  selectorConfidence = 0.6;
+                  isUnique = true;
+                }
+              }
+            }
+            if (!selector) {
+              // Parent-child fallback
+              const parent = el.parentElement;
+              if (parent) {
+                if (parent.id) {
+                  const parentSel = `#${escapeCSSSelector(parent.id)} ${tagName}`;
+                  if (testUniqueness(parentSel)) {
+                    selector = parentSel;
+                    selectorConfidence = 0.6;
+                    isUnique = true;
+                  }
+                }
+                if (!selector && parent.className && typeof parent.className === 'string') {
+                  const parentClasses = parent.className.split(' ')
+                    .filter(c => c.trim() !== '' && c.length > 2)
+                    .slice(0, 2);
+                  for (const pc of parentClasses) {
+                    const pcSel = `.${escapeCSSSelector(pc)} > ${tagName}`;
+                    if (testUniqueness(pcSel)) {
+                      selector = pcSel;
+                      selectorConfidence = 0.55;
+                      isUnique = true;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+            // Ultimate fallback
+            if (!selector) {
+              selector = selectorType;
+              selectorConfidence = 0.3;
+            }
+
+            // Playwright locator generation (string representation for display/fallback)
+            let playwrightLocator = '';
+            const esc = (s: string) => s.replace(/'/g, "\\'");
+
+            let implicitRole = elRole;
+            if (!implicitRole) {
+              if (tagName === 'button' || (tagName === 'input' && (elType === 'submit' || elType === 'button'))) implicitRole = 'button';
+              else if (tagName === 'a' && el.getAttribute('href')) implicitRole = 'link';
+              else if (tagName === 'input' && elType === 'checkbox') implicitRole = 'checkbox';
+              else if (tagName === 'input' && elType === 'radio') implicitRole = 'radio';
+              else if (tagName === 'select') implicitRole = 'combobox';
+              else if (tagName === 'textarea' || (tagName === 'input' && !['submit', 'button', 'checkbox', 'radio', 'hidden', 'file'].includes(elType))) implicitRole = 'textbox';
+            }
+
+            if (elTestId) {
+              playwrightLocator = `getByTestId('${esc(elTestId)}')`;
+            } else if (implicitRole && elAriaLabel) {
+              playwrightLocator = `getByRole('${implicitRole}', { name: '${esc(elAriaLabel)}' })`;
+            } else if (implicitRole && elText && elText.length > 0 && elText.length < 40) {
+              playwrightLocator = `getByRole('${implicitRole}', { name: '${esc(elText)}' })`;
+            } else if (elAriaLabel) {
+              playwrightLocator = `getByLabel('${esc(elAriaLabel)}')`;
+            } else if (elPlaceholder) {
+              playwrightLocator = `getByPlaceholder('${esc(elPlaceholder)}')`;
+            } else if (elText && elText.length > 0 && elText.length < 40) {
+              playwrightLocator = `getByText('${esc(elText)}')`;
+            } else if (elTitle) {
+              playwrightLocator = `getByTitle('${esc(elTitle)}')`;
+            }
+
+            // Use Playwright locator as primary when available, CSS as fallback
+            const primarySelector = playwrightLocator || selector;
+            const fallbackSelectors = playwrightLocator ? [selector] : [];
 
             // Determine element type
             let elementType = 'text';
-            const tagName = element.tagName.toLowerCase();
-            const inputType = element.getAttribute('type');
-            
+            const inputType = el.getAttribute('type');
+
             if (tagName === 'button' || inputType === 'button' || inputType === 'submit') {
               elementType = 'button';
             } else if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
@@ -360,16 +503,16 @@ export class LiveBrowserService {
             }
 
             extractedElements.push({
-              selector,
+              selector: primarySelector,
               elementType,
               description,
-              confidence: bestSelector?.confidence || 0.9,
-              
+              confidence: selectorConfidence,
+
               // Enhanced selector data
               fallbackSelectors: fallbackSelectors,
-              selectorType: bestSelector?.type || 'css',
-              isUniqueSelector: bestSelector?.isUnique || false,
-              isPlaywrightOptimized: bestSelector?.isPlaywrightOptimized || false,
+              selectorType: playwrightLocator ? 'playwright' : 'css',
+              isUniqueSelector: isUnique,
+              isPlaywrightOptimized: !!playwrightLocator,
               attributes: {
                 tag: tagName,
                 id: element.id || undefined,
@@ -451,24 +594,71 @@ export class LiveBrowserService {
 
     try {
       // Resolve selector — supports both CSS and Playwright-native locators (getByRole, getByText, etc.)
-      const locator = this.resolveLocator(page, action.selector).first();
+      // Some actions (wait, navigate, press, screenshot) don't need a locator
+      const noLocatorActions = ['wait', 'navigate', 'press', 'screenshot'];
+      const locator = noLocatorActions.includes(action.type) ? null : this.resolveLocator(page, action.selector).first();
       const timeout = 10000; // 10 seconds
 
       // Execute the action
       switch (action.type) {
         case 'click':
-          await locator.click({ timeout });
-          console.log(`✓ Clicked element: ${action.selector}`);
+          await locator!.click({ timeout });
+          break;
+        case 'doubleclick':
+          await locator!.dblclick({ timeout });
+          break;
+        case 'rightclick':
+          await locator!.click({ button: 'right', timeout });
           break;
         case 'hover':
-          await locator.hover({ timeout });
-          console.log(`✓ Hovered over element: ${action.selector}`);
+          await locator!.hover({ timeout });
           break;
         case 'type':
-          await locator.fill(action.value || '', { timeout });
-          console.log(`✓ Filled element: ${action.selector} with "${action.value}"`);
+          await locator!.fill(action.value || '', { timeout });
           break;
+        case 'clear':
+          await locator!.clear({ timeout });
+          break;
+        case 'select':
+          await locator!.selectOption(action.value || '', { timeout });
+          break;
+        case 'check':
+          await locator!.check({ timeout });
+          break;
+        case 'uncheck':
+          await locator!.uncheck({ timeout });
+          break;
+        case 'scroll':
+          await locator!.scrollIntoViewIfNeeded({ timeout });
+          break;
+        case 'press':
+          await page.keyboard.press(action.value || 'Enter');
+          break;
+        case 'wait': {
+          const waitMs = parseInt(action.value || '1000', 10);
+          await page.waitForTimeout(Math.min(waitMs, 60000));
+          break;
+        }
+        case 'assert': {
+          const text = await locator!.textContent({ timeout });
+          if (!text || !text.includes(action.value || '')) {
+            throw new Error(`Assertion failed: Expected "${action.value}" but found "${text}"`);
+          }
+          break;
+        }
+        case 'navigate':
+          await page.goto(action.value || '', { waitUntil: 'domcontentloaded', timeout });
+          break;
+        case 'upload':
+          await locator!.setInputFiles(action.value || '', { timeout });
+          break;
+        case 'screenshot':
+          // No-op for live browser — screenshot is captured after every action anyway
+          break;
+        default:
+          throw new Error(`Unknown action type: ${action.type}`);
       }
+      console.log(`✓ ${action.type} executed on: ${action.selector || 'page'}`);
 
       // Wait for dynamic content
       await page.waitForTimeout(1000);
@@ -528,6 +718,7 @@ export class LiveBrowserService {
       type: 'jpeg',
       quality: 70,
       timeout: 5000,
+      animations: 'disabled',  // Prevents CSS animation flicker during polling
     });
 
     // Return as data URL for easy frontend display
@@ -559,6 +750,19 @@ export class LiveBrowserService {
       viewUrl: currentUrl,
       currentUrl: currentUrl
     };
+  }
+
+  async closeAllProjectSessions(projectId: string): Promise<void> {
+    const sessions = await this.prisma.browserSession.findMany({
+      where: { projectId },
+    });
+    for (const session of sessions) {
+      try {
+        await this.closeSession(session.sessionToken);
+      } catch (e) {
+        // Session may already be closed
+      }
+    }
   }
 
   async closeSession(sessionToken: string): Promise<void> {
@@ -640,7 +844,7 @@ export class LiveBrowserService {
   }
 
   async extendSession(sessionToken: string): Promise<void> {
-    const newExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // Extend by 2 hours
+    const newExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // Extend by 15 minutes
     
     await this.prisma.browserSession.update({
       where: { sessionToken },

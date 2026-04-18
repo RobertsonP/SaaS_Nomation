@@ -27,7 +27,7 @@ export interface ExecutionProgressEvent {
 @Injectable()
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003'],
+    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3001'],
     methods: ['GET', 'POST'],
     credentials: true,
   },

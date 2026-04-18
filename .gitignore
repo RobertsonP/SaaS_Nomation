@@ -185,3 +185,26 @@ CLAUDE.local.md
 
 # Temp Scripts
 validate-selectors.js
+
+# === HYBRID MODE (added during migration) ===
+# Local environment file (machine-specific, not secrets but differs per developer)
+.env.local
+
+# === CLAUDE CODE (added during migration) ===
+# Agent memory directories (per-developer, accumulates over time)
+.claude/agent-memory/
+# Local settings (personal permissions, MCP tokens, per-developer)
+.claude/settings.local.json
+.claude/settings.local.json.backup
+
+# === TOOLS NOT IN USE ===
+.serena/
+
+# === DEBUG ARTIFACTS ===
+# Screenshots dumped during debugging (not source code)
+backend/*.png
+frontend/*.png
+# Ad-hoc test scripts in wrong location (real tests are in backend/test/)
+backend/test-*.js
+backend/test-*.ts
+!backend/test/

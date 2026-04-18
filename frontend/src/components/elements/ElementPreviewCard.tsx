@@ -70,6 +70,7 @@ export function ElementPreviewCard({
       case 'form': return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700';
       case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700';
       case 'table': return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700';
+      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-700';
       default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
     }
   };
@@ -97,11 +98,34 @@ export function ElementPreviewCard({
     );
   };
 
+  // Classify native Playwright locator type
+  const getLocatorType = (selector: string): { type: string; color: string } | null => {
+    if (selector.startsWith('getByRole(')) return { type: 'Role', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' };
+    if (selector.startsWith('getByText(')) return { type: 'Text', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' };
+    if (selector.startsWith('getByLabel(')) return { type: 'Label', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' };
+    if (selector.startsWith('getByTestId(')) return { type: 'TestId', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
+    if (selector.startsWith('getByPlaceholder(')) return { type: 'Placeholder', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+    if (selector.startsWith('getByTitle(')) return { type: 'Title', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' };
+    return null;
+  };
+
+  // Parse native locator into readable parts: badge type + human-readable value
+  const parseNativeLocator = (selector: string): { role?: string; name?: string } | null => {
+    // getByRole('button', { name: 'Export Excel' }) → role=button, name=Export Excel
+    const roleMatch = selector.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)/);
+    if (roleMatch) return { role: roleMatch[1], name: roleMatch[2] };
+
+    // getByText('Login') → name=Login
+    const simpleMatch = selector.match(/^getBy(?:Text|Label|TestId|Placeholder|Title)\('([^']+)'\)/);
+    if (simpleMatch) return { name: simpleMatch[1] };
+
+    return null;
+  };
+
   const attributes = element.attributes as any;
   const sourceUrl = element.sourceUrl?.url;
-  const truncatedSelector = element.selector.length > 40
-    ? element.selector.substring(0, 40) + '...'
-    : element.selector;
+  const locatorType = getLocatorType(element.selector);
+  const parsedLocator = locatorType ? parseNativeLocator(element.selector) : null;
 
   return (
     <div
@@ -128,7 +152,7 @@ export function ElementPreviewCard({
 
       {/* Description */}
       <div className="px-3 pt-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+        <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-3">
           {element.description}
         </p>
       </div>
@@ -136,7 +160,7 @@ export function ElementPreviewCard({
       {/* Screenshot or CSS Preview */}
       {element.screenshot ? (
         <div className="px-3 pt-2">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded overflow-hidden max-h-24">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded overflow-hidden max-h-40">
             <img
               src={element.screenshot}
               alt={element.description}
@@ -147,7 +171,7 @@ export function ElementPreviewCard({
         </div>
       ) : element.attributes?.cssInfo ? (
         <div className="px-3 pt-2">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded p-1.5 max-h-20 overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded p-1.5 max-h-32 overflow-hidden">
             <CSSPreviewRenderer
               element={element}
               mode="compact"
@@ -160,9 +184,18 @@ export function ElementPreviewCard({
       ) : null}
 
       {/* Selector + Copy */}
-      <div className="px-3 pt-2 flex items-center gap-1.5">
-        <code className="flex-1 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
-          {truncatedSelector}
+      <div className="px-3 pt-2 flex items-start gap-1.5">
+        {locatorType && (
+          <span className={`flex-shrink-0 px-1.5 py-0.5 text-xs rounded font-medium mt-0.5 ${locatorType.color}`}>
+            {locatorType.type}
+          </span>
+        )}
+        <code className="flex-1 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono text-gray-600 dark:text-gray-400 break-all text-wrap">
+          {parsedLocator
+            ? (parsedLocator.role
+                ? `${parsedLocator.role}${parsedLocator.name ? ` \u203A ${parsedLocator.name}` : ''}`
+                : parsedLocator.name || element.selector)
+            : element.selector}
         </code>
         <button
           onClick={handleCopySelector}

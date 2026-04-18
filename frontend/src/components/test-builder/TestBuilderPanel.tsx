@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { projectsAPI, browserAPI } from '../../lib/api'
-import { BrowserPreview } from '../element-picker/BrowserPreview'
-import { LiveSessionBrowser } from '../execution/LiveSessionBrowser'
 import { ProjectElement } from '../../types/element.types'
 import { TestStep } from '../../types/test.types'
 import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 import { StepList } from './StepList'
 import { TemplateModal } from './TemplateModal'
+import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
 import {
   DndContext,
@@ -59,6 +58,7 @@ export function TestBuilderPanel({
   onPendingStepConsumed,
   _onAutoAddToTestSteps
 }: TestBuilderPanelProps) {
+  const { showSuccess, showError, showWarning } = useNotification()
   // Initialize steps with localStorage persistence
   const [steps, setSteps] = useState<TestStep[]>(() => {
     if (testId) {
@@ -106,6 +106,19 @@ export function TestBuilderPanel({
   
   // NEW: Template Modal State
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+  // Execution mode selection
+  const [showExecutionModeModal, setShowExecutionModeModal] = useState(false);
+
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugStepIndex, setDebugStepIndex] = useState(0);
+  const [debugStepResult, setDebugStepResult] = useState<any>(null);
+  const [isDebugPaused, setIsDebugPaused] = useState(true);
+
+  // Step failure confirmation state (replaces blocking confirm())
+  const [failedStepMessage, setFailedStepMessage] = useState<string | null>(null);
+  const failedStepResolverRef = useRef<((shouldContinue: boolean) => void) | null>(null);
 
   // Save steps to localStorage whenever they change
   useEffect(() => {
@@ -231,65 +244,13 @@ export function TestBuilderPanel({
 
   // Show visual feedback when element is auto-added
   const showAutoAddNotification = (element: ProjectElement, action: string, isExisting: boolean = false) => {
-    // Create temporary notification element
-    const notification = document.createElement('div');
-    const _bgColor = isExisting ? '#F59E0B' : '#10B981';
-    const bgGradient = isExisting 
-      ? 'linear-gradient(135deg, #F59E0B, #D97706)' 
-      : 'linear-gradient(135deg, #10B981, #059669)';
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${bgGradient};
-      color: white;
-      padding: 12px 20px;
-      border-radius: 12px;
-      font-size: 14px;
-      z-index: 10000;
-      box-shadow: 0 10px 25px rgba(${isExisting ? '245, 158, 11' : '16, 185, 129'}, 0.3);
-      animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 2.7s;
-      max-width: 350px;
-    `;
-    
-    const emoji = isExisting ? '🔄' : '🎯';
     const title = isExisting ? 'Step already exists!' : 'Auto-added to test steps!';
-    
-    notification.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 4px;">
-        ${emoji} ${title}
-      </div>
-      <div style="font-size: 12px; opacity: 0.9;">
-        ${action.toUpperCase()} → ${element.description}
-      </div>
-    `;
-    
-    // Add CSS animation keyframes if not exists
-    if (!document.querySelector('#auto-add-animations')) {
-      const style = document.createElement('style');
-      style.id = 'auto-add-animations';
-      style.textContent = `
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeOut {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-      `;
-      document.head.appendChild(style);
+    const message = `${action.toUpperCase()} — ${element.description}`;
+    if (isExisting) {
+      showWarning(title, message);
+    } else {
+      showSuccess(title, message);
     }
-    
-    document.body.appendChild(notification);
-    
-    // Remove notification after animation
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.remove();
-      }
-    }, 3000);
   };
 
   // Update steps when initialSteps changes (but prevent during execution)
@@ -319,6 +280,15 @@ export function TestBuilderPanel({
     };
   }, []);
 
+  // Clean up browser session on unmount
+  useEffect(() => {
+    return () => {
+      if (browserSessionToken) {
+        browserAPI.closeSession(browserSessionToken).catch(() => {});
+      }
+    };
+  }, [browserSessionToken]);
+
   // DnD Sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -340,6 +310,8 @@ export function TestBuilderPanel({
     { value: 'upload', label: 'Upload File', needsValue: true },
     { value: 'scroll', label: 'Scroll', needsValue: true },
     { value: 'press', label: 'Press Key', needsValue: true },
+    { value: 'navigate', label: 'Navigate to URL', needsValue: true },
+    { value: 'screenshot', label: 'Take Screenshot', needsValue: false },
     { value: 'wait', label: 'Wait', needsValue: true },
     { value: 'assert', label: 'Assert Text', needsValue: true }
   ]
@@ -428,7 +400,7 @@ export function TestBuilderPanel({
   // Live Execute Single Step function
   const handleLiveExecuteStep = async (step: TestStep) => {
     if (!projectId) {
-      alert('Project ID is required to execute steps live.')
+      showError('Execution Error', 'Project ID is required to execute steps live.')
       return
     }
 
@@ -445,7 +417,7 @@ export function TestBuilderPanel({
         const project = await projectsAPI.getById(projectId)
         const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com'
 
-        const sessionResponse = await browserAPI.createSession(projectId)
+        const sessionResponse = await browserAPI.createSession(projectId, undefined, url)
         sessionToken = sessionResponse.sessionToken
         setBrowserSessionToken(sessionToken)
 
@@ -455,26 +427,8 @@ export function TestBuilderPanel({
         logger.info(`Browser session created and navigated to: ${url}`)
       }
 
-      // Convert test step to browser action format
-      let action: { type: string; selector: string; value?: string }
-      
-      switch (step.type) {
-        case 'type':
-        case 'clear':
-          action = { type: 'type', selector: step.selector, value: step.value || '' }
-          break
-        case 'click':
-        case 'doubleclick':
-        case 'rightclick':
-          action = { type: 'click', selector: step.selector }
-          break
-        case 'hover':
-          action = { type: 'hover', selector: step.selector }
-          break
-        default:
-          // For unsupported actions, fallback to click
-          action = { type: 'click', selector: step.selector }
-      }
+      // Convert test step to browser action format — pass through directly, backend handles all types
+      const action = { type: step.type, selector: step.selector, value: step.value || '' }
 
       // Execute action in shared browser session
       const response = await browserAPI.executeAction(sessionToken!, action)
@@ -526,7 +480,7 @@ export function TestBuilderPanel({
   // NEW: Sequential execution of all steps (wrapped in useCallback to prevent re-renders)
   const handleExecuteAllSteps = useCallback(async () => {
     if (steps.length === 0 || !projectId) {
-      alert('Please add some test steps first to execute the complete flow.')
+      showWarning('No Steps', 'Please add some test steps first to execute the complete flow.')
       return
     }
 
@@ -552,7 +506,7 @@ export function TestBuilderPanel({
 
       // Create shared browser session for live execution
       logger.debug('Creating shared browser session...')
-      const sessionResponse = await browserAPI.createSession(projectId)
+      const sessionResponse = await browserAPI.createSession(projectId, undefined, url)
       const sessionToken = sessionResponse.sessionToken
       setBrowserSessionToken(sessionToken)
       logger.info(`Browser session created: ${sessionToken}`)
@@ -573,26 +527,8 @@ export function TestBuilderPanel({
         logger.debug(`Executing step ${i + 1}/${steps.length}: ${step.description}`)
 
         try {
-          // Convert test step to browser action format
-          let action: { type: string; selector: string; value?: string }
-          
-          switch (step.type) {
-            case 'type':
-            case 'clear':
-              action = { type: 'type', selector: step.selector, value: step.value || '' }
-              break
-            case 'click':
-            case 'doubleclick':
-            case 'rightclick':
-              action = { type: 'click', selector: step.selector }
-              break
-            case 'hover':
-              action = { type: 'hover', selector: step.selector }
-              break
-            default:
-              // For unsupported actions, fallback to click
-              action = { type: 'click', selector: step.selector }
-          }
+          // Convert test step to browser action format — pass through directly, backend handles all types
+          const action = { type: step.type, selector: step.selector, value: step.value || '' }
 
           // Execute action in shared browser session
           const response = await browserAPI.executeAction(sessionToken, action)
@@ -623,10 +559,13 @@ export function TestBuilderPanel({
           })
 
           // Ask user if they want to continue or stop on failure
-          const shouldContinue = confirm(
-            `Step ${i + 1} failed: ${step.description}\\n\\nError: ${stepError.message || 'Unknown error'}\\n\\nDo you want to continue with the remaining steps?`
-          )
-          
+          const shouldContinue = await new Promise<boolean>((resolve) => {
+            failedStepResolverRef.current = resolve
+            setFailedStepMessage(
+              `Step ${i + 1} failed: ${step.description}\n\nError: ${stepError.message || 'Unknown error'}\n\nDo you want to continue with the remaining steps?`
+            )
+          })
+
           if (!shouldContinue) {
             logger.info('User chose to stop execution after failure')
             break
@@ -643,14 +582,14 @@ export function TestBuilderPanel({
       
       // Show final summary
       if (failureCount === 0) {
-        alert(`All ${successCount} steps executed successfully.\n\nTest flow validation complete.`)
+        showSuccess('All Steps Passed', `All ${successCount} steps executed successfully. Test flow validation complete.`)
       } else {
-        alert(`Execution completed with mixed results:\n\n${successCount} steps succeeded\n${failureCount} steps failed\n\nCheck the execution details for more information.`)
+        showWarning('Mixed Results', `${successCount} steps succeeded, ${failureCount} steps failed. Check the execution details for more information.`)
       }
 
     } catch (error: any) {
       logger.error('Sequential execution failed', error)
-      alert(`Sequential execution failed: ${error.message || 'Unknown error'}`)
+      showError('Execution Failed', `Sequential execution failed: ${error.message || 'Unknown error'}`)
     } finally {
       // Clean up browser session
       if (browserSessionToken) {
@@ -669,15 +608,89 @@ export function TestBuilderPanel({
     }
   }, [steps, projectId]);
 
+  // Normal mode: delegates to existing handleExecuteAllSteps logic
+  const startNormalExecution = () => {
+    handleExecuteAllSteps();
+  };
+
+  // Debug mode: creates session and executes step-by-step
+  const startDebugExecution = async () => {
+    if (steps.length === 0 || !projectId) {
+      showWarning('No Steps', 'Please add some test steps first.');
+      return;
+    }
+
+    try {
+      logger.info('Starting debug execution');
+
+      const project = await projectsAPI.getById(projectId);
+      const url = startingUrl || project.data.urls?.[0]?.url || 'https://example.com';
+
+      const sessionResponse = await browserAPI.createSession(projectId, undefined, url);
+      const token = sessionResponse.sessionToken;
+      setBrowserSessionToken(token);
+
+      await browserAPI.navigateSession(token, url);
+      setCurrentBrowserUrl(url);
+
+      setDebugMode(true);
+      setDebugStepIndex(0);
+      setDebugStepResult(null);
+      setIsDebugPaused(true);
+
+      logger.info(`Debug session created, navigated to: ${url}`);
+    } catch (error: any) {
+      logger.error('Failed to start debug execution', error);
+      showError('Debug Start Failed', error.message || 'Could not create browser session.');
+    }
+  };
+
+  // Execute the next debug step
+  const executeNextDebugStep = async () => {
+    if (debugStepIndex >= steps.length) return;
+    setIsDebugPaused(false);
+    setDebugStepResult(null);
+
+    try {
+      const step = steps[debugStepIndex];
+      const action = { type: step.type, selector: step.selector, value: step.value || '' };
+      const result = await browserAPI.executeAction(browserSessionToken!, action);
+
+      // Update URL from session
+      const sessionInfo = await browserAPI.getSessionInfo(browserSessionToken!);
+      if (sessionInfo.session?.currentUrl) {
+        setCurrentBrowserUrl(sessionInfo.session.currentUrl);
+      }
+
+      setDebugStepResult({ success: true, ...result });
+    } catch (error: any) {
+      setDebugStepResult({ success: false, error: error.response?.data?.message || error.message || 'Unknown error' });
+    }
+
+    setIsDebugPaused(true);
+    setDebugStepIndex(prev => prev + 1);
+  };
+
+  // Stop debug execution and clean up
+  const stopDebugExecution = () => {
+    setDebugMode(false);
+    setDebugStepIndex(0);
+    setDebugStepResult(null);
+    if (browserSessionToken) {
+      browserAPI.closeSession(browserSessionToken).catch(() => {});
+      setBrowserSessionToken(null);
+    }
+  };
+
   return (
-    <div className={`bg-white border-l border-gray-200 flex flex-col h-full ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full ${className}`}>
       {/* Minimal Header - No "Test Builder" text */}
-      <div className="border-b border-gray-200 px-4 py-2">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2">
         {selectedElement && (
           <div className="flex justify-end">
             <button
               onClick={onClearSelection}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             >
               Clear Selection
             </button>
@@ -689,16 +702,16 @@ export function TestBuilderPanel({
       <div className="flex-1 flex flex-col min-h-0">
         {/* Element Selection Section - Fixed Height */}
         {selectedElement && (
-          <div className="flex-shrink-0 p-3 border-b border-gray-200">
-            <div className="border border-gray-200 rounded-lg p-3">
+          <div className="flex-shrink-0 p-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-900">{selectedElement.description}</div>
-                  <div className="text-xs text-gray-500">{selectedElement.elementType}</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedElement.description}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{selectedElement.elementType}</div>
                 </div>
                 <button
                   onClick={onClearSelection}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   ×
                 </button>
@@ -713,7 +726,7 @@ export function TestBuilderPanel({
                 <select
                   value={newStep.type}
                   onChange={(e) => setNewStep({ ...newStep, type: e.target.value as TestStep['type'] })}
-                  className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   {stepTypes.map(type => (
                     <option key={type.value} value={type.value}>
@@ -729,7 +742,7 @@ export function TestBuilderPanel({
                     value={newStep.value || ''}
                     onChange={(e) => setNewStep({ ...newStep, value: e.target.value })}
                     placeholder="Enter value..."
-                    className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 )}
 
@@ -737,7 +750,7 @@ export function TestBuilderPanel({
                   onClick={() => {
                     // Validate required fields
                     if (selectedStepType?.needsValue && (!newStep.value || newStep.value.trim() === '')) {
-                      alert('Please enter a value for this action type.');
+                      showWarning('Value Required', 'Please enter a value for this action type.');
                       return;
                     }
 
@@ -772,9 +785,9 @@ export function TestBuilderPanel({
         {/* Test Steps Section - Always Visible */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Test Steps Header - Fixed Height */}
-          <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200">
+          <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900">Test Steps ({steps.length})</h3>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Test Steps ({steps.length})</h3>
               <div className="flex space-x-2">
                 <button
                   onClick={() => setShowTemplateModal(true)}
@@ -785,8 +798,8 @@ export function TestBuilderPanel({
                   Templates
                 </button>
                 <button
-                  onClick={handleExecuteAllSteps}
-                  disabled={steps.length === 0 || isExecutingAllSteps}
+                  onClick={() => setShowExecutionModeModal(true)}
+                  disabled={steps.length === 0 || isExecutingAllSteps || debugMode}
                   className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   title="Execute all test steps sequentially from starting URL - perfect for flow validation"
                 >
@@ -799,7 +812,7 @@ export function TestBuilderPanel({
                       Step {currentExecutingStepIndex + 1}/{steps.length}
                     </span>
                   ) : (
-                    '▶️ Execute All Steps'
+                    'Run Test'
                   )}
                 </button>
                 <button
@@ -830,16 +843,16 @@ export function TestBuilderPanel({
                 />
               ) : (
                 <div className="text-center py-8">
-                  <div className="text-gray-400 text-2xl mb-2">📝</div>
-                  <div className="text-sm text-gray-500">No test steps yet</div>
-                  <div className="text-xs text-gray-400 mt-1">
+                  <div className="text-gray-400 dark:text-gray-500 text-2xl mb-2">📝</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">No test steps yet</div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                     {!selectedElement 
                       ? 'Select an element from the library to start building your test'
                       : 'Choose an action and click "Add Step" to build your test'
                     }
                   </div>
                   {!selectedElement && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                       💡 <strong>Tip:</strong> Use the element library on the left to browse and select elements from your project
                     </div>
                   )}
@@ -849,8 +862,58 @@ export function TestBuilderPanel({
           </div>
         </div>
 
+        {/* Debug Mode Panel */}
+        {debugMode && (
+          <div className="flex-shrink-0 mx-3 mb-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-orange-800 dark:text-orange-200">
+                Debug Mode — Step {Math.min(debugStepIndex + 1, steps.length)} of {steps.length}
+              </h4>
+              <span className={`text-xs px-2 py-1 rounded ${isDebugPaused ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
+                {isDebugPaused ? 'Paused' : 'Running...'}
+              </span>
+            </div>
+
+            {debugStepIndex < steps.length && (
+              <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                <div><strong>Action:</strong> {steps[debugStepIndex]?.type}</div>
+                <div><strong>Selector:</strong> <span className="font-mono text-xs">{steps[debugStepIndex]?.selector}</span></div>
+                {steps[debugStepIndex]?.value && <div><strong>Value:</strong> {steps[debugStepIndex]?.value}</div>}
+              </div>
+            )}
+
+            {debugStepIndex >= steps.length && (
+              <div className="text-sm text-green-700 dark:text-green-300 mb-3 font-medium">
+                All steps have been executed.
+              </div>
+            )}
+
+            {debugStepResult && (
+              <div className={`text-sm p-2 rounded mb-3 ${debugStepResult.success ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
+                {debugStepResult.success ? `Step ${debugStepIndex} passed` : `Step ${debugStepIndex} failed: ${debugStepResult.error}`}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={executeNextDebugStep}
+                disabled={!isDebugPaused || debugStepIndex >= steps.length}
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {debugStepIndex >= steps.length - 1 ? 'Execute Last Step' : 'Next Step'}
+              </button>
+              <button
+                onClick={stopDebugExecution}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+              >
+                Stop Debug
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Save/Cancel Buttons - Always Visible at Bottom */}
-        <div className="flex-shrink-0 border-t border-gray-200 p-4">
+        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
           <div className="flex space-x-3">
             <button
               onClick={() => {
@@ -903,21 +966,21 @@ export function TestBuilderPanel({
       {/* Add/Edit Step Modal */}
       {showAddStep && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                 {editingStep ? 'Edit Step' : 'Add Test Step'}
               </h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Action Type
                   </label>
                   <select
                     value={newStep.type}
                     onChange={(e) => setNewStep({ ...newStep, type: e.target.value as TestStep['type'] })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {stepTypes.map(type => (
                       <option key={type.value} value={type.value}>
@@ -928,42 +991,42 @@ export function TestBuilderPanel({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Selector
                   </label>
                   <input
                     type="text"
                     value={newStep.selector}
                     onChange={(e) => setNewStep({ ...newStep, selector: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="CSS selector"
                   />
                 </div>
 
                 {selectedStepType?.needsValue && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Value
                     </label>
                     <input
                       type="text"
                       value={newStep.value || ''}
                       onChange={(e) => setNewStep({ ...newStep, value: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter value..."
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Description
                   </label>
                   <input
                     type="text"
                     value={newStep.description}
                     onChange={(e) => setNewStep({ ...newStep, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Describe this step"
                   />
                 </div>
@@ -1003,10 +1066,47 @@ export function TestBuilderPanel({
         />
       )}
 
+      {/* Execution Mode Selection Modal */}
+      {showExecutionModeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Choose Execution Mode
+            </h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setShowExecutionModeModal(false); startNormalExecution(); }}
+                className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              >
+                <div className="font-medium text-gray-900 dark:text-gray-100">Normal Mode</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Runs all steps automatically in a real browser. Watch the browser as it executes.
+                </div>
+              </button>
+              <button
+                onClick={() => { setShowExecutionModeModal(false); startDebugExecution(); }}
+                className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-500 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+              >
+                <div className="font-medium text-gray-900 dark:text-gray-100">Debug Mode</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Step-by-step execution. Click "Next Step" to advance. Inspect results after each step.
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowExecutionModeModal(false)}
+              className="mt-4 w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sequential Execution Progress Modal */}
       {showSequentialExecutionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="bg-green-600 text-white p-4 rounded-t-lg">
               <div className="flex items-center justify-between">
@@ -1031,8 +1131,8 @@ export function TestBuilderPanel({
 
             {/* Progress Bar */}
             {isExecutingAllSteps && (
-              <div className="p-4 border-b border-gray-200">
-                <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div
                     className="bg-green-600 h-3 rounded-full transition-all duration-500 flex items-center justify-center"
                     style={{ width: `${((currentExecutingStepIndex + 1) / steps.length) * 100}%` }}
@@ -1047,35 +1147,12 @@ export function TestBuilderPanel({
               </div>
             )}
 
-            {/* Split Screen Content */}
+            {/* Steps Progress Content */}
             <div className="flex-1 flex overflow-hidden">
-              {/* Left Side: Live Browser Execution */}
-              <div className="w-3/5 border-r border-gray-200" style={{ minHeight: '700px', height: '100%' }}>
-                {browserSessionToken ? (
-                  <LiveSessionBrowser
-                    sessionToken={browserSessionToken}
-                    isExecuting={isExecutingAllSteps}
-                    currentStep={currentExecutingStep ? {
-                      description: currentExecutingStep.description,
-                      selector: currentExecutingStep.selector
-                    } : undefined}
-                    className="w-full h-full"
-                  />
-                ) : (
-                  <BrowserPreview
-                    url={currentBrowserUrl || executionStartingUrl || 'https://example.com'}
-                    isPickingMode={false}
-                    onElementSelected={() => {}}
-                    className="w-full h-full"
-                  />
-                )}
-              </div>
-              
-              {/* Right Side: Steps Progress */}
-              <div className="w-2/5 flex flex-col">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-900 mb-2">Execution Progress</h3>
-                  <div className="text-sm text-gray-600">
+              <div className="w-full flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Execution Progress</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     {isExecutingAllSteps 
                       ? `Step ${currentExecutingStepIndex + 1} of ${steps.length}`
                       : `Completed: ${sequentialExecutionResults.length}/${steps.length} steps`
@@ -1096,18 +1173,18 @@ export function TestBuilderPanel({
                       key={step.id}
                       className={`p-3 rounded-lg border ${
                         isCurrentlyExecuting
-                          ? 'border-green-500 bg-green-50'
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                           : isCompleted
                           ? isSuccess
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-red-200 bg-red-50'
+                            ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                            : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
                           : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-gray-600">
+                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                               Step {index + 1}
                             </span>
                             {isCurrentlyExecuting && (
@@ -1122,14 +1199,14 @@ export function TestBuilderPanel({
                               </span>
                             )}
                             {!isCompleted && !isCurrentlyExecuting && (
-                              <span className="text-gray-400">⏳</span>
+                              <span className="text-gray-400 dark:text-gray-500">⏳</span>
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                               {step.description}
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               {step.type} • {step.selector}
                             </div>
                           </div>
@@ -1137,7 +1214,7 @@ export function TestBuilderPanel({
                       </div>
                       
                       {result && !result.success && (
-                        <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded text-xs text-red-700">
+                        <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
                           <strong>Error:</strong> {result.result?.message || 'Unknown error occurred'}
                         </div>
                       )}
@@ -1153,12 +1230,12 @@ export function TestBuilderPanel({
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
               {!isExecutingAllSteps && sequentialExecutionResults.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <span className="text-green-600 font-medium">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="text-green-600 dark:text-green-400 font-medium">
                       {sequentialExecutionResults.filter(r => r.success).length} succeeded
                     </span>
                     {sequentialExecutionResults.filter(r => !r.success).length > 0 && (
-                      <span className="text-red-600 font-medium ml-4">
+                      <span className="text-red-600 dark:text-red-400 font-medium ml-4">
                         {sequentialExecutionResults.filter(r => !r.success).length} failed
                       </span>
                     )}
@@ -1171,6 +1248,38 @@ export function TestBuilderPanel({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step failure confirmation dialog */}
+      {failedStepMessage && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Step Failed</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line mb-6">{failedStepMessage}</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setFailedStepMessage(null)
+                  failedStepResolverRef.current?.(false)
+                  failedStepResolverRef.current = null
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Stop Execution
+              </button>
+              <button
+                onClick={() => {
+                  setFailedStepMessage(null)
+                  failedStepResolverRef.current?.(true)
+                  failedStepResolverRef.current = null
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Continue
+              </button>
             </div>
           </div>
         </div>

@@ -367,7 +367,7 @@ export function LiveExecutionViewer({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full h-full max-w-7xl max-h-[95vh] flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white p-4 rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -408,33 +408,33 @@ export function LiveExecutionViewer({
         <div className="flex-1 flex overflow-hidden">
           {/* Browser Viewport */}
           {showViewport && (
-            <div className="flex-1 flex flex-col border-r border-gray-200">
-              <div className="bg-gray-50 border-b border-gray-200 p-3 flex items-center justify-between">
-                <div className="text-sm font-medium text-gray-700">Browser Viewport</div>
+            <div className="flex-1 flex flex-col border-r border-gray-200 dark:border-gray-700">
+              <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Browser Viewport</div>
                 <div className="flex items-center space-x-2">
                   {executionData?.browserViewport && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {executionData.browserViewport.width}x{executionData.browserViewport.height}
                     </span>
                   )}
                   <button
                     onClick={() => setShowViewport(false)}
-                    className="text-xs text-gray-500 hover:text-gray-700"
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                   >
                     Hide
                   </button>
                 </div>
               </div>
               
-              <div className="flex-1 bg-gray-100 flex items-center justify-center">
+              <div className="flex-1 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                 {executionData?.currentScreenshot ? (
                   <img
                     src={executionData.currentScreenshot}
                     alt="Browser viewport"
-                    className="max-w-full max-h-full object-contain border border-gray-300 rounded"
+                    className="max-w-full max-h-full object-contain border border-gray-300 dark:border-gray-600 rounded"
                   />
                 ) : (
-                  <div className="text-center text-gray-500">
+                  <div className="text-center text-gray-500 dark:text-gray-400">
                     <div className="text-4xl mb-2">🌐</div>
                     <p>Waiting for browser viewport...</p>
                   </div>
@@ -445,8 +445,8 @@ export function LiveExecutionViewer({
 
           {/* Execution Progress */}
           <div className="w-96 flex flex-col">
-            <div className="bg-gray-50 border-b border-gray-200 p-3 flex items-center justify-between">
-              <div className="text-sm font-medium text-gray-700">Execution Progress</div>
+            <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Execution Progress</div>
               {!showViewport && (
                 <button
                   onClick={() => setShowViewport(true)}
@@ -459,7 +459,7 @@ export function LiveExecutionViewer({
 
             {/* Status Banner */}
             {executionData && (
-              <div className={`p-3 border-b border-gray-200 ${
+              <div className={`p-3 border-b border-gray-200 dark:border-gray-700 ${
                 executionData.status === 'running' ? 'bg-blue-50' :
                 executionData.status === 'passed' ? 'bg-green-50' :
                 executionData.status === 'failed' ? 'bg-red-50' :
@@ -474,7 +474,7 @@ export function LiveExecutionViewer({
                     {executionData.status === 'stopped' && '⏹️ Stopped'}
                   </div>
                   {executionData.duration && (
-                    <div className="text-xs text-gray-600">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
                       {(executionData.duration / 1000).toFixed(1)}s
                     </div>
                   )}
@@ -514,7 +514,7 @@ export function LiveExecutionViewer({
                             ? 'bg-green-50 border-green-300 shadow-sm'
                             : step.status === 'failed'
                               ? 'bg-red-50 border-red-300 shadow-sm'
-                              : 'bg-gray-50 border-gray-200 opacity-60'
+                              : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-60'
                       } ${index === executionData.currentStepIndex && step.status === 'running'
                         ? 'ring-2 ring-blue-400 ring-offset-1 scale-[1.02]'
                         : ''
@@ -525,7 +525,7 @@ export function LiveExecutionViewer({
                           step.status === 'running' ? 'text-blue-600' :
                           step.status === 'passed' ? 'text-green-600' :
                           step.status === 'failed' ? 'text-red-600' :
-                          'text-gray-500'
+                          'text-gray-500 dark:text-gray-400'
                         }`}>
                           Step {index + 1} • {step.type}
                         </div>
@@ -549,7 +549,7 @@ export function LiveExecutionViewer({
                         step.status === 'running' ? 'text-blue-900' :
                         step.status === 'passed' ? 'text-green-900' :
                         step.status === 'failed' ? 'text-red-900' :
-                        'text-gray-700'
+                        'text-gray-700 dark:text-gray-300'
                       }`}>
                         {step.description}
                       </div>
@@ -573,7 +573,7 @@ export function LiveExecutionViewer({
                       )}
 
                       {step.duration !== undefined && step.status !== 'pending' && (
-                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
                           ⏱️ {(step.duration / 1000).toFixed(2)}s
                         </div>
                       )}
@@ -581,7 +581,7 @@ export function LiveExecutionViewer({
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-500">
+                <div className="p-6 text-center text-gray-500 dark:text-gray-400">
                   {isExecuting ? (
                     <>
                       <div className="text-2xl mb-2 animate-spin">⚙️</div>
@@ -599,7 +599,7 @@ export function LiveExecutionViewer({
             </div>
 
             {/* Controls */}
-            <div className="border-t border-gray-200 p-3 bg-gray-50">
+            <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900">
               <div className="flex space-x-2">
                 {isExecuting ? (
                   <button

@@ -43,9 +43,9 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
       return 'border-blue-500 bg-blue-50';
     }
     if (!discovered) {
-      return 'border-gray-300 bg-white';
+      return 'border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600';
     }
-    return 'border-gray-400 bg-gray-50 border-dashed';
+    return 'border-gray-400 bg-gray-50 dark:bg-gray-900 border-dashed';
   };
 
   // Get status icon
@@ -110,7 +110,7 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
           {getStatusIcon()}
           <button
             onClick={handleOpenUrl}
-            className="font-medium text-sm text-gray-900 hover:text-blue-600 truncate max-w-[120px] flex items-center gap-1 group"
+            className="font-medium text-sm text-gray-900 dark:text-gray-100 hover:text-blue-600 truncate max-w-[120px] flex items-center gap-1 group"
             title={`Open ${url} in new tab`}
           >
             <span className="truncate">{title || 'Untitled'}</span>
@@ -125,7 +125,7 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
       </div>
 
       {/* URL */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
         <span className="truncate">{displayUrl}</span>
       </div>
 
@@ -150,7 +150,7 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
 
       {/* Screenshot thumbnail */}
       {screenshot && (
-        <div className="mt-2 rounded overflow-hidden border border-gray-200 bg-gray-100">
+        <div className="mt-2 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700">
           <img
             src={screenshot}
             alt={`Preview of ${title}`}

@@ -205,8 +205,8 @@ export function TestSuitesPage() {
             ← Back to Projects
           </Link>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
-        <p className="text-gray-600 mt-2">{project?.description}</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{project?.name}</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">{project?.description}</p>
       </div>
 
       <div className="flex justify-between items-center mb-6">
@@ -214,7 +214,7 @@ export function TestSuitesPage() {
         <div className="flex space-x-4">
           <Link
             to={`/projects/${projectId}/tests`}
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200"
+            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
           >
             📋 Manage Individual Tests
           </Link>
@@ -228,12 +228,12 @@ export function TestSuitesPage() {
       </div>
 
       {showCreateForm && (
-        <div className="bg-white rounded-lg shadow border p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 p-6 mb-6">
           <h3 className="text-lg font-semibold mb-4">Create New Test Suite</h3>
           <form onSubmit={handleCreateSuite}>
             <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Suite Name
                 </label>
                 <input
@@ -241,18 +241,18 @@ export function TestSuitesPage() {
                   required
                   value={newSuite.name}
                   onChange={(e) => setNewSuite({ ...newSuite, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="e.g., Login Flow Tests, Checkout Process Tests"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Description
                 </label>
                 <textarea
                   value={newSuite.description}
                   onChange={(e) => setNewSuite({ ...newSuite, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                   placeholder="Describe what this test suite covers..."
                   rows={3}
                 />
@@ -268,7 +268,7 @@ export function TestSuitesPage() {
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
+                className="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
               >
                 Cancel
               </button>
@@ -277,12 +277,12 @@ export function TestSuitesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow border">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
         {testSuites.length === 0 ? (
           <div className="p-8 text-center">
             <div className="text-4xl mb-4">📦</div>
-            <p className="text-gray-500 mb-4">No test suites created yet</p>
-            <p className="text-sm text-gray-400 mb-6">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">No test suites created yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
               Test suites help you organize and run related tests together. 
               Create your first suite to get started!
             </p>
@@ -293,7 +293,7 @@ export function TestSuitesPage() {
               >
                 ➕ Create Your First Test Suite
               </button>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 Or{' '}
                 <Link 
                   to={`/projects/${projectId}/tests`}
@@ -305,9 +305,9 @@ export function TestSuitesPage() {
             </div>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y dark:divide-gray-700">
             {testSuites.map((suite) => (
-              <div key={suite.id} className="p-6 hover:bg-gray-50">
+              <div key={suite.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -321,9 +321,9 @@ export function TestSuitesPage() {
                       </span>
                     </div>
                     {suite.description && (
-                      <p className="text-gray-600 mb-3">{suite.description}</p>
+                      <p className="text-gray-600 dark:text-gray-400 mb-3">{suite.description}</p>
                     )}
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                       <span>📋 {suite.tests.length} tests</span>
                       <span>📅 Created {new Date(suite.createdAt).toLocaleDateString()}</span>
                       {suite.lastRun && (
@@ -363,8 +363,8 @@ export function TestSuitesPage() {
                 
                 {/* Quick test preview */}
                 {suite.tests.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="text-xs text-gray-500 mb-2">Tests in this suite:</div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tests in this suite:</div>
                     <div className="flex flex-wrap gap-2">
                       {suite.tests.slice(0, 5).map(suiteTest => {
                         // Handle nested structure from backend
@@ -372,14 +372,14 @@ export function TestSuitesPage() {
                         return (
                           <span
                             key={test.id}
-                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
+                            className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded"
                           >
                             {test.name}
                           </span>
                         )
                       })}
                       {suite.tests.length > 5 && (
-                        <span className="px-2 py-1 bg-gray-200 text-gray-500 text-xs rounded">
+                        <span className="px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 text-xs rounded">
                           +{suite.tests.length - 5} more
                         </span>
                       )}

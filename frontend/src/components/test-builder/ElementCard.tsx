@@ -26,6 +26,7 @@ export function ElementCard({
       case 'link': return '🔗';
       case 'form': return '📋';
       case 'navigation': return '🧭';
+      case 'heading': return '🔤';
       case 'text': return '📄';
       default: return '📦';
     }
@@ -38,6 +39,7 @@ export function ElementCard({
       case 'link': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'form': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'text': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -84,9 +86,42 @@ export function ElementCard({
     );
   };
 
+  // Classify native Playwright locator type
+  const getLocatorType = (selector: string): { type: string; color: string } | null => {
+    if (selector.startsWith('getByRole(')) return { type: 'Role', color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' };
+    if (selector.startsWith('getByText(')) return { type: 'Text', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' };
+    if (selector.startsWith('getByLabel(')) return { type: 'Label', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' };
+    if (selector.startsWith('getByTestId(')) return { type: 'TestId', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' };
+    if (selector.startsWith('getByPlaceholder(')) return { type: 'Placeholder', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' };
+    if (selector.startsWith('getByTitle(')) return { type: 'Title', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300' };
+    return null;
+  };
+
+  // Parse native locator into readable parts
+  const parseNativeLocator = (selector: string): { role?: string; name?: string } | null => {
+    const roleMatch = selector.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)/);
+    if (roleMatch) return { role: roleMatch[1], name: roleMatch[2] };
+    const simpleMatch = selector.match(/^getBy(?:Text|Label|TestId|Placeholder|Title)\('([^']+)'\)/);
+    if (simpleMatch) return { name: simpleMatch[1] };
+    return null;
+  };
+
   // Generate human-readable selector preview
   const getReadableSelector = (selector: string) => {
-    // Simple heuristics to make selectors more readable
+    // Native Playwright locators — format as readable badge + value
+    const locType = getLocatorType(selector);
+    if (locType) {
+      const parsed = parseNativeLocator(selector);
+      if (parsed) {
+        const value = parsed.role
+          ? `${parsed.role}${parsed.name ? ` \u203A ${parsed.name}` : ''}`
+          : parsed.name || selector;
+        return value.length > 80 ? value.substring(0, 77) + '...' : value;
+      }
+      return selector.length > 80 ? selector.substring(0, 77) + '...' : selector;
+    }
+
+    // Simple heuristics to make CSS selectors more readable
     if (selector.includes('[data-testid=')) {
       const match = selector.match(/\[data-testid="([^"]+)"\]/);
       if (match) return `Test ID: ${match[1]}`;
@@ -99,9 +134,9 @@ export function ElementCard({
       const match = selector.match(/\.([a-zA-Z0-9_-]+)/);
       if (match) return `Class: ${match[1]}`;
     }
-    
+
     // Truncate long selectors for better display
-    return selector.length > 40 ? selector.substring(0, 37) + '...' : selector;
+    return selector.length > 60 ? selector.substring(0, 57) + '...' : selector;
   };
 
   const cardSizeClasses = {
@@ -122,12 +157,12 @@ export function ElementCard({
   return (
     <div 
       className={`
-        bg-white border rounded-lg cursor-pointer transition-all duration-200 relative
+        bg-white dark:bg-gray-800 border rounded-lg cursor-pointer transition-all duration-200 relative
         ${isNew || isHunted 
           ? 'border-orange-300 shadow-md ring-2 ring-orange-100' 
           : isHovered 
             ? 'border-blue-300 shadow-md' 
-            : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'
         }
         ${cardSizeClasses[size]}
         ${className}
@@ -153,7 +188,7 @@ export function ElementCard({
             {element.elementType}
           </span>
         </div>
-        <div className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+        <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 whitespace-nowrap">
           {Math.round(element.confidence * 100)}%
         </div>
       </div>
@@ -167,13 +202,13 @@ export function ElementCard({
 
       {/* Element Name/Description */}
       <div className="mb-3">
-        <h3 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-3 mb-1">
           {element.description}
         </h3>
       </div>
 
       {/* Enhanced Visual Preview */}
-      <div className={`bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-md mb-3 ${previewSizeClasses[size]} flex items-center justify-center relative overflow-hidden group`}>
+      <div className={`bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border border-gray-200 dark:border-gray-700 rounded-md mb-3 ${previewSizeClasses[size]} flex items-center justify-center relative overflow-hidden group`}>
         {/* Preview Content */}
         {element.attributes?.cssInfo ? (
           <div className="w-full h-full">
@@ -198,42 +233,18 @@ export function ElementCard({
             </div>
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 relative">
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 relative">
             {/* Enhanced fallback preview */}
             <div className="text-2xl mb-2">{getElementTypeIcon(element.elementType)}</div>
             <div className="text-xs font-medium">{element.elementType}</div>
             <div className="text-xs opacity-75 mt-1">No visual data</div>
             
             {/* Simulated element preview based on type */}
-            <div className="absolute inset-2 border-2 border-dashed border-gray-300 rounded opacity-30 flex items-center justify-center">
-              <div className="w-4 h-4 bg-gray-300 rounded"></div>
+            <div className="absolute inset-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded opacity-30 flex items-center justify-center">
+              <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded"></div>
             </div>
           </div>
         )}
-
-        {/* Hover overlay with preview actions */}
-        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Add enhanced preview functionality
-            }}
-            className="px-2 py-1 bg-white text-gray-700 rounded text-xs hover:bg-gray-100 transition-colors"
-            title="Enhanced preview"
-          >
-            🔍 Preview
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Add screenshot capture functionality  
-            }}
-            className="px-2 py-1 bg-white text-gray-700 rounded text-xs hover:bg-gray-100 transition-colors"
-            title="Capture screenshot"
-          >
-            📸 Capture
-          </button>
-        </div>
 
         {/* Quality indicator overlay */}
         {element.overallQuality !== undefined && element.overallQuality < 0.6 && (
@@ -245,9 +256,16 @@ export function ElementCard({
 
       {/* Enhanced Selector Display */}
       <div className="mb-3">
-        <div className="bg-gray-50 border border-gray-200 rounded-md p-2">
+        <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md p-2">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-600">Selector</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Selector</span>
+              {getLocatorType(element.selector) && (
+                <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${getLocatorType(element.selector)!.color}`}>
+                  {getLocatorType(element.selector)!.type}
+                </span>
+              )}
+            </div>
             <div className="flex items-center space-x-1">
               {/* Validation Status */}
               {element.overallQuality !== undefined && (
@@ -272,19 +290,19 @@ export function ElementCard({
                   e.stopPropagation();
                   navigator.clipboard.writeText(element.selector);
                 }}
-                className="p-1 text-gray-400 hover:text-gray-600 text-xs"
+                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs"
                 title="Copy selector"
               >
                 📋
               </button>
             </div>
           </div>
-          <div className="text-xs text-gray-700 font-mono bg-white px-2 py-1 rounded border break-all">
+          <div className="text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 px-2 py-1 rounded border dark:border-gray-600 break-all">
             {getReadableSelector(element.selector)}
           </div>
           {/* Full selector tooltip on hover */}
           {element.selector.length > 40 && (
-            <div className="text-xs text-gray-400 mt-1 truncate" title={element.selector}>
+            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate" title={element.selector}>
               Full: {element.selector}
             </div>
           )}
@@ -317,29 +335,9 @@ export function ElementCard({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // TODO: Add live preview functionality
-              }}
-              className="flex-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-              title="Live preview on page"
-            >
-              👁️ Preview
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Add selector validation
-              }}
-              className="flex-1 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
-              title="Validate selector"
-            >
-              🔍 Validate
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
                 navigator.clipboard.writeText(element.selector);
               }}
-              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+              className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               title="Copy selector"
             >
               📋

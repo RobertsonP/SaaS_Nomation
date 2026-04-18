@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ProjectElement } from '../../types/element.types'
 import { TestStep } from '../../types/test.types'
-import { getProjectElements } from '../../lib/api'
 import { ElementLibraryPanel } from './ElementLibraryPanel'
 import { TestBuilderPanel } from './TestBuilderPanel'
 import { CellStepData } from '../elements/CellSelectorPopover'
@@ -18,9 +17,6 @@ interface TestBuilderProps {
 }
 
 export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, testId, onElementsUpdated, startingUrl, setShowLivePicker }: TestBuilderProps) {
-  // Simplified state for layout component
-  const [elementLibrary, setElementLibrary] = useState<ProjectElement[]>([])
-  const [loadingElements, setLoadingElements] = useState(false)
   const [selectedElement, setSelectedElement] = useState<ProjectElement | null>(null)
   const [pendingStep, setPendingStep] = useState<TestStep | null>(null)
 
@@ -28,26 +24,8 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
   const [selectedElementType, setSelectedElementType] = useState<string>('all')
   const [selectedUrl, setSelectedUrl] = useState<string>('all')
 
-  // Load element library when component mounts
-  useEffect(() => {
-    if (projectId) {
-      loadElementLibrary()
-    }
-  }, [projectId])
-
-  const loadElementLibrary = async () => {
-    if (!projectId) return
-    
-    try {
-      setLoadingElements(true)
-      const elements = await getProjectElements(projectId)
-      setElementLibrary(elements)
-    } catch (error) {
-      console.error('Failed to load element library:', error)
-    } finally {
-      setLoadingElements(false)
-    }
-  }
+  // Key to force ElementLibraryPanel to re-fetch after new elements are added
+  const [elementsRefreshKey, setElementsRefreshKey] = useState(0)
 
   // AI Enhancement: Handle element selection from library
   const handleElementSelect = (element: ProjectElement) => {
@@ -55,17 +33,9 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
   }
 
   // Handle new elements discovered from hunting
-  const handleHuntNewElements = (newElements: ProjectElement[]) => {
-    // Add new elements to the current library
-    setElementLibrary(prev => [...prev, ...newElements])
-    // Notify parent component to refresh if needed
-    onElementsUpdated?.()
-  }
-
-  // Handle elements added from live element picker
-  const handleElementsAdded = (newElements: ProjectElement[]) => {
-    // Add new elements to the current library
-    setElementLibrary(prev => [...prev, ...newElements])
+  const handleHuntNewElements = (_newElements: ProjectElement[]) => {
+    // Trigger a refresh of the paginated element library
+    setElementsRefreshKey(prev => prev + 1)
     // Notify parent component to refresh if needed
     onElementsUpdated?.()
   }
@@ -83,13 +53,14 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
   }
 
   return (
-    <div className="bg-white h-full flex flex-col">
+    <div className="bg-white dark:bg-gray-800 h-full flex flex-col">
       {/* OPTIMIZED LAYOUT: 60% element library + 40% test steps */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT SIDEBAR: Element Library (60% - EXPANDED) */}
-        <div className="w-3/5 border-r border-gray-200">
+        <div className="w-3/5 border-r border-gray-200 dark:border-gray-700">
           <ElementLibraryPanel
-            elements={elementLibrary}
+            key={elementsRefreshKey}
+            projectId={projectId}
             onSelectElement={handleElementSelect}
             onAddStep={handleAddStep}
             selectedElementType={selectedElementType}
@@ -99,7 +70,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             previewMode="auto"
             showQuality={true}
             compact={false}
-            isLoading={loadingElements}
+            isLoading={false}
             setShowLivePicker={setShowLivePicker}
           />
         </div>
