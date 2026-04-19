@@ -46,6 +46,16 @@ export class PublicBrowserController {
     }
   }
 
+  @Get('sessions/:sessionToken/capture')
+  async capturePageState(@Param('sessionToken') sessionToken: string) {
+    try {
+      return await this.liveBrowserService.capturePageState(sessionToken);
+    } catch (error) {
+      console.error(`Capture failed for session ${sessionToken}:`, error.message);
+      throw new HttpException('Failed to capture page state', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('sessions/:sessionToken/screenshot')
   async getSessionScreenshot(@Param('sessionToken') sessionToken: string) {
     try {

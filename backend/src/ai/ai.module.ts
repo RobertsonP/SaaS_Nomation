@@ -9,6 +9,8 @@ import { BrowserManagerService } from './browser-manager.service';
 import { SelectorQualityService } from './selector-quality.service';
 import { ScreenshotService } from './screenshot.service';
 import { InteractiveElementDiscoveryService } from './interactive-element-discovery.service';
+import { ClaudeAiService } from './claude-ai.service';
+import { TestGenerationService } from './test-generation.service';
 import { AuthModule } from '../auth/auth.module';
 import { AnalysisModule } from '../analysis/analysis.module';
 import { BrowserModule } from '../browser/browser.module';
@@ -29,6 +31,8 @@ import { ElementsController } from './elements.controller';
     SelectorQualityService,
     ScreenshotService,
     InteractiveElementDiscoveryService,
+    ClaudeAiService,
+    TestGenerationService,
   ],
   exports: [
     AiService,
@@ -41,6 +45,8 @@ import { ElementsController } from './elements.controller';
     SelectorQualityService,
     ScreenshotService,
     InteractiveElementDiscoveryService,
+    ClaudeAiService,
+    TestGenerationService,
   ],
 })
 export class AiModule {}

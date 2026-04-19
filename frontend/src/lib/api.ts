@@ -200,6 +200,12 @@ export const projectsAPI = {
     return response.data;
   },
   
+  // AI Test Generation
+  generateTests: async (projectId: string, description?: string) => {
+    const response = await api.post(`/projects/${projectId}/tests/generate`, { description });
+    return response.data;
+  },
+
   // Self-Healing
   healSelector: async (projectId: string, failedSelector: string) => {
     const response = await api.post(`/projects/${projectId}/heal-selector`, { failedSelector });
@@ -290,6 +296,12 @@ export const browserAPI = {
     return response.data;
   },
   
+  // Capture full page state: screenshot + all elements in one call
+  capturePageState: async (sessionToken: string) => {
+    const response = await api.get(`/api/public/browser/sessions/${sessionToken}/capture`);
+    return response;
+  },
+
   // Close browser session
   closeSession: async (sessionToken: string) => {
     const response = await api.delete(`/api/public/browser/sessions/${sessionToken}`);

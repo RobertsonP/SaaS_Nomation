@@ -725,6 +725,39 @@ export class LiveBrowserService {
     return `data:image/jpeg;base64,${screenshot.toString('base64')}`;
   }
 
+  async capturePageState(sessionToken: string): Promise<{
+    screenshot: string;
+    elements: DetectedElement[];
+    url: string;
+    title: string;
+  }> {
+    const sessionData = this.activeSessions.get(sessionToken);
+    if (!sessionData) {
+      throw new Error('Session not found or expired');
+    }
+
+    const { page } = sessionData;
+
+    // Capture screenshot at higher quality for the static capture view
+    const screenshotBuffer = await page.screenshot({
+      type: 'jpeg',
+      quality: 80,
+      fullPage: false,
+      animations: 'disabled',
+      timeout: 10000,
+    });
+
+    // Capture all interactive elements from the current page state
+    const elements = await this.captureCurrentElements(sessionToken);
+
+    return {
+      screenshot: `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`,
+      elements: elements || [],
+      url: page.url(),
+      title: await page.title(),
+    };
+  }
+
   async getSessionInfo(sessionToken: string): Promise<BrowserSession | null> {
     return this.prisma.browserSession.findUnique({
       where: { sessionToken },

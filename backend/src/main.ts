@@ -1,3 +1,6 @@
+// Load .env into process.env BEFORE any module that reads env vars at construction time
+import 'dotenv/config';
+
 // CRITICAL: Polyfill crypto for @nestjs/schedule in Docker environment
 import * as crypto from 'crypto';
 if (typeof (global as any).crypto === 'undefined') {

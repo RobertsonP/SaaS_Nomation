@@ -211,7 +211,16 @@ export function ElementCard({
       <div className={`bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border border-gray-200 dark:border-gray-700 rounded-md mb-3 ${previewSizeClasses[size]} flex items-center justify-center relative overflow-hidden group`}>
         {/* Preview Content */}
         {element.attributes?.cssInfo ? (
-          <div className="w-full h-full">
+          <div
+            className="w-full h-full"
+            style={{
+              backgroundColor: (() => {
+                const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
+                  || (element.attributes as any)?.cssInfo?.backgroundColor;
+                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : undefined;
+              })(),
+            }}
+          >
             <CSSPreviewRenderer
               element={element}
               mode="compact"

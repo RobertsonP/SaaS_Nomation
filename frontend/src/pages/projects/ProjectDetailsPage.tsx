@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
@@ -101,6 +101,7 @@ interface Project {
 
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const { activeDiscovery, isMinimized } = useDiscoveryContext();
   const [project, setProject] = useState<Project | null>(null);
@@ -134,6 +135,9 @@ export function ProjectDetailsPage() {
     regressions: number;
     successRate: number;
   } | null>(null);
+
+  // AI test generation state
+  const [isGeneratingTests, setIsGeneratingTests] = useState(false);
 
   // Auth setup state
   const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
@@ -407,6 +411,31 @@ export function ProjectDetailsPage() {
     }
   };
 
+  // AI Test Generation handler
+  const handleGenerateTests = async () => {
+    if (!projectId) return;
+    setIsGeneratingTests(true);
+    try {
+      const res = await projectsAPI.generateTests(projectId);
+      const data = res?.data || res;
+      const total = data?.summary?.total || data?.tests?.length || 0;
+      showSuccess(
+        'Tests Generated',
+        `Successfully generated ${total} test scenarios as drafts.`
+      );
+      loadProject();
+      navigate(`/projects/${projectId}/tests`);
+    } catch (error: any) {
+      logger.error('AI test generation failed', error);
+      showError(
+        'Generation Failed',
+        error.response?.data?.message || 'Failed to generate tests. Make sure ANTHROPIC_API_KEY is configured.'
+      );
+    } finally {
+      setIsGeneratingTests(false);
+    }
+  };
+
   // Authentication CRUD handlers
   const handleAddAuthentication = () => {
     setEditingAuthFlow(null);
@@ -556,6 +585,19 @@ export function ProjectDetailsPage() {
             >
               Tests ({project._count.tests})
             </Link>
+            {project._count.elements > 0 && (
+              <button
+                onClick={handleGenerateTests}
+                disabled={isGeneratingTests}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isGeneratingTests
+                    ? 'bg-amber-300 dark:bg-amber-800 text-amber-100 cursor-not-allowed'
+                    : 'bg-amber-500 text-white hover:bg-amber-600'
+                }`}
+              >
+                {isGeneratingTests ? 'Generating...' : 'AI Generate Tests'}
+              </button>
+            )}
             {project.urls.length > 0 ? (
               <Link
                 to={`/projects/${project.id}/tests/new`}
@@ -655,6 +697,8 @@ export function ProjectDetailsPage() {
             analysisProgressPercent={analysisProgressPercent}
             onSetActiveTab={setActiveTab}
             onShowAnalysisModal={() => setShowAnalysisModal(true)}
+            onGenerateTests={handleGenerateTests}
+            isGeneratingTests={isGeneratingTests}
           />
         )}
 

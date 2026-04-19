@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Project, TestStats } from './types';
+
+// Feature flag: AI test generation — hidden until Anthropic API billing is funded (pre-launch).
+const AI_TEST_GEN_ENABLED = false;
 
 interface ProjectOverviewTabProps {
   project: Project;
@@ -9,6 +12,8 @@ interface ProjectOverviewTabProps {
   analysisProgressPercent: number;
   onSetActiveTab: (tab: 'urls') => void;
   onShowAnalysisModal: () => void;
+  onGenerateTests: () => Promise<void>;
+  isGeneratingTests: boolean;
 }
 
 export function ProjectOverviewTab({
@@ -19,7 +24,11 @@ export function ProjectOverviewTab({
   analysisProgressPercent,
   onSetActiveTab,
   onShowAnalysisModal,
+  onGenerateTests,
+  isGeneratingTests,
 }: ProjectOverviewTabProps) {
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+
   return (
     <div className="space-y-6">
       {/* Empty Project Setup Guide */}
@@ -115,6 +124,85 @@ export function ProjectOverviewTab({
               No test executions yet. Run tests to see statistics.
             </p>
           )}
+        </div>
+      )}
+
+      {/* AI Test Generation — show when project has analyzed elements */}
+      {AI_TEST_GEN_ENABLED && project._count.elements > 0 && (
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                AI Test Generation
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl">
+                Generate a comprehensive test suite using Claude AI. Tests are created from your discovered elements,
+                navigation paths, and authentication flows — covering authentication, navigation, forms, tables, and
+                end-to-end user workflows.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowGenerateConfirm(true)}
+              disabled={isGeneratingTests}
+              className={`ml-4 flex-shrink-0 px-5 py-2.5 rounded-lg font-medium transition-colors ${
+                isGeneratingTests
+                  ? 'bg-purple-300 dark:bg-purple-800 text-purple-100 cursor-not-allowed'
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+            >
+              {isGeneratingTests ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Generating...
+                </span>
+              ) : (
+                'Generate Test Suite with AI'
+              )}
+            </button>
+          </div>
+          <div className="mt-3 flex gap-4 text-xs text-gray-500 dark:text-gray-400">
+            <span>{project._count.elements} elements available</span>
+            <span>{project._count.urls} pages indexed</span>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Confirmation Modal */}
+      {showGenerateConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Generate Test Suite with AI
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Claude AI will analyze your {project._count.elements} discovered elements and {project._count.urls} pages
+              to generate a comprehensive test suite covering authentication, navigation, forms, tables, and end-to-end
+              workflows. Generated tests will be saved as drafts.
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mb-6">
+              This may take 1-2 minutes depending on the number of pages and elements.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowGenerateConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowGenerateConfirm(false);
+                  onGenerateTests();
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Generate Tests
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

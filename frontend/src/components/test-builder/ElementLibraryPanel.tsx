@@ -37,18 +37,6 @@ interface ElementLibraryPanelProps {
   isAnalyzing?: boolean;
 }
 
-// Type filter chip definitions
-const TYPE_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'button', label: 'Buttons' },
-  { value: 'input', label: 'Inputs' },
-  { value: 'link', label: 'Links' },
-  { value: 'table', label: 'Tables' },
-  { value: 'form', label: 'Forms' },
-  { value: 'heading', label: 'Headings' },
-  { value: 'navigation', label: 'Nav' },
-] as const;
-
 function getPathFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -73,8 +61,8 @@ export function ElementLibraryPanel({
 }: ElementLibraryPanelProps) {
   const [showUrlPicker, setShowUrlPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
+  const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set());
 
   // Pagination state (only used when projectId is provided)
   const [paginatedElements, setPaginatedElements] = useState<ProjectElement[]>([]);
@@ -93,12 +81,10 @@ export function ElementLibraryPanel({
     else setLoadMoreLoading(true);
 
     try {
-      const params: { skip: number; take: number; type?: string } = {
+      const params: { skip: number; take: number } = {
         skip,
         take: PAGE_SIZE,
       };
-      // Send type filter to backend when paginating
-      if (typeFilter !== 'all') params.type = typeFilter;
 
       const result = await projectsAPI.getElementsPaginated(projectId, params);
       setPaginatedElements(prev => append ? [...prev, ...result.elements] : result.elements);
@@ -109,7 +95,7 @@ export function ElementLibraryPanel({
       if (isInitial) setPaginationLoading(false);
       else setLoadMoreLoading(false);
     }
-  }, [projectId, typeFilter]);
+  }, [projectId]);
 
   // Load first page when projectId or type filter changes
   useEffect(() => {
@@ -141,13 +127,9 @@ export function ElementLibraryPanel({
     }
   };
 
-  // Filter elements (type filter is handled server-side in pagination mode)
+  // Filter elements by search query
   const filteredElements = useMemo(() => {
     return elements.filter(el => {
-      // Type filter — skip in pagination mode since backend already filtered
-      if (!usePagination && typeFilter !== 'all' && el.elementType !== typeFilter) return false;
-
-      // Search filter (always client-side)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matches =
@@ -158,37 +140,52 @@ export function ElementLibraryPanel({
           (el.sourceUrl?.url || '').toLowerCase().includes(query);
         if (!matches) return false;
       }
-
       return true;
     });
-  }, [elements, typeFilter, searchQuery, usePagination]);
+  }, [elements, searchQuery]);
 
-  // Group by source URL
-  const groupedElements = useMemo(() => {
-    const groups = new Map<string, { url: string; title: string; elements: ProjectElement[] }>();
-
+  // Build page list for left panel
+  const pageList = useMemo(() => {
+    const pages = new Map<string, { url: string; title: string; count: number }>();
     for (const el of filteredElements) {
-      const urlKey = el.sourceUrl?.url || 'unknown';
-      const title = el.sourceUrl?.title || getPathFromUrl(urlKey);
-
-      if (!groups.has(urlKey)) {
-        groups.set(urlKey, { url: urlKey, title, elements: [] });
-      }
-      groups.get(urlKey)!.elements.push(el);
+      const url = el.sourceUrl?.url || 'unknown';
+      const title = el.sourceUrl?.title || getPathFromUrl(url);
+      if (!pages.has(url)) pages.set(url, { url, title, count: 0 });
+      pages.get(url)!.count++;
     }
-
-    // Sort groups by element count (descending)
-    return Array.from(groups.values()).sort((a, b) => b.elements.length - a.elements.length);
+    return Array.from(pages.values()).sort((a, b) => b.count - a.count);
   }, [filteredElements]);
 
-  const toggleGroup = (url: string) => {
-    setCollapsedGroups(prev => {
+  // Auto-select first page when data loads or selection becomes invalid
+  useEffect(() => {
+    if (pageList.length > 0 && (!selectedPageUrl || !pageList.some(p => p.url === selectedPageUrl))) {
+      setSelectedPageUrl(pageList[0].url);
+    }
+  }, [pageList, selectedPageUrl]);
+
+  // Elements for selected page, grouped by type
+  const elementsByType = useMemo(() => {
+    const els = filteredElements.filter(el => {
+      const url = el.sourceUrl?.url || 'unknown';
+      return url === selectedPageUrl;
+    });
+
+    const groups = new Map<string, ProjectElement[]>();
+    for (const el of els) {
+      const type = el.elementType || 'element';
+      if (!groups.has(type)) groups.set(type, []);
+      groups.get(type)!.push(el);
+    }
+
+    return Array.from(groups.entries())
+      .sort((a, b) => b[1].length - a[1].length);
+  }, [filteredElements, selectedPageUrl]);
+
+  const toggleTypeCollapse = (type: string) => {
+    setCollapsedTypes(prev => {
       const next = new Set(prev);
-      if (next.has(url)) {
-        next.delete(url);
-      } else {
-        next.add(url);
-      }
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
       return next;
     });
   };
@@ -280,7 +277,7 @@ export function ElementLibraryPanel({
         </div>
 
         {/* Search Bar */}
-        <div className="relative mb-3">
+        <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -302,146 +299,133 @@ export function ElementLibraryPanel({
             </button>
           )}
         </div>
-
-        {/* Type Filter Chips */}
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {TYPE_FILTERS.map(f => {
-            const count = f.value === 'all'
-              ? (usePagination ? totalCount : elements.length)
-              : elements.filter(e => e.elementType === f.value).length;
-            // In pagination mode, show all filter options; in non-paginated mode, hide empty types
-            if (!usePagination && count === 0 && f.value !== 'all') return null;
-            return (
-              <button
-                key={f.value}
-                onClick={() => setTypeFilter(f.value)}
-                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
-                  typeFilter === f.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {f.label}
-                {!usePagination && <span className="ml-1 opacity-70">{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-
       </div>
 
-      {/* Scrollable Content — Grouped by URL */}
-      <div className="flex-1 overflow-y-auto">
-        {groupedElements.map(group => {
-          const isCollapsed = collapsedGroups.has(group.url);
-          const path = getPathFromUrl(group.url);
-
-          return (
-            <div key={group.url} className="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-              {/* Group Header */}
+      {/* Two-panel layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left panel: Page list */}
+        <div className="w-[30%] border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
+          <div className="p-2">
+            {pageList.map(page => (
               <button
-                onClick={() => toggleGroup(group.url)}
-                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                key={page.url}
+                onClick={() => setSelectedPageUrl(page.url)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
+                  selectedPageUrl === page.url
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <svg
-                    className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isCollapsed ? '' : 'rotate-90'}`}
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                <div className="truncate">{getPathFromUrl(page.url)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{page.count} elements</div>
+              </button>
+            ))}
+            {pageList.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 p-3">No pages analyzed yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel: Elements grouped by type */}
+        <div className="w-[70%] overflow-y-auto">
+          <div className="p-3">
+            {selectedPageUrl && elementsByType.length > 0 ? (
+              elementsByType.map(([type, typeElements]) => (
+                <div key={type} className="mb-3">
+                  {/* Type section header */}
+                  <button
+                    onClick={() => toggleTypeCollapse(type)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate" title={group.url}>
-                    {group.title || path}
-                  </span>
-                  {group.title && group.title !== path && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate hidden sm:inline">
-                      {path}
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 capitalize">
+                      {type}s ({typeElements.length})
                     </span>
+                    <span className="text-gray-400 dark:text-gray-500 text-xs">
+                      {collapsedTypes.has(type) ? '\u25B8' : '\u25BE'}
+                    </span>
+                  </button>
+
+                  {/* Element cards */}
+                  {!collapsedTypes.has(type) && (
+                    <div className="mt-2 space-y-2">
+                      {typeElements.map(element => {
+                        const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
+                        const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
+
+                        if (hasTableData) {
+                          return (
+                            <div key={element.id}>
+                              <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                            </div>
+                          );
+                        }
+                        if (hasDropdownData) {
+                          return (
+                            <div key={element.id}>
+                              <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                            </div>
+                          );
+                        }
+                        return (
+                          <ElementPreviewCard
+                            key={element.id}
+                            element={element}
+                            onSelectElement={onSelectElement}
+                            showQuality
+                          />
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-                <span className="flex-shrink-0 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full ml-2">
-                  {group.elements.length}
-                </span>
-              </button>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                {selectedPageUrl ? 'No elements found for this page' : 'Select a page to view elements'}
+              </p>
+            )}
 
-              {/* Group Elements */}
-              {!isCollapsed && (
-                <div className="px-4 pb-3 grid grid-cols-1 gap-3">
-                  {group.elements.map(element => {
-                    const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
-                    const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
+            {/* Load More */}
+            {hasMore && (
+              <div className="py-4 text-center border-t border-gray-100 dark:border-gray-700 mt-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Showing {paginatedElements.length} of {totalCount} elements
+                </p>
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadMoreLoading}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    loadMoreLoading
+                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {loadMoreLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      Loading...
+                    </span>
+                  ) : (
+                    `Load More (${Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)`
+                  )}
+                </button>
+              </div>
+            )}
 
-                    if (hasTableData) {
-                      return (
-                        <div key={element.id}>
-                          <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                        </div>
-                      );
-                    }
-                    if (hasDropdownData) {
-                      return (
-                        <div key={element.id}>
-                          <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                        </div>
-                      );
-                    }
-                    return (
-                      <ElementPreviewCard
-                        key={element.id}
-                        element={element}
-                        onSelectElement={onSelectElement}
-                        showQuality
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Load More */}
-        {hasMore && (
-          <div className="px-4 py-4 text-center border-t border-gray-100 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              Showing {paginatedElements.length} of {totalCount} elements
-            </p>
-            <button
-              onClick={handleLoadMore}
-              disabled={loadMoreLoading}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                loadMoreLoading
-                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {loadMoreLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  Loading...
-                </span>
-              ) : (
-                `Load More (${Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)`
-              )}
-            </button>
+            {/* No Results */}
+            {filteredElements.length === 0 && elements.length > 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400 mb-2">No elements match your search</p>
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
           </div>
-        )}
-
-        {/* No Results */}
-        {filteredElements.length === 0 && elements.length > 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No elements match your filters</p>
-            <button
-              onClick={() => {
-                setTypeFilter('all');
-                setSearchQuery('');
-              }}
-              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-            >
-              Clear all filters
-            </button>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* URL Picker Modal */}

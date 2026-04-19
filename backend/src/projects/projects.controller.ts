@@ -6,6 +6,7 @@ import { ProjectElementsService } from './project-elements.service';
 import { ProjectAnalysisService } from './project-analysis.service';
 import { SelectorValidationService } from './selector-validation.service';
 import { LiveExecutionService } from './live-execution.service';
+import { TestGenerationService } from '../ai/test-generation.service';
 import { TestStep } from '../common/types/execution.types';
 
 export class CreateProjectDto {
@@ -30,6 +31,7 @@ export class ProjectsController {
     private projectAnalysisService: ProjectAnalysisService,
     private selectorValidationService: SelectorValidationService,
     private liveExecutionService: LiveExecutionService,
+    private testGenerationService: TestGenerationService,
   ) {}
 
   // ==================== CORE CRUD ====================
@@ -99,6 +101,25 @@ export class ProjectsController {
       throw new HttpException('Project not found', HttpStatus.NOT_FOUND);
     }
     return stats;
+  }
+
+  // ==================== AI TEST GENERATION ====================
+
+  @Post(':id/tests/generate')
+  @UseGuards(OrganizationGuard)
+  async generateTests(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: { description?: string },
+  ) {
+    try {
+      return await this.testGenerationService.generateTestsForProject(id, body.description);
+    } catch (error) {
+      throw new HttpException(
+        { message: error.message || 'AI test generation failed' },
+        error.status || 500,
+      );
+    }
   }
 
   // ==================== ELEMENTS ====================

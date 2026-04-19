@@ -63,6 +63,11 @@ export class BrowserController {
     return this.liveBrowserService.getSessionView(sessionToken);
   }
 
+  @Get('sessions/:sessionToken/capture')
+  async capturePageState(@Param('sessionToken') sessionToken: string) {
+    return this.liveBrowserService.capturePageState(sessionToken);
+  }
+
   @Get('sessions/:sessionToken/screenshot')
   async getSessionScreenshot(@Param('sessionToken') sessionToken: string) {
     const screenshot = await this.liveBrowserService.getSessionScreenshot(sessionToken);

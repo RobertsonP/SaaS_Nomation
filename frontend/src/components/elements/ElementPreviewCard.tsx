@@ -171,7 +171,16 @@ export function ElementPreviewCard({
         </div>
       ) : element.attributes?.cssInfo ? (
         <div className="px-3 pt-2">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded p-1.5 max-h-32 overflow-hidden">
+          <div
+            className="rounded p-1.5 max-h-32 overflow-hidden"
+            style={{
+              backgroundColor: (() => {
+                const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
+                  || (element.attributes as any)?.cssInfo?.backgroundColor;
+                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : undefined;
+              })(),
+            }}
+          >
             <CSSPreviewRenderer
               element={element}
               mode="compact"

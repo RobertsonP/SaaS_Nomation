@@ -145,22 +145,37 @@ async function main() {
   log('');
   log('[4/8] Configuring environment...');
 
-  const backendEnv = [
-    'DATABASE_URL=postgresql://nomation_user:nomation_password@localhost:5432/nomation',
-    'JWT_SECRET=nomation-secret-key-2024-ultra-secure-development-only',
-    'REDIS_HOST=localhost',
-    'REDIS_PORT=6379',
-    'REDIS_PASSWORD=',
-    'NODE_ENV=development',
-    'PORT=3002',
-    'CORS_ORIGIN=http://localhost:3001',
-    'PLAYWRIGHT_BROWSERS_PATH=0',
-    'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=false',
-  ].join('\n') + '\n';
+  // Merge with existing .env — don't overwrite user-added keys (like ANTHROPIC_API_KEY)
+  const defaults = {
+    DATABASE_URL: 'postgresql://nomation_user:nomation_password@localhost:5432/nomation',
+    JWT_SECRET: 'nomation-secret-key-2024-ultra-secure-development-only',
+    REDIS_HOST: 'localhost',
+    REDIS_PORT: '6379',
+    REDIS_PASSWORD: '',
+    NODE_ENV: 'development',
+    PORT: '3002',
+    CORS_ORIGIN: 'http://localhost:3001',
+    PLAYWRIGHT_BROWSERS_PATH: '0',
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 'false',
+  };
 
-  fs.writeFileSync(path.join(BACKEND, '.env'), backendEnv);
+  const envPath = path.join(BACKEND, '.env');
+  const existing = {};
+  if (fs.existsSync(envPath)) {
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) existing[match[1].trim()] = match[2].trim();
+    });
+  }
+  // Merge: existing keys take precedence over defaults
+  const merged = { ...defaults, ...existing };
+  const envContent = Object.entries(merged)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n') + '\n';
+  fs.writeFileSync(envPath, envContent);
+
   fs.writeFileSync(path.join(FRONTEND, '.env'), 'VITE_API_URL=http://localhost:3002\n');
-  ok('Environment files created');
+  ok('Environment files configured');
 
   // Step 5: Install dependencies
   log('');

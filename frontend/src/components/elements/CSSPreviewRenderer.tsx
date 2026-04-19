@@ -188,12 +188,12 @@ function generatePreviewStyle(
     case 'compact':
       return {
         ...baseStyle,
-        maxWidth: '120px',
-        maxHeight: '32px',
+        maxWidth: '100%',
+        maxHeight: 'auto',
         fontSize: '12px',
         padding: '2px 6px',
-        whiteSpace: 'nowrap',
-        textOverflow: 'ellipsis',
+        whiteSpace: 'normal',
+        overflow: 'visible',
       };
     
     case 'detailed':

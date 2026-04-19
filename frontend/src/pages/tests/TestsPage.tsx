@@ -11,6 +11,9 @@ import { Zap, Plus } from 'lucide-react'
 
 const logger = createLogger('TestsPage')
 
+// Feature flag: AI test generation — hidden until Anthropic API billing is funded (pre-launch).
+const AI_TEST_GEN_ENABLED = false;
+
 // Result types for modal callbacks
 interface TestExecutionResultCallback {
   status: 'passed' | 'failed' | 'running';
@@ -58,6 +61,7 @@ export function TestsPage() {
   // Hook for queue-based execution
   const { runTest, executionState, isExecuting } = useTestExecution()
   const [currentlyRunningTestId, setCurrentlyRunningTestId] = useState<string | null>(null)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -179,8 +183,35 @@ export function TestsPage() {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Tests</h2>
-        <div className="flex space-x-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Tests</h2>
+        <div className="flex space-x-3">
+          {AI_TEST_GEN_ENABLED && (
+            <button
+              onClick={async () => {
+                if (!projectId) return;
+                setIsGeneratingAI(true);
+                try {
+                  const res = await projectsAPI.generateTests(projectId);
+                  const total = res?.summary?.total || res?.tests?.length || 0;
+                  showSuccess('Tests Generated', `${total} test scenarios created as drafts`);
+                  loadProjectAndTests();
+                } catch (err: any) {
+                  const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+                  showError('Generation Failed', msg);
+                } finally {
+                  setIsGeneratingAI(false);
+                }
+              }}
+              disabled={isGeneratingAI}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isGeneratingAI
+                  ? 'bg-amber-300 dark:bg-amber-800 text-amber-100 cursor-not-allowed'
+                  : 'bg-amber-500 text-white hover:bg-amber-600'
+              }`}
+            >
+              {isGeneratingAI ? 'Generating...' : 'AI Generate Tests'}
+            </button>
+          )}
           <button
             onClick={() => setShowCreateForm(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
