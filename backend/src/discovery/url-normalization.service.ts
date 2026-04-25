@@ -24,10 +24,10 @@ export class UrlNormalizationService {
       // 3. Remove www prefix for comparison
       host = host.replace(/^www\./, '');
 
-      // 4. Normalize path - remove trailing slashes, index files, lowercase
+      // 4. Normalize path - remove trailing slashes and index files only.
+      // Path case is preserved per RFC 3986 (paths are case-sensitive).
       let path = parsed.pathname.replace(/\/+$/, '') || '/';
-      path = path.replace(/\/(index|default)\.(html?|php|aspx?|jsp)$/i, '');
-      path = path.toLowerCase() || '/';
+      path = path.replace(/\/(index|default)\.(html?|php|aspx?|jsp)$/i, '') || '/';
 
       // 5. Remove tracking/marketing parameters (only safe-to-remove ones)
       const trackingParams = [
@@ -54,12 +54,15 @@ export class UrlNormalizationService {
         [...parsed.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]))
       );
 
-      // 7. Build normalized URL (WITH protocol for navigation)
+      // 7. Build normalized URL (WITH protocol for navigation).
+      // Lowercase scheme + host only; path and query preserve case (RFC 3986).
       const queryString = sortedParams.toString();
-      return `${parsed.protocol}//${host}${path}${queryString ? '?' + queryString : ''}`.toLowerCase();
+      const scheme = parsed.protocol.toLowerCase();
+      const lowerHost = host.toLowerCase();
+      return `${scheme}//${lowerHost}${path}${queryString ? '?' + queryString : ''}`;
 
     } catch {
-      return url.toLowerCase();
+      return url;
     }
   }
 

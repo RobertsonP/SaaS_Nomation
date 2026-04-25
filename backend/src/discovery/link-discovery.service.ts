@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as playwright from 'playwright';
 import { MenuInteractionService } from './menu-interaction.service';
+import { UrlNormalizationService } from './url-normalization.service';
 
 export interface DiscoveredLink {
   url: string;
@@ -16,7 +17,10 @@ export interface DiscoveredLink {
 export class LinkDiscoveryService {
   private readonly logger = new Logger(LinkDiscoveryService.name);
 
-  constructor(private readonly menuInteractionService: MenuInteractionService) {}
+  constructor(
+    private readonly menuInteractionService: MenuInteractionService,
+    private readonly urlNormalizationService: UrlNormalizationService,
+  ) {}
 
   /**
    * Normalize domain for comparison — treats localhost variants as equivalent.
@@ -121,12 +125,13 @@ export class LinkDiscoveryService {
     try {
       const menuLinks = await this.menuInteractionService.discoverMenuLinks(page, baseDomain);
 
-      // Deduplicate - only add menu links that aren't already in static links
-      const existingUrls = new Set(allLinks.map(l => l.url));
+      // Deduplicate - normalize URLs so case-only differences merge correctly.
+      const existingUrls = new Set(allLinks.map(l => this.urlNormalizationService.normalizeUrl(l.url)));
       for (const menuLink of menuLinks) {
-        if (!existingUrls.has(menuLink.url)) {
+        const norm = this.urlNormalizationService.normalizeUrl(menuLink.url);
+        if (!existingUrls.has(norm)) {
           allLinks.push(menuLink);
-          existingUrls.add(menuLink.url);
+          existingUrls.add(norm);
         }
       }
 

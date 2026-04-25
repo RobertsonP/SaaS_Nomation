@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpException, HttpStatus, Optional, NotFoundExcept
 import { PrismaService } from '../prisma/prisma.service';
 import { SitemapParserService } from './sitemap-parser.service';
 import { PageCrawlerService } from './page-crawler.service';
+import { UrlNormalizationService } from './url-normalization.service';
 import { LoginFlow } from '../ai/interfaces/element.interface';
 import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 import { DiscoveryProgressGateway } from './discovery-progress.gateway';
@@ -55,6 +56,7 @@ export class DiscoveryService {
     private prisma: PrismaService,
     private sitemapParser: SitemapParserService,
     private pageCrawler: PageCrawlerService,
+    private urlNormalizationService: UrlNormalizationService,
     @Optional() private progressGateway?: DiscoveryProgressGateway,
   ) {}
 
@@ -394,7 +396,7 @@ export class DiscoveryService {
         }
 
         // Check if already in discovered pages
-        const existing = discoveredPages.find(p => this.normalizeUrl(p.url) === this.normalizeUrl(url));
+        const existing = discoveredPages.find(p => this.urlNormalizationService.normalizeUrl(p.url) === this.urlNormalizationService.normalizeUrl(url));
         if (existing) {
           existing.title = result.title;
           existing.pageType = result.pageType;
@@ -556,8 +558,8 @@ export class DiscoveryService {
       // Create PageRelationships — parallel upserts
       const validRelationships = relationships
         .map(rel => {
-          const normalizedSource = this.normalizeUrl(rel.sourceUrl);
-          const normalizedTarget = this.normalizeUrl(rel.targetUrl);
+          const normalizedSource = this.urlNormalizationService.normalizeUrl(rel.sourceUrl);
+          const normalizedTarget = this.urlNormalizationService.normalizeUrl(rel.targetUrl);
           const sourceId = urlToId.get(normalizedSource) || urlToId.get(rel.sourceUrl);
           const targetId = urlToId.get(normalizedTarget) || urlToId.get(rel.targetUrl);
           return { ...rel, sourceId, targetId };
@@ -837,56 +839,4 @@ export class DiscoveryService {
     return name.charAt(0).toUpperCase() + name.slice(1) + ' Homepage';
   }
 
-  /**
-   * Normalize URL for smart deduplication
-   * Must match the logic in PageCrawlerService for consistency
-   */
-  private normalizeUrl(url: string): string {
-    try {
-      const parsed = new URL(url);
-
-      // 1. Remove hash/anchor fragments
-      parsed.hash = '';
-
-      // 2. Normalize localhost variations (localhost = 127.0.0.1 = host.docker.internal)
-      let host = parsed.host;
-      if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'host.docker.internal') {
-        const port = parsed.port || '';
-        host = `localhost${port ? ':' + port : ''}`;
-      }
-
-      // 3. Remove www prefix
-      host = host.replace(/^www\./, '');
-
-      // 4. Normalize path - remove trailing slashes, index files, lowercase
-      let path = parsed.pathname.replace(/\/+$/, '') || '/';
-      path = path.replace(/\/(index|default)\.(html?|php|aspx?|jsp)$/i, '');
-      path = path.toLowerCase() || '/';
-
-      // 5. Remove tracking parameters (only safe-to-remove ones)
-      const trackingParams = [
-        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-        'fbclid', 'fb_action_ids', 'fb_action_types', 'fb_source',
-        'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
-        'msclkid', 'twclid',
-        'mc_cid', 'mc_eid', '_ga', '_gl',
-        'trk', 'trkid', 'tracking', 'click_id', 'clickid',
-        'sessionid', 'session', 'sid',
-      ];
-
-      trackingParams.forEach(param => parsed.searchParams.delete(param));
-
-      // 6. Sort remaining params
-      const sortedParams = new URLSearchParams(
-        [...parsed.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-      );
-
-      // 7. Build normalized URL (WITH protocol for navigation)
-      const queryString = sortedParams.toString();
-      return `${parsed.protocol}//${host}${path}${queryString ? '?' + queryString : ''}`.toLowerCase();
-
-    } catch {
-      return url.toLowerCase();
-    }
-  }
 }
