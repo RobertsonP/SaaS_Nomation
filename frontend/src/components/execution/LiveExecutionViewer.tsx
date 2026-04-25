@@ -94,8 +94,11 @@ export function LiveExecutionViewer({
   }, [executionData?.currentStepIndex]);
 
   const setupSocketIO = useCallback(() => {
-    // Connect to Socket.IO for real-time execution updates
-    const socket = io('http://localhost:3002/execution-progress', {
+    // Derive the Socket.IO base URL from VITE_API_URL so this works in
+    // staging / Docker / production, not just on localhost.
+    const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+    const wsBase = apiBase.replace(/\/api\/?$/, '');
+    const socket = io(`${wsBase}/execution-progress`, {
       transports: ['websocket'],
       autoConnect: true,
     });
