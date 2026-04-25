@@ -351,6 +351,30 @@ export class ProjectsService {
     };
   }
 
+  async updateUrlTitle(organizationId: string, urlId: string, title: string) {
+    const projectUrl = await this.prisma.projectUrl.findUnique({
+      where: { id: urlId },
+      include: { project: { select: { organizationId: true, userId: true } } },
+    });
+
+    if (!projectUrl) {
+      throw new Error('URL not found');
+    }
+
+    const project = projectUrl.project;
+    const belongsToOrg = project.organizationId === organizationId;
+    if (!belongsToOrg) {
+      throw new Error('URL not found');
+    }
+
+    const trimmed = (title || '').trim();
+    return this.prisma.projectUrl.update({
+      where: { id: urlId },
+      data: { title: trimmed.length > 0 ? trimmed : null },
+      select: { id: true, url: true, title: true },
+    });
+  }
+
   private generateTitleFromUrl(url: string): string {
     try {
       const urlObj = new URL(url);

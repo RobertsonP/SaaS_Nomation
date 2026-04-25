@@ -733,6 +733,7 @@ export function ProjectDetailsPage() {
               if (activeDiscovery?.status === 'discovering') return;
               setShowDiscoveryModal(true);
             }}
+            onProjectReload={loadProject}
           />
         )}
 

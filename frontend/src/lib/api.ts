@@ -245,6 +245,11 @@ export const projectsAPI = {
     const response = await api.post(`/projects/${projectId}/select-pages`, { urlIds });
     return response.data;
   },
+
+  renameUrl: async (urlId: string, title: string) => {
+    const response = await api.patch(`/projects/urls/${urlId}`, { title });
+    return response.data;
+  },
 };
 
 // Browser API for live element interaction - Using public endpoints to bypass auth

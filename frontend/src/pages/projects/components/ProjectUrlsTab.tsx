@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { projectsAPI } from '../../../lib/api';
 import { Project, ProjectUrl } from './types';
 
 interface ProjectUrlsTabProps {
@@ -15,6 +16,7 @@ interface ProjectUrlsTabProps {
   onVerifyUrl: (urlId: string) => void;
   onAnalyzeSelected: () => void;
   onShowDiscoveryModal: () => void;
+  onProjectReload: () => Promise<void> | void;
 }
 
 // Collapsible section component for URL grouping
@@ -69,6 +71,7 @@ function UrlCard({
   verifyingUrl,
   onVerifyUrl,
   onRemoveUrl,
+  onProjectReload,
 }: {
   url: ProjectUrl;
   selectedUrls: string[];
@@ -77,7 +80,36 @@ function UrlCard({
   verifyingUrl: string | null;
   onVerifyUrl: (urlId: string) => void;
   onRemoveUrl: (urlStr: string) => void;
+  onProjectReload: () => Promise<void> | void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(url.title || '');
+  const [savingTitle, setSavingTitle] = useState(false);
+
+  const startEdit = () => {
+    setDraftTitle(url.title || '');
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setDraftTitle(url.title || '');
+  };
+
+  const saveTitle = async () => {
+    if (savingTitle) return;
+    setSavingTitle(true);
+    try {
+      await projectsAPI.renameUrl(url.id, draftTitle);
+      await onProjectReload();
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to rename URL', err);
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
   return (
     <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:shadow-sm transition-shadow bg-white dark:bg-gray-800">
       <div className="flex items-start justify-between">
@@ -98,12 +130,27 @@ function UrlCard({
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              {url.title && (
-                <span className="font-medium text-gray-900 dark:text-white truncate">
-                  {url.title}
-                </span>
+              {isEditing ? (
+                <input
+                  type="text"
+                  autoFocus
+                  value={draftTitle}
+                  onChange={(e) => setDraftTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveTitle();
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                  placeholder="Page title"
+                  className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                url.title && (
+                  <span className="font-medium text-gray-900 dark:text-white truncate">
+                    {url.title}
+                  </span>
+                )
               )}
-              {url.pageType && (
+              {!isEditing && url.pageType && (
                 <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded">
                   {url.pageType}
                 </span>
@@ -137,19 +184,46 @@ function UrlCard({
           </div>
         </div>
         <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
-          <button
-            onClick={() => onVerifyUrl(url.id)}
-            disabled={verifyingUrl === url.id}
-            className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
-          >
-            {verifyingUrl === url.id ? 'Verifying...' : 'Verify'}
-          </button>
-          <button
-            onClick={() => onRemoveUrl(url.url)}
-            className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
-          >
-            Remove
-          </button>
+          {isEditing ? (
+            <>
+              <button
+                onClick={saveTitle}
+                disabled={savingTitle}
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1 disabled:opacity-50"
+              >
+                {savingTitle ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={savingTitle}
+                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={startEdit}
+                className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
+              >
+                Rename
+              </button>
+              <button
+                onClick={() => onVerifyUrl(url.id)}
+                disabled={verifyingUrl === url.id}
+                className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
+              >
+                {verifyingUrl === url.id ? 'Verifying...' : 'Verify'}
+              </button>
+              <button
+                onClick={() => onRemoveUrl(url.url)}
+                className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
+              >
+                Remove
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -170,6 +244,7 @@ export function ProjectUrlsTab({
   onVerifyUrl,
   onAnalyzeSelected,
   onShowDiscoveryModal,
+  onProjectReload,
 }: ProjectUrlsTabProps) {
   // Group URLs by depth
   const groupedUrls = useMemo(() => {
@@ -302,6 +377,7 @@ export function ProjectUrlsTab({
                       verifyingUrl={verifyingUrl}
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
+                      onProjectReload={onProjectReload}
                     />
                   ))}
                 </CollapsibleSection>
@@ -324,6 +400,7 @@ export function ProjectUrlsTab({
                       verifyingUrl={verifyingUrl}
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
+                      onProjectReload={onProjectReload}
                     />
                   ))}
                 </CollapsibleSection>
@@ -347,6 +424,7 @@ export function ProjectUrlsTab({
                       verifyingUrl={verifyingUrl}
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
+                      onProjectReload={onProjectReload}
                     />
                   ))}
                 </CollapsibleSection>
@@ -370,6 +448,7 @@ export function ProjectUrlsTab({
                       verifyingUrl={verifyingUrl}
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
+                      onProjectReload={onProjectReload}
                     />
                   ))}
                 </CollapsibleSection>
@@ -388,6 +467,7 @@ export function ProjectUrlsTab({
                   verifyingUrl={verifyingUrl}
                   onVerifyUrl={onVerifyUrl}
                   onRemoveUrl={onRemoveUrl}
+                  onProjectReload={onProjectReload}
                 />
               ))}
             </div>

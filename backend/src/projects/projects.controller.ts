@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, UseGuards, Request, Param, HttpException, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, UseGuards, Request, Param, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { ProjectsService } from './projects.service';
@@ -261,5 +261,15 @@ export class ProjectsController {
   @UseGuards(OrganizationGuard)
   async verifyUrl(@Request() req, @Param('urlId') urlId: string) {
     return this.liveExecutionService.verifyUrl(req.organization.id, urlId);
+  }
+
+  @Patch('urls/:urlId')
+  @UseGuards(OrganizationGuard)
+  async renameUrl(
+    @Request() req,
+    @Param('urlId') urlId: string,
+    @Body() body: { title: string },
+  ) {
+    return this.projectsService.updateUrlTitle(req.organization.id, urlId, body?.title ?? '');
   }
 }
