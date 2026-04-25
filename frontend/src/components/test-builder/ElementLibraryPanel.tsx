@@ -37,6 +37,29 @@ interface ElementLibraryPanelProps {
   isAnalyzing?: boolean;
 }
 
+const UNATTRIBUTED_KEY = '__unattributed__';
+
+const TYPE_LABELS: Record<string, string> = {
+  button: 'Buttons',
+  input: 'Inputs',
+  link: 'Links',
+  form: 'Forms',
+  navigation: 'Navigation',
+  heading: 'Headings',
+  text: 'Text',
+  image: 'Images',
+  table: 'Tables',
+  dropdown: 'Dropdowns',
+  'dropdown-option': 'Dropdown Options',
+  toggle: 'Toggles',
+  tab: 'Tabs',
+  accordion: 'Accordions',
+  modal: 'Modals',
+  'modal-trigger': 'Modal Triggers',
+  element: 'Generic Elements',
+  other: 'Other',
+};
+
 function getPathFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -44,6 +67,10 @@ function getPathFromUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+function elementSortKey(el: ProjectElement): string {
+  return (el.description || el.selector || '').toLowerCase();
 }
 
 export function ElementLibraryPanel({
@@ -144,16 +171,22 @@ export function ElementLibraryPanel({
     });
   }, [elements, searchQuery]);
 
-  // Build page list for left panel
+  // Build page list for left panel.
+  // Elements without a sourceUrl land in a single labeled "Unattributed" bucket
+  // (separate from real pages) so attribution gaps are visible.
   const pageList = useMemo(() => {
     const pages = new Map<string, { url: string; title: string; count: number }>();
     for (const el of filteredElements) {
-      const url = el.sourceUrl?.url || 'unknown';
-      const title = el.sourceUrl?.title || getPathFromUrl(url);
+      const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
+      const title = url === UNATTRIBUTED_KEY
+        ? 'Unattributed elements'
+        : (el.sourceUrl?.title || getPathFromUrl(url));
       if (!pages.has(url)) pages.set(url, { url, title, count: 0 });
       pages.get(url)!.count++;
     }
-    return Array.from(pages.values()).sort((a, b) => b.count - a.count);
+    return Array.from(pages.values()).sort(
+      (a, b) => b.count - a.count || a.title.localeCompare(b.title),
+    );
   }, [filteredElements]);
 
   // Auto-select first page when data loads or selection becomes invalid
@@ -163,19 +196,26 @@ export function ElementLibraryPanel({
     }
   }, [pageList, selectedPageUrl]);
 
-  // Elements for selected page, grouped by type
+  // Elements for selected page, grouped by type.
+  // Null/missing elementType lands in a distinct 'other' bucket — separate from
+  // the detector's legitimate 'element' fallback so the two don't visually merge.
+  // Within each type group, elements are sorted alphabetically for a stable order.
   const elementsByType = useMemo(() => {
     const els = filteredElements.filter(el => {
-      const url = el.sourceUrl?.url || 'unknown';
+      const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
       return url === selectedPageUrl;
     });
 
     const groups = new Map<string, ProjectElement[]>();
     for (const el of els) {
-      const type = el.elementType || 'element';
+      const type = el.elementType || 'other';
       if (!groups.has(type)) groups.set(type, []);
       groups.get(type)!.push(el);
     }
+
+    groups.forEach(arr =>
+      arr.sort((a, b) => elementSortKey(a).localeCompare(elementSortKey(b))),
+    );
 
     return Array.from(groups.entries())
       .sort((a, b) => b[1].length - a[1].length);
@@ -306,20 +346,28 @@ export function ElementLibraryPanel({
         {/* Left panel: Page list */}
         <div className="w-[30%] border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
           <div className="p-2">
-            {pageList.map(page => (
-              <button
-                key={page.url}
-                onClick={() => setSelectedPageUrl(page.url)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-                  selectedPageUrl === page.url
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <div className="truncate">{getPathFromUrl(page.url)}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">{page.count} elements</div>
-              </button>
-            ))}
+            {pageList.map(page => {
+              const isUnattributed = page.url === UNATTRIBUTED_KEY;
+              return (
+                <button
+                  key={page.url}
+                  onClick={() => setSelectedPageUrl(page.url)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
+                    selectedPageUrl === page.url
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="truncate font-medium">{page.title}</div>
+                  {!isUnattributed && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {getPathFromUrl(page.url)}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{page.count} elements</div>
+                </button>
+              );
+            })}
             {pageList.length === 0 && (
               <p className="text-sm text-gray-500 dark:text-gray-400 p-3">No pages analyzed yet</p>
             )}
@@ -337,8 +385,8 @@ export function ElementLibraryPanel({
                     onClick={() => toggleTypeCollapse(type)}
                     className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 capitalize">
-                      {type}s ({typeElements.length})
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {(TYPE_LABELS[type] ?? type)} ({typeElements.length})
                     </span>
                     <span className="text-gray-400 dark:text-gray-500 text-xs">
                       {collapsedTypes.has(type) ? '\u25B8' : '\u25BE'}

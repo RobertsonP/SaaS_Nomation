@@ -9,6 +9,7 @@ import { AnalysisRetryService } from '../analysis/analysis-retry.service';
 import { ProjectAnalyzerService } from '../analysis/project-analyzer.service';
 import { GitHubService } from './github.service';
 import { ProjectElementsService } from './project-elements.service';
+import { UrlNormalizationService } from '../discovery/url-normalization.service';
 import { normalizeUrlForDocker } from '../utils/docker-url.utils';
 
 export interface AnalysisResult {
@@ -48,6 +49,7 @@ export class ProjectAnalysisService {
     private projectAnalyzer: ProjectAnalyzerService,
     private githubService: GitHubService,
     private projectElementsService: ProjectElementsService,
+    private urlNormalizationService: UrlNormalizationService,
   ) {}
 
   async analyzeProjectPages(organizationId: string, projectId: string, selectedUrlIds?: string[]): Promise<AnalysisResult> {
@@ -223,7 +225,12 @@ export class ProjectAnalysisService {
         storedUrlCount++;
 
         if (urlResult.elements.length > 0) {
-          const projectUrl = project.urls.find(pu => pu.url === urlResult.url);
+          // Match URLs via normalization so case-only differences don't drop the
+          // element to sourceUrlId: null (the unattributed bucket on the frontend).
+          const targetNorm = this.urlNormalizationService.normalizeUrl(urlResult.url);
+          const projectUrl = project.urls.find(
+            pu => this.urlNormalizationService.normalizeUrl(pu.url) === targetNorm,
+          );
 
           if (projectUrl) {
             await this.projectElementsService.storeProjectElements(projectId, urlResult.elements, projectUrl.id, authFlow.id);

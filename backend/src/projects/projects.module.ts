@@ -9,10 +9,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
 import { AuthFlowsModule } from '../auth-flows/auth-flows.module';
 import { AnalysisModule } from '../analysis/analysis.module';
+import { DiscoveryModule } from '../discovery/discovery.module';
 import { GitHubService } from './github.service';
 
 @Module({
-  imports: [PrismaModule, AiModule, AuthFlowsModule, AnalysisModule],
+  imports: [PrismaModule, AiModule, AuthFlowsModule, AnalysisModule, DiscoveryModule],
   controllers: [ProjectsController],
   providers: [
     ProjectsService,

@@ -23,6 +23,6 @@ import { DiscoveryProgressGateway } from './discovery-progress.gateway';
     UnifiedAuthService,
     DiscoveryProgressGateway,
   ],
-  exports: [DiscoveryService, DiscoveryProgressGateway],
+  exports: [DiscoveryService, DiscoveryProgressGateway, UrlNormalizationService],
 })
 export class DiscoveryModule {}
