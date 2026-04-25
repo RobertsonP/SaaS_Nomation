@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { executionAPI, testsAPI, reportingAPI } from '../../lib/api'
 import { RobotFrameworkResults } from '../../components/test-results/RobotFrameworkResults'
-import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 import { ExecutionVideoPlayer } from '../../components/execution/ExecutionVideoPlayer'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
@@ -47,7 +46,6 @@ export function TestResultsPage() {
   const [executions, setExecutions] = useState<TestExecution[]>([])
   const [selectedExecution, setSelectedExecution] = useState<TestExecution | null>(null)
   const [loading, setLoading] = useState(true)
-  const [liveExecutionTest, setLiveExecutionTest] = useState<{id: string; name: string} | null>(null)
   const [seekTimestamp, setSeekTimestamp] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isEmailing, setIsEmailing] = useState(false)
@@ -137,21 +135,6 @@ export function TestResultsPage() {
     })
   }
 
-  const handleRunTestLive = async () => {
-    if (!test) return
-    // Open live execution viewer
-    setLiveExecutionTest({ id: test.id, name: test.name })
-  }
-
-  const handleLiveExecutionComplete = (result: any) => {
-    logger.info('Live execution completed', result)
-    // Reload the test results to show the new execution
-    loadTestAndResults()
-  }
-
-  const closeLiveExecution = () => {
-    setLiveExecutionTest(null)
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -211,14 +194,6 @@ export function TestResultsPage() {
                   </span>
                 </div>
               ) : 'Run Test'}
-            </button>
-            <button
-              onClick={handleRunTestLive}
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-1"
-              title="Run with live viewport viewer"
-            >
-              <span>🎬</span>
-              <span>Live View</span>
             </button>
           </div>
         </div>
@@ -331,16 +306,6 @@ export function TestResultsPage() {
         </div>
       </div>
       
-      {/* Live Execution Viewer */}
-      {liveExecutionTest && (
-        <LiveExecutionViewer
-          testId={liveExecutionTest.id}
-          testName={liveExecutionTest.name}
-          isOpen={!!liveExecutionTest}
-          onClose={closeLiveExecution}
-          onExecutionComplete={handleLiveExecutionComplete}
-        />
-      )}
     </div>
   )
 }

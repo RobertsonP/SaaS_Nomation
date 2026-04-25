@@ -855,17 +855,23 @@ export class UnifiedAuthService {
     try {
       const current = new URL(currentUrl);
       const login = new URL(loginUrl);
-      
-      // Check if we're on the login page
-      const isLogin = current.hostname === login.hostname && 
-                     current.pathname === login.pathname;
-      
+
+      // Hostnames are case-insensitive per RFC 3986. Paths are technically
+      // case-sensitive, but most web servers treat /login and /Login the same,
+      // and stored auth-flow loginUrls have drifted in case after the URL
+      // case-preservation fix. Compare both case-insensitively to keep auth
+      // detection robust regardless of how the URL was originally entered.
+      const sameHost = current.hostname.toLowerCase() === login.hostname.toLowerCase();
+      const samePath = current.pathname.toLowerCase() === login.pathname.toLowerCase();
+      const isLogin = sameHost && samePath;
+
       console.log(`🔑 Login page check: Current=${currentUrl}, Login=${loginUrl}, IsLogin=${isLogin}`);
-      
+
       return isLogin;
     } catch (error) {
       console.error('Error checking login page:', error);
-      return currentUrl.includes('login') || currentUrl.includes('signin');
+      const lower = (currentUrl || '').toLowerCase();
+      return lower.includes('login') || lower.includes('signin');
     }
   }
 

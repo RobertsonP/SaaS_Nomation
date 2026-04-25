@@ -111,13 +111,17 @@ export class ExecutionQueueProcessor {
           }
         }
 
-        // Create browser context with video recording
+        // Create browser context with video recording.
+        // Viewport is 1280x720 to match the live-browser session (per project
+        // memory `project_session_lifecycle.md`) — 1920x1080 was too large for
+        // most host displays and made the headed-mode browser overflow the
+        // user's screen. The recorded video uses the same 1280x720 size.
         const context = await browser.newContext({
           recordVideo: {
             dir: join(process.cwd(), 'uploads', 'videos'),
-            size: { width: 1920, height: 1080 }, // Desktop resolution
+            size: { width: 1280, height: 720 },
           },
-          viewport: { width: 1920, height: 1080 },
+          viewport: { width: 1280, height: 720 },
         });
 
         page = await context.newPage();

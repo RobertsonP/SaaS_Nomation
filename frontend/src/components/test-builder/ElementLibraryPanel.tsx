@@ -106,6 +106,7 @@ export function ElementLibraryPanel({
   onSelectElement,
   onAddStep,
   isLoading,
+  selectedElementType,
   setShowLivePicker,
   onAnalyzePages,
   onAnalyzeSelected,
@@ -136,7 +137,20 @@ export function ElementLibraryPanel({
   const usePagination = !!projectId;
   const elements = usePagination ? paginatedElements : (elementsProp || []);
 
-  // Fetch paginated elements from backend
+  // Map the currently-selected page URL to the matching sourceUrlId from the
+  // server page index. Null when no real page is selected (Shared bucket,
+  // Unattributed bucket, or no selection yet).
+  const selectedSourceUrlId = useMemo<string | null>(() => {
+    if (!selectedPageUrl || !pageIndex) return null;
+    if (selectedPageUrl === SHARED_KEY || selectedPageUrl === UNATTRIBUTED_KEY) return null;
+    const entry = pageIndex.find(p => p.url === selectedPageUrl);
+    return entry?.sourceUrlId ?? null;
+  }, [selectedPageUrl, pageIndex]);
+
+  // Fetch paginated elements from backend, scoped to the selected page when one
+  // is chosen. Without scoping, clicking a page in the sidebar showed nothing
+  // until the user clicked Load More enough times to bring that page's elements
+  // into the global subset — broken UX. Now: pick page → fetch JUST that page.
   const fetchElements = useCallback(async (skip: number, append: boolean) => {
     if (!projectId) return;
     const isInitial = !append;
@@ -144,10 +158,12 @@ export function ElementLibraryPanel({
     else setLoadMoreLoading(true);
 
     try {
-      const params: { skip: number; take: number } = {
+      const params: { skip: number; take: number; sourceUrlId?: string; type?: string } = {
         skip,
         take: PAGE_SIZE,
       };
+      if (selectedSourceUrlId) params.sourceUrlId = selectedSourceUrlId;
+      if (selectedElementType && selectedElementType !== 'all') params.type = selectedElementType;
 
       const result = await projectsAPI.getElementsPaginated(projectId, params);
       setPaginatedElements(prev => append ? [...prev, ...result.elements] : result.elements);
@@ -158,9 +174,9 @@ export function ElementLibraryPanel({
       if (isInitial) setPaginationLoading(false);
       else setLoadMoreLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, selectedSourceUrlId, selectedElementType]);
 
-  // Load first page when projectId or type filter changes
+  // Load (or re-load) elements when the selected page or type filter changes.
   useEffect(() => {
     if (usePagination) {
       setPaginatedElements([]);
@@ -184,6 +200,19 @@ export function ElementLibraryPanel({
   useEffect(() => {
     refreshPageIndex();
   }, [refreshPageIndex]);
+
+  // Live Picker save (and any other elements-added flow) dispatches the
+  // 'nomation:elements-changed' window event. Refresh both the per-page index
+  // and the element list when it fires so the user sees their picks instantly.
+  useEffect(() => {
+    if (!projectId) return;
+    const onChange = () => {
+      refreshPageIndex();
+      fetchElements(0, false);
+    };
+    window.addEventListener('nomation:elements-changed', onChange);
+    return () => window.removeEventListener('nomation:elements-changed', onChange);
+  }, [projectId, refreshPageIndex, fetchElements]);
 
   const handleLoadMore = () => {
     fetchElements(paginatedElements.length, true);
@@ -239,20 +268,33 @@ export function ElementLibraryPanel({
   // Build page list for left panel.
   // Primary source: server-side page index (real DB element counts, all pages
   // visible from t=0 regardless of which elements are paginated into memory).
-  // Plus a synthetic "Shared elements" bucket for chrome (footer/nav/header/sidebar)
-  // so the same footer link doesn't duplicate under every page.
+  // Pages with the same URL are merged here — the database may contain
+  // multiple ProjectUrl rows for the same URL when discovery ran before the
+  // case-preservation fix and the same path was stored under both /Foo and
+  // /foo. Without this dedup the sidebar shows the same page twice.
   const pageList = useMemo(() => {
     let list: Array<{ url: string; title: string; count: number }>;
     if (pageIndex && pageIndex.length > 0) {
-      list = pageIndex
-        .map(entry => {
-          const url = entry.url || UNATTRIBUTED_KEY;
-          const title = url === UNATTRIBUTED_KEY
-            ? 'Unattributed elements'
-            : (entry.title || getPathFromUrl(url));
-          return { url, title, count: entry.elementCount };
-        })
-        .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+      const merged = new Map<string, { url: string; title: string; count: number }>();
+      for (const entry of pageIndex) {
+        const url = entry.url || UNATTRIBUTED_KEY;
+        const title = url === UNATTRIBUTED_KEY
+          ? 'Unattributed elements'
+          : (entry.title || getPathFromUrl(url));
+        const existing = merged.get(url);
+        if (existing) {
+          existing.count += entry.elementCount;
+          // Prefer a non-empty / non-fallback title when one entry has a real one.
+          if ((!existing.title || existing.title === getPathFromUrl(url)) && entry.title) {
+            existing.title = entry.title;
+          }
+        } else {
+          merged.set(url, { url, title, count: entry.elementCount });
+        }
+      }
+      list = Array.from(merged.values()).sort(
+        (a, b) => b.count - a.count || a.title.localeCompare(b.title),
+      );
     } else {
       // Fallback: derive from loaded elements (pre-server-index behaviour).
       const pages = new Map<string, { url: string; title: string; count: number }>();
@@ -269,8 +311,12 @@ export function ElementLibraryPanel({
       );
     }
 
-    // Prepend the Shared bucket when any chrome elements have been loaded.
-    if (sharedSelectors.size > 0) {
+    // Always prepend the Shared bucket when the project has any pages (so the
+    // user can find chrome regardless of which page they're on). Count is
+    // approximate — derived from currently-loaded elements only — until the
+    // backend gains a proper region field. We label this in the UI so the
+    // approximation isn't misleading.
+    if (list.length > 0) {
       list = [
         { url: SHARED_KEY, title: 'Shared elements', count: sharedSelectors.size },
         ...list,
@@ -279,17 +325,21 @@ export function ElementLibraryPanel({
     return list;
   }, [pageIndex, filteredElements, sharedSelectors]);
 
-  // Auto-select first page when data loads or selection becomes invalid
+  // Auto-select first REAL page when data loads or selection becomes invalid.
+  // Don't auto-select the Shared bucket — that's a frontend filter that's only
+  // useful once a user explicitly opts into it.
   useEffect(() => {
-    if (pageList.length > 0 && (!selectedPageUrl || !pageList.some(p => p.url === selectedPageUrl))) {
-      setSelectedPageUrl(pageList[0].url);
-    }
+    if (pageList.length === 0) return;
+    if (selectedPageUrl && pageList.some(p => p.url === selectedPageUrl)) return;
+    const firstReal = pageList.find(p => p.url !== SHARED_KEY) ?? pageList[0];
+    setSelectedPageUrl(firstReal.url);
   }, [pageList, selectedPageUrl]);
 
-  // Elements for selected page, grouped by type.
+  // Elements for the selected page, grouped by type.
   // - SHARED_KEY: chrome elements deduped by selector across all pages.
-  // - Real page: elements for that sourceUrl, EXCLUDING shared-region duplicates
-  //   (they live under the Shared bucket).
+  // - Real page: paginatedElements is already scoped to this page on the
+  //   server — we just hide chrome (it lives under the Shared bucket).
+  // - Unattributed: filter by missing sourceUrl on the loaded subset.
   // - Null/missing elementType lands in a distinct 'other' bucket.
   // Within each type group, elements are sorted alphabetically.
   const elementsByType = useMemo(() => {
@@ -303,12 +353,11 @@ export function ElementLibraryPanel({
         seen.add(el.selector);
         els.push(el);
       }
+    } else if (selectedPageUrl === UNATTRIBUTED_KEY) {
+      els = filteredElements.filter(el => !el.sourceUrl);
     } else {
-      els = filteredElements.filter(el => {
-        if (isSharedRegion(el.description)) return false;
-        const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
-        return url === selectedPageUrl;
-      });
+      // Real page: server has already scoped via sourceUrlId; hide chrome.
+      els = filteredElements.filter(el => !isSharedRegion(el.description));
     }
 
     const groups = new Map<string, ProjectElement[]>();

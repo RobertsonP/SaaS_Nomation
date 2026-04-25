@@ -304,6 +304,11 @@ export function LiveElementPicker({
           source: 'live-picker',
         },
       ]);
+      // Notify any listening element library panels to refresh their per-page
+      // index + currently-loaded elements so the saved pick appears instantly.
+      window.dispatchEvent(new CustomEvent('nomation:elements-changed', {
+        detail: { projectId, source: 'live-picker' },
+      }));
       onSelectElement?.(picked.selector, picked.description);
       setPicked(null);
       setSavedCount(c => c + 1);

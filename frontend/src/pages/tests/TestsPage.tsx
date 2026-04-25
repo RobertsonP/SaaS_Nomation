@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { testsAPI, projectsAPI } from '../../lib/api'
-import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 import { TestExecutionModal } from '../../components/execution/TestExecutionModal'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
+import { executionAPI } from '../../lib/api'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TestStep } from '../../types/test.types'
@@ -52,7 +52,6 @@ export function TestsPage() {
     name: string
     executionId: string
   } | null>(null)
-  const [liveExecutionTest, setLiveExecutionTest] = useState<{id: string; name: string; headed: boolean} | null>(null)
   const [runModePickerTest, setRunModePickerTest] = useState<{id: string; name: string} | null>(null)
   const [newTest, setNewTest] = useState({
     name: '',
@@ -128,14 +127,28 @@ export function TestsPage() {
     setRunModePickerTest({ id: testId, name: testName })
   }
 
-  const handlePickRunMode = (mode: 'headed' | 'headless') => {
+  const handlePickRunMode = async (mode: 'headed' | 'headless') => {
     if (!runModePickerTest) return
-    setLiveExecutionTest({
-      id: runModePickerTest.id,
-      name: runModePickerTest.name,
-      headed: mode === 'headed',
-    })
+    const picked = runModePickerTest
     setRunModePickerTest(null)
+    try {
+      await executionAPI.runLive(picked.id, { headed: mode === 'headed' })
+      if (mode === 'headed') {
+        showSuccess(
+          'Test launched',
+          `"${picked.name}" is running in a real browser window. Check the host display.`,
+        )
+      } else {
+        showSuccess(
+          'Test queued',
+          `"${picked.name}" is running in the background. Open View Results when it finishes to watch the recording.`,
+        )
+      }
+      loadProjectAndTests()
+    } catch (err: any) {
+      logger.error('Failed to launch test', err)
+      showError('Run failed', err?.response?.data?.message || err?.message || 'Could not launch the test.')
+    }
   }
 
   const handleDeleteTest = async (testId: string, testName: string) => {
@@ -164,14 +177,6 @@ export function TestsPage() {
     setExecutingTest(null)
   }
 
-  const handleLiveExecutionComplete = (result: LiveExecutionResultCallback) => {
-    logger.info('Live execution completed', result)
-    // Could navigate to results or show success message
-  }
-
-  const closeLiveExecution = () => {
-    setLiveExecutionTest(null)
-  }
 
   if (loading) {
     return (
@@ -398,18 +403,6 @@ export function TestsPage() {
           testName={executingTest.name}
           executionId={executingTest.executionId}
           onComplete={handleTestExecutionComplete}
-        />
-      )}
-
-      {/* Live Execution Viewer */}
-      {liveExecutionTest && (
-        <LiveExecutionViewer
-          testId={liveExecutionTest.id}
-          testName={liveExecutionTest.name}
-          headed={liveExecutionTest.headed}
-          isOpen={!!liveExecutionTest}
-          onClose={closeLiveExecution}
-          onExecutionComplete={handleLiveExecutionComplete}
         />
       )}
 
