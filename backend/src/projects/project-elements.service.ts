@@ -64,6 +64,57 @@ export class ProjectElementsService {
     return { elements, total, skip: options?.skip || 0, take: options?.take };
   }
 
+  /**
+   * Lightweight per-page summary used by the element library sidebar so the
+   * page list never depends on which elements happen to be loaded right now.
+   * Returns one row per ProjectUrl that has elements + one synthetic row for
+   * elements with no sourceUrl (unattributed bucket on the frontend).
+   */
+  async getElementPagesIndex(organizationId: string, projectId: string): Promise<Array<{
+    sourceUrlId: string | null;
+    url: string | null;
+    title: string | null;
+    elementCount: number;
+  }>> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId },
+    });
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    const grouped = await this.prisma.projectElement.groupBy({
+      by: ['sourceUrlId'],
+      where: { projectId },
+      _count: { _all: true },
+    });
+
+    const urlIds = grouped
+      .map(g => g.sourceUrlId)
+      .filter((id): id is string => Boolean(id));
+
+    const urls = urlIds.length > 0
+      ? await this.prisma.projectUrl.findMany({
+          where: { id: { in: urlIds } },
+          select: { id: true, url: true, title: true },
+        })
+      : [];
+    const urlById = new Map(urls.map(u => [u.id, u] as const));
+
+    return grouped.map(g => {
+      if (!g.sourceUrlId) {
+        return { sourceUrlId: null, url: null, title: null, elementCount: g._count._all };
+      }
+      const u = urlById.get(g.sourceUrlId);
+      return {
+        sourceUrlId: g.sourceUrlId,
+        url: u?.url ?? null,
+        title: u?.title ?? null,
+        elementCount: g._count._all,
+      };
+    });
+  }
+
   async createProjectElements(organizationId: string, projectId: string, elements: Array<{
     selector: string;
     elementType: string;

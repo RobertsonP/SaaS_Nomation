@@ -146,6 +146,16 @@ export class ProjectsController {
     );
   }
 
+  @Get(':id/element-pages')
+  @UseGuards(OrganizationGuard)
+  async getElementPagesIndex(@Request() req, @Param('id') id: string) {
+    const pages = await this.projectElementsService.getElementPagesIndex(
+      req.organization.id,
+      id,
+    );
+    return { pages };
+  }
+
   @Post(':id/elements')
   @UseGuards(OrganizationGuard)
   async createProjectElements(

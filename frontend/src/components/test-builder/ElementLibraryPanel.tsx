@@ -97,6 +97,15 @@ export function ElementLibraryPanel({
   const [paginationLoading, setPaginationLoading] = useState(false);
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
 
+  // Per-page summary fetched once at mount — drives the sidebar regardless of
+  // which elements are currently loaded into memory.
+  const [pageIndex, setPageIndex] = useState<Array<{
+    sourceUrlId: string | null;
+    url: string | null;
+    title: string | null;
+    elementCount: number;
+  }> | null>(null);
+
   const usePagination = !!projectId;
   const elements = usePagination ? paginatedElements : (elementsProp || []);
 
@@ -131,6 +140,23 @@ export function ElementLibraryPanel({
       fetchElements(0, false);
     }
   }, [usePagination, fetchElements]);
+
+  // Fetch the per-page summary once when projectId is known.
+  const refreshPageIndex = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const result = await projectsAPI.getElementPages(projectId);
+      setPageIndex(result.pages);
+    } catch (error) {
+      console.error('Failed to load element page index:', error);
+      // Graceful fallback: leave pageIndex as null and the sidebar will derive
+      // pages from the loaded subset (legacy behaviour).
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    refreshPageIndex();
+  }, [refreshPageIndex]);
 
   const handleLoadMore = () => {
     fetchElements(paginatedElements.length, true);
@@ -172,9 +198,24 @@ export function ElementLibraryPanel({
   }, [elements, searchQuery]);
 
   // Build page list for left panel.
-  // Elements without a sourceUrl land in a single labeled "Unattributed" bucket
-  // (separate from real pages) so attribution gaps are visible.
+  // Primary source: server-side page index (real DB element counts, all pages
+  // visible from t=0 regardless of which elements are paginated into memory).
+  // Fallback: derive from currently-loaded elements when the index isn't ready
+  // or the project was opened without pagination.
   const pageList = useMemo(() => {
+    if (pageIndex && pageIndex.length > 0) {
+      return pageIndex
+        .map(entry => {
+          const url = entry.url || UNATTRIBUTED_KEY;
+          const title = url === UNATTRIBUTED_KEY
+            ? 'Unattributed elements'
+            : (entry.title || getPathFromUrl(url));
+          return { url, title, count: entry.elementCount };
+        })
+        .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+    }
+
+    // Fallback: derive from loaded elements (pre-server-index behaviour).
     const pages = new Map<string, { url: string; title: string; count: number }>();
     for (const el of filteredElements) {
       const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
@@ -187,7 +228,7 @@ export function ElementLibraryPanel({
     return Array.from(pages.values()).sort(
       (a, b) => b.count - a.count || a.title.localeCompare(b.title),
     );
-  }, [filteredElements]);
+  }, [pageIndex, filteredElements]);
 
   // Auto-select first page when data loads or selection becomes invalid
   useEffect(() => {

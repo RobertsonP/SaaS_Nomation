@@ -141,6 +141,12 @@ export const projectsAPI = {
     const response = await api.get(`/projects/${projectId}/elements?${searchParams.toString()}`);
     return response.data;
   },
+  getElementPages: async (projectId: string): Promise<{
+    pages: Array<{ sourceUrlId: string | null; url: string | null; title: string | null; elementCount: number }>;
+  }> => {
+    const response = await api.get(`/projects/${projectId}/element-pages`);
+    return response.data;
+  },
   validateSelector: async (projectId: string, selector: string): Promise<SelectorValidationResult> => {
     const response = await api.post(`/projects/${projectId}/validate-selector`, { selector });
     return response.data;
