@@ -726,8 +726,8 @@ export class LiveBrowserService {
   }
 
   async capturePageState(sessionToken: string): Promise<{
-    screenshot: string;
-    elements: DetectedElement[];
+    html: string;
+    baseHref: string;
     url: string;
     title: string;
   }> {
@@ -738,22 +738,16 @@ export class LiveBrowserService {
 
     const { page } = sessionData;
 
-    // Capture screenshot at higher quality for the static capture view
-    const screenshotBuffer = await page.screenshot({
-      type: 'jpeg',
-      quality: 80,
-      fullPage: false,
-      animations: 'disabled',
-      timeout: 10000,
-    });
-
-    // Capture all interactive elements from the current page state
-    const elements = await this.captureCurrentElements(sessionToken);
+    // Snapshot the post-render DOM. The iframe-based picker on the frontend
+    // renders this directly with srcDoc, so the user clicks the real DOM —
+    // no screenshot hit-testing, no captureCurrentElements scan.
+    const html = await page.content();
+    const url = page.url();
 
     return {
-      screenshot: `data:image/jpeg;base64,${screenshotBuffer.toString('base64')}`,
-      elements: elements || [],
-      url: page.url(),
+      html,
+      baseHref: url,
+      url,
       title: await page.title(),
     };
   }

@@ -301,8 +301,12 @@ export const browserAPI = {
     return response.data;
   },
   
-  // Capture full page state: screenshot + all elements in one call
-  capturePageState: async (sessionToken: string) => {
+  // Capture the post-render DOM (HTML + base href) for the iframe picker.
+  // No screenshot, no element scan — the frontend renders this directly and
+  // clicks happen against the real DOM inside the iframe.
+  capturePageState: async (sessionToken: string): Promise<{
+    data: { html: string; baseHref: string; url: string; title: string };
+  }> => {
     const response = await api.get(`/api/public/browser/sessions/${sessionToken}/capture`);
     return response;
   },

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { browserAPI } from '../../lib/api';
 import { ProjectElement } from '../../types/element.types';
 import { createLogger } from '../../lib/logger';
+import { SelectorGenerator } from './SelectorGenerator';
 
 const logger = createLogger('LiveElementPicker');
 
@@ -14,58 +15,174 @@ interface LiveElementPickerProps {
   initialUrl?: string;
 }
 
-interface CapturedElement {
+interface PickedElement {
   selector: string;
-  elementType: string;
   description: string;
-  confidence?: number;
-  selectorType?: string;
-  fallbackSelectors?: string[];
-  attributes?: Record<string, any>;
-  boundingRect?: { x: number; y: number; width: number; height: number };
+  elementType: string;
+  tagName: string;
+  textPreview: string;
+}
+
+const selectorGenerator = new SelectorGenerator();
+
+function isMeaningfulId(id: string): boolean {
+  if (!id || id.length < 3) return false;
+  if (/^[0-9]+$/.test(id)) return false;
+  if (/^[a-z0-9]{8,}$/.test(id)) return false;
+  if (id.includes('reactid') || id.includes('uniqueid')) return false;
+  return true;
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/"/g, '\\"');
+}
+
+function buildStructuralPath(el: Element): string {
+  const parts: string[] = [];
+  let current: Element | null = el;
+  let depth = 0;
+  while (current && current.nodeType === 1 && depth < 6) {
+    const tag = current.tagName.toLowerCase();
+    if (tag === 'html' || tag === 'body') break;
+
+    let segment = tag;
+    const id = current.getAttribute('id');
+    if (id && isMeaningfulId(id)) {
+      segment = `${tag}#${id}`;
+      parts.unshift(segment);
+      break;
+    }
+
+    const parent = current.parentElement;
+    if (parent) {
+      const sameTagSiblings = Array.from(parent.children).filter(c => c.tagName === current!.tagName);
+      if (sameTagSiblings.length > 1) {
+        const index = sameTagSiblings.indexOf(current) + 1;
+        segment += `:nth-of-type(${index})`;
+      }
+    }
+    parts.unshift(segment);
+    current = current.parentElement;
+    depth++;
+  }
+  return parts.join(' > ');
+}
+
+function generateSelectorCandidates(el: Element): string[] {
+  const candidates: string[] = [];
+  const tag = el.tagName.toLowerCase();
+
+  for (const attr of ['data-testid', 'data-test', 'data-cy']) {
+    const v = el.getAttribute(attr);
+    if (v) candidates.push(`[${attr}="${escapeAttr(v)}"]`);
+  }
+
+  const id = el.getAttribute('id');
+  if (id && isMeaningfulId(id)) candidates.push(`#${id}`);
+
+  const ariaLabel = el.getAttribute('aria-label');
+  if (ariaLabel) candidates.push(`${tag}[aria-label="${escapeAttr(ariaLabel)}"]`);
+
+  const role = el.getAttribute('role');
+  if (role) candidates.push(`${tag}[role="${escapeAttr(role)}"]`);
+
+  const name = el.getAttribute('name');
+  if (name && ['input', 'textarea', 'select', 'button'].includes(tag)) {
+    candidates.push(`${tag}[name="${escapeAttr(name)}"]`);
+  }
+
+  const placeholder = el.getAttribute('placeholder');
+  if (placeholder) candidates.push(`${tag}[placeholder="${escapeAttr(placeholder)}"]`);
+
+  const path = buildStructuralPath(el);
+  if (path) candidates.push(path);
+
+  return candidates.length > 0 ? candidates : [tag];
+}
+
+function pickElementFromTarget(el: Element): PickedElement {
+  const candidates = generateSelectorCandidates(el);
+  const attributes: Record<string, string> = {};
+  for (const attr of Array.from(el.attributes)) {
+    attributes[attr.name] = attr.value;
+  }
+  const innerText = (el as HTMLElement).innerText || '';
+  const textContent = el.textContent || '';
+
+  const elementData = {
+    tagName: el.tagName,
+    selectors: candidates,
+    attributes,
+    textContent: textContent.trim().substring(0, 100),
+    innerText: innerText.substring(0, 200),
+    boundingRect: { x: 0, y: 0, width: 0, height: 0 },
+    href: el.getAttribute('href'),
+    src: el.getAttribute('src'),
+    value: (el as HTMLInputElement).value || null,
+    placeholder: el.getAttribute('placeholder'),
+    title: el.getAttribute('title'),
+    role: el.getAttribute('role'),
+    ariaLabel: el.getAttribute('aria-label'),
+  };
+
+  const selector = selectorGenerator.generateOptimalSelector(elementData);
+  const elementType = selectorGenerator.inferElementType(elementData);
+  const description = selectorGenerator.generateDescription(elementData);
+  const textPreview = (innerText || textContent).trim().substring(0, 80);
+
+  return {
+    selector,
+    description,
+    elementType,
+    tagName: el.tagName.toLowerCase(),
+    textPreview,
+  };
+}
+
+function injectBaseHref(html: string, baseHref: string): string {
+  if (!baseHref) return html;
+  const baseTag = `<base href="${escapeAttr(baseHref)}">`;
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html([^>]*)>/i, `<html$1><head>${baseTag}</head>`);
+  }
+  return `<head>${baseTag}</head>${html}`;
 }
 
 export function LiveElementPicker({
   isOpen = true,
   projectId,
   onClose,
-  onElementsSelected,
   onSelectElement,
-  initialUrl = 'https://example.com'
+  initialUrl = 'https://example.com',
 }: LiveElementPickerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Capture state
-  const [capturedScreenshot, setCapturedScreenshot] = useState<string | null>(null);
-  const [capturedElements, setCapturedElements] = useState<CapturedElement[]>([]);
+  const [capturedHtml, setCapturedHtml] = useState<string | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string>('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [hasCaptured, setHasCaptured] = useState(false);
 
-  // Element selection
-  const [selectedElement, setSelectedElement] = useState<CapturedElement | null>(null);
+  const [picked, setPicked] = useState<PickedElement | null>(null);
+  const [hoverSelector, setHoverSelector] = useState<string | null>(null);
 
   const sessionTokenRef = useRef<string | null>(null);
-  const screenshotImgRef = useRef<HTMLImageElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Initialize browser session
   useEffect(() => {
     if (!isOpen) return;
 
     const initSession = async () => {
       setIsLoading(true);
       setError(null);
-
       try {
-        logger.info('Creating browser session for element picker');
         const session = await browserAPI.createSession(projectId, undefined, initialUrl);
         setSessionToken(session.sessionToken);
         sessionTokenRef.current = session.sessionToken;
-        logger.info('Session created:', session.sessionToken);
-
-        // Navigate to initial URL
         if (initialUrl) {
           await browserAPI.navigateSession(session.sessionToken, initialUrl);
         }
@@ -79,89 +196,72 @@ export function LiveElementPicker({
 
     initSession();
 
-    // Cleanup on unmount
     return () => {
       if (sessionTokenRef.current) {
         browserAPI.closeSession(sessionTokenRef.current).catch(err =>
-          logger.error('Failed to close session:', err)
+          logger.error('Failed to close session:', err),
         );
         sessionTokenRef.current = null;
       }
     };
   }, [isOpen, projectId, initialUrl]);
 
-  // Capture page state: screenshot + elements in one call
   const handleCapturePage = async () => {
     if (!sessionToken) return;
     setIsCapturing(true);
     setError(null);
-    setSelectedElement(null);
+    setPicked(null);
 
     try {
-      logger.info('Capturing page state');
       const result = await browserAPI.capturePageState(sessionToken);
-      setCapturedScreenshot(result.data.screenshot);
-      setCapturedElements(result.data.elements || []);
-      setCapturedUrl(result.data.url);
+      const { html, baseHref, url } = result.data;
+      setCapturedHtml(injectBaseHref(html, baseHref));
+      setCapturedUrl(url);
       setHasCaptured(true);
-      logger.info(`Captured ${result.data.elements?.length || 0} elements from ${result.data.url}`);
     } catch (err: any) {
       logger.error('Capture failed:', err);
-      setError(err.message || 'Could not capture page state. Make sure the browser window is still open.');
+      setError(err.message || 'Could not capture page state.');
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsCapturing(false);
     }
   };
 
-  // Find element at click coordinates on the screenshot
-  const handleScreenshotClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    if (!capturedElements.length) return;
+  const handleIframeLoad = () => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc) return;
 
-    const img = e.currentTarget;
-    const rect = img.getBoundingClientRect();
+    const onClick = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = event.target as Element | null;
+      if (!target || target.nodeType !== 1) return;
+      const result = pickElementFromTarget(target);
+      setPicked(result);
+    };
 
-    // Scale displayed coordinates to actual viewport coordinates (1280x720)
-    const scaleX = 1280 / rect.width;
-    const scaleY = 720 / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-
-    // Find the smallest element whose bounding rect contains the click point
-    let closest: CapturedElement | null = null;
-    let closestDist = Infinity;
-
-    for (const el of capturedElements) {
-      const br = el.boundingRect || el.attributes?.boundingRect;
-      if (!br) continue;
-
-      // Check if click is inside element bounds
-      if (x >= br.x && x <= br.x + br.width && y >= br.y && y <= br.y + br.height) {
-        const centerX = br.x + br.width / 2;
-        const centerY = br.y + br.height / 2;
-        const dist = Math.hypot(x - centerX, y - centerY);
-        if (dist < closestDist) {
-          closestDist = dist;
-          closest = el;
-        }
+    const onMouseOver = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target || target.nodeType !== 1) return;
+      try {
+        const candidates = generateSelectorCandidates(target);
+        setHoverSelector(candidates[0] || target.tagName.toLowerCase());
+      } catch {
+        setHoverSelector(null);
       }
-    }
+    };
 
-    if (closest) {
-      setSelectedElement(closest);
-      logger.info('Selected element:', closest.selector);
-    }
+    doc.addEventListener('click', onClick, true);
+    doc.addEventListener('mouseover', onMouseOver, true);
   };
 
-  // Save selected element and close
   const handleSaveElement = () => {
-    if (!selectedElement) return;
-    logger.info('Saving element to library:', selectedElement.selector);
-    onSelectElement?.(selectedElement.selector, selectedElement.description);
+    if (!picked) return;
+    onSelectElement?.(picked.selector, picked.description);
     onClose();
   };
 
-  // Handle close and cleanup
   const handleClose = async () => {
     if (sessionToken) {
       try {
@@ -177,16 +277,14 @@ export function LiveElementPicker({
 
   return (
     <div className="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex flex-col">
-      {/* Header */}
       <div className="flex-shrink-0 bg-gray-800 dark:bg-gray-900 p-3 border-b border-gray-700 flex items-center gap-3">
         <h3 className="text-lg font-semibold text-blue-400">Live Element Picker</h3>
         <div className="flex-grow">
-          {hasCaptured && capturedUrl && (
+          {hasCaptured && capturedUrl ? (
             <span className="text-sm text-gray-400 dark:text-gray-500 font-mono truncate block">
               {capturedUrl}
             </span>
-          )}
-          {!hasCaptured && (
+          ) : (
             <span className="text-sm text-gray-400 dark:text-gray-500">
               Navigate in the browser window, then capture
             </span>
@@ -200,16 +298,13 @@ export function LiveElementPicker({
         </button>
       </div>
 
-      {/* Error Banner */}
       {error && (
         <div className="flex-shrink-0 bg-red-600 dark:bg-red-700 text-white px-4 py-2 text-sm text-center">
           {error}
         </div>
       )}
 
-      {/* Main Content */}
       <div className="flex-grow flex overflow-hidden">
-        {/* Loading state — session starting */}
         {isLoading && !hasCaptured && (
           <div className="flex-grow flex items-center justify-center">
             <div className="text-center text-white">
@@ -220,19 +315,16 @@ export function LiveElementPicker({
           </div>
         )}
 
-        {/* Before capture: instruction panel */}
         {!isLoading && !hasCaptured && sessionToken && (
           <div className="flex-grow flex flex-col items-center justify-center p-8 text-center">
             <div className="w-16 h-16 mb-4 rounded-full bg-blue-600 dark:bg-blue-700 flex items-center justify-center">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-100 mb-2">
-              Browser is Open
-            </h3>
+            <h3 className="text-xl font-semibold text-gray-100 mb-2">Browser is Open</h3>
             <p className="text-gray-400 mb-6 max-w-md">
-              Navigate to the page you want in the browser window, then click Capture to detect all interactive elements.
+              Navigate to the page you want in the browser window, then click Capture to load it here.
             </p>
             <button
               onClick={handleCapturePage}
@@ -241,66 +333,53 @@ export function LiveElementPicker({
             >
               {isCapturing ? 'Capturing...' : 'Capture Page'}
             </button>
-            {isCapturing && (
-              <div className="mt-4 flex items-center gap-2 text-gray-400">
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
-                <span className="text-sm">Taking screenshot and detecting elements...</span>
-              </div>
-            )}
           </div>
         )}
 
-        {/* After capture: screenshot + elements */}
-        {hasCaptured && capturedScreenshot && (
+        {hasCaptured && capturedHtml && (
           <>
-            {/* Left: Screenshot with click overlay */}
-            <div className="flex-1 overflow-auto p-3 bg-gray-900 dark:bg-gray-950">
+            <div className="flex-1 overflow-auto p-3 bg-gray-900 dark:bg-gray-950 flex flex-col">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center justify-between">
-                <span className="truncate mr-4">{capturedUrl} -- Click on an element to select it</span>
-                <span className="text-gray-600 dark:text-gray-500 flex-shrink-0">
-                  {capturedElements.length} elements detected
-                </span>
-              </div>
-              <img
-                ref={screenshotImgRef}
-                src={capturedScreenshot}
-                alt="Captured page"
-                className="max-w-full cursor-crosshair rounded border border-gray-600 dark:border-gray-700 shadow-lg"
-                style={{ minHeight: '400px', backgroundColor: 'white' }}
-                onClick={handleScreenshotClick}
-              />
-              <div className="mt-3 flex gap-2">
+                <span className="truncate mr-4">{capturedUrl} -- Click any element to select it</span>
                 <button
                   onClick={handleCapturePage}
                   disabled={isCapturing}
-                  className="px-4 py-2 bg-gray-700 dark:bg-gray-800 text-gray-200 rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-sm transition-colors disabled:opacity-50"
+                  className="px-3 py-1 bg-gray-700 dark:bg-gray-800 text-gray-200 rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-xs transition-colors disabled:opacity-50 flex-shrink-0"
                 >
-                  {isCapturing ? 'Capturing...' : 'Capture Again'}
+                  {isCapturing ? 'Capturing...' : 'Recapture'}
                 </button>
               </div>
+              <iframe
+                ref={iframeRef}
+                title="Captured page"
+                srcDoc={capturedHtml}
+                sandbox="allow-same-origin"
+                onLoad={handleIframeLoad}
+                className="flex-1 w-full bg-white rounded border border-gray-600 dark:border-gray-700 shadow-lg"
+                style={{ minHeight: '500px' }}
+              />
+              {hoverSelector && (
+                <div className="mt-2 text-xs text-gray-400 font-mono truncate">
+                  Hover: {hoverSelector}
+                </div>
+              )}
             </div>
 
-            {/* Right: Selected element details + element list */}
             <aside className="flex-shrink-0 w-80 border-l border-gray-700 dark:border-gray-800 overflow-y-auto bg-gray-800 dark:bg-gray-900 flex flex-col">
               <div className="p-3 flex-grow">
-                {selectedElement ? (
+                {picked ? (
                   <div>
                     <h4 className="font-medium text-gray-100 mb-2">Selected Element</h4>
                     <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-3 mb-3">
-                      <div className="text-sm text-gray-300 mb-2">{selectedElement.description}</div>
+                      <div className="text-sm text-gray-300 mb-2">{picked.description}</div>
                       <code className="text-xs bg-gray-700 dark:bg-gray-800 px-2 py-1 rounded block mb-2 break-all text-green-400 dark:text-green-300 font-mono">
-                        {selectedElement.selector}
+                        {picked.selector}
                       </code>
                       <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
-                        <p>Type: <span className="text-gray-300">{selectedElement.elementType}</span></p>
-                        {selectedElement.selectorType && (
-                          <p>Selector: <span className="text-gray-300">{selectedElement.selectorType}</span></p>
-                        )}
-                        {selectedElement.confidence !== undefined && (
-                          <p>Confidence: <span className="text-gray-300">{Math.round(selectedElement.confidence * 100)}%</span></p>
-                        )}
-                        {selectedElement.attributes?.id && (
-                          <p>ID: <span className="text-gray-300">#{selectedElement.attributes.id}</span></p>
+                        <p>Tag: <span className="text-gray-300">&lt;{picked.tagName}&gt;</span></p>
+                        <p>Type: <span className="text-gray-300">{picked.elementType}</span></p>
+                        {picked.textPreview && (
+                          <p>Text: <span className="text-gray-300">{picked.textPreview}</span></p>
                         )}
                       </div>
                     </div>
@@ -315,49 +394,24 @@ export function LiveElementPicker({
                   <div className="text-center py-6">
                     <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-gray-700 dark:bg-gray-800 flex items-center justify-center">
                       <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
                       </svg>
                     </div>
                     <p className="text-sm text-gray-400 dark:text-gray-500">
-                      Click on an element in the screenshot to select it
+                      Click any element in the page on the left to select it.
                     </p>
                   </div>
                 )}
-
-                <h4 className="font-medium text-gray-100 mt-4 mb-2 text-sm">
-                  Detected Elements ({capturedElements.length})
-                </h4>
-                <div className="space-y-1">
-                  {capturedElements.slice(0, 50).map((el, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedElement(el)}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                        selectedElement === el
-                          ? 'bg-blue-600 dark:bg-blue-700 text-white'
-                          : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <span className="font-medium text-gray-400">[{el.elementType}]</span>{' '}
-                      {el.description?.substring(0, 40)}
-                    </button>
-                  ))}
-                  {capturedElements.length > 50 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-600 px-2 py-1">
-                      ...and {capturedElements.length - 50} more
-                    </p>
-                  )}
-                </div>
               </div>
 
-              {/* Tips */}
               <div className="flex-shrink-0 p-3 border-t border-gray-700 dark:border-gray-800">
                 <div className="p-3 bg-gray-700 dark:bg-gray-800 rounded-lg text-xs text-gray-300">
                   <p className="font-medium text-blue-400 dark:text-blue-300 mb-1">Tips:</p>
                   <ul className="space-y-0.5 text-gray-400 dark:text-gray-500">
-                    <li>- Click on the screenshot to select an element</li>
-                    <li>- Or pick from the element list on the right</li>
-                    <li>- Use Capture Again after navigating</li>
+                    <li>- Click any element in the page snapshot to select it</li>
+                    <li>- The captured page is a static DOM snapshot — no hover/dynamic states</li>
+                    <li>- External CSS/images may not load due to CORS — selector is still valid</li>
+                    <li>- Recapture after navigating in the browser window</li>
                   </ul>
                 </div>
               </div>
