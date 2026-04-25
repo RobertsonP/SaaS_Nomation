@@ -4,7 +4,6 @@ import { ProjectElement } from '../../types/element.types'
 import { TestStep } from '../../types/test.types'
 import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 import { StepList } from './StepList'
-import { TemplateModal } from './TemplateModal'
 import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
 import {
@@ -105,7 +104,6 @@ export function TestBuilderPanel({
   const [activeVideoStepId, setActiveVideoStepId] = useState<string | null>(null);
   
   // NEW: Template Modal State
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Execution mode selection
   const [showExecutionModeModal, setShowExecutionModeModal] = useState(false);
@@ -790,14 +788,6 @@ export function TestBuilderPanel({
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Test Steps ({steps.length})</h3>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => setShowTemplateModal(true)}
-                  disabled={isExecutingAllSteps}
-                  className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Insert steps from template"
-                >
-                  Templates
-                </button>
-                <button
                   onClick={() => setShowExecutionModeModal(true)}
                   disabled={steps.length === 0 || isExecutingAllSteps || debugMode}
                   className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
@@ -945,23 +935,6 @@ export function TestBuilderPanel({
           </div>
         </div>
       </div>
-
-      {/* Template Selection Modal */}
-      {showTemplateModal && (
-        <TemplateModal
-          onClose={() => setShowTemplateModal(false)}
-          onSelect={(templateSteps) => {
-            const newSteps = templateSteps.map(step => ({
-              id: generateId(),
-              type: step.type as TestStep['type'],
-              selector: step.selector,
-              value: step.value,
-              description: step.description
-            }));
-            setSteps([...steps, ...newSteps]);
-          }}
-        />
-      )}
 
       {/* Add/Edit Step Modal */}
       {showAddStep && (

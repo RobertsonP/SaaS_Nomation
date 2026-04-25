@@ -176,7 +176,11 @@
       "WebFetch(domain:tts.am)",
       "Bash(netstat -tuln)",
       "Bash(wmic process *)",
-      "Bash(tasklist /v)"
+      "Bash(tasklist /v)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_evaluate",
+      "Bash(awk NR>=85 && NR<=140 *)"
     ],
     "deny": []
   },

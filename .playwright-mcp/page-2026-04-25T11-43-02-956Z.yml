@@ -1,0 +1,572 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - link "Nomation" [ref=e6] [cursor=pointer]:
+        - /url: /
+      - button "Switch to dark mode" [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+    - navigation [ref=e10]:
+      - link "Dashboard" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard
+      - link "Projects" [ref=e12] [cursor=pointer]:
+        - /url: /projects
+      - generic [ref=e13]:
+        - paragraph [ref=e14]: User Settings
+        - link "Profile" [ref=e15] [cursor=pointer]:
+          - /url: /settings/profile
+          - img [ref=e16]
+          - text: Profile
+        - link "Notifications" [ref=e19] [cursor=pointer]:
+          - /url: /settings/notifications
+          - img [ref=e20]
+          - text: Notifications
+    - generic [ref=e25]:
+      - generic [ref=e26]: R
+      - generic [ref=e27]:
+        - paragraph [ref=e28]: Robert
+        - button "Logout" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+          - text: Logout
+  - main [ref=e33]:
+    - generic [ref=e206]:
+      - generic [ref=e207]:
+        - generic [ref=e208]:
+          - generic [ref=e209]:
+            - link "← Back to Projects" [ref=e210] [cursor=pointer]:
+              - /url: /projects
+            - heading "tts" [level=1] [ref=e211]
+            - paragraph [ref=e212]: asd
+          - generic [ref=e213]:
+            - link "Test Suites" [ref=e214] [cursor=pointer]:
+              - /url: /projects/cmnurhngp00017mfaxl0jyeea/suites
+            - link "Tests (1)" [ref=e215] [cursor=pointer]:
+              - /url: /projects/cmnurhngp00017mfaxl0jyeea/tests
+            - button "AI Generate Tests" [ref=e216] [cursor=pointer]
+            - link "Create Test" [ref=e217] [cursor=pointer]:
+              - /url: /projects/cmnurhngp00017mfaxl0jyeea/tests/new
+        - generic [ref=e218]:
+          - generic [ref=e219] [cursor=pointer]:
+            - generic [ref=e220]: URLs
+            - generic [ref=e221]: "11"
+          - generic [ref=e222] [cursor=pointer]:
+            - generic [ref=e223]: Elements
+            - generic [ref=e224]: "295"
+          - generic [ref=e225]:
+            - generic [ref=e226]: Tests
+            - generic [ref=e227]: "1"
+          - generic [ref=e228]:
+            - generic [ref=e229]: Analyzed
+            - generic [ref=e230]: "11"
+        - navigation "Tabs" [ref=e232]:
+          - button "Overview" [ref=e233] [cursor=pointer]
+          - button "Site Map" [ref=e234] [cursor=pointer]
+          - button "URLs11" [ref=e235] [cursor=pointer]
+          - button "Elements295" [ref=e236] [cursor=pointer]
+          - button "Authentication1" [ref=e237] [cursor=pointer]
+      - generic [ref=e262]:
+        - generic [ref=e263]:
+          - generic [ref=e264]:
+            - heading "Elements100 of 295" [level=3] [ref=e1101]
+            - generic [ref=e266]:
+              - button "Analyze" [ref=e267] [cursor=pointer]
+              - button "Live Picker" [ref=e268] [cursor=pointer]
+              - button "Clear" [ref=e269] [cursor=pointer]
+          - generic [ref=e270]:
+            - img [ref=e271]
+            - textbox "Search elements..." [ref=e273]
+        - generic [ref=e274]:
+          - generic [ref=e276]:
+            - button "TTS / 62 elements" [ref=e1102] [cursor=pointer]:
+              - generic [ref=e282]: TTS
+              - generic [ref=e283]: /
+              - generic [ref=e284]: 62 elements
+            - button "Page / 38 elements" [ref=e277] [cursor=pointer]:
+              - generic [ref=e278]: Page
+              - generic [ref=e279]: /
+              - generic [ref=e280]: 38 elements
+          - generic [ref=e286]:
+            - generic [ref=e287]:
+              - button "Links (22) ▾" [ref=e288] [cursor=pointer]:
+                - generic [ref=e289]: Links (22)
+                - generic [ref=e290]: ▾
+              - generic [ref=e291]:
+                - button "link Consultation in footer Consultation Role link › Consultation /" [ref=e292] [cursor=pointer]:
+                  - generic [ref=e294]: link
+                  - paragraph [ref=e296]: Consultation in footer
+                  - generic "'Consultation' link (89x21px) in footer" [ref=e300]:
+                    - generic [ref=e301]:
+                      - img [ref=e302]
+                      - generic [ref=e305]: Consultation
+                  - generic [ref=e306]:
+                    - generic [ref=e307]: Role
+                    - code [ref=e308]: link › Consultation
+                    - button "Copy selector" [ref=e309]:
+                      - img [ref=e310]
+                  - generic [ref=e313]: /
+                - button "link Contact Us in footer Contact Us a:nth-of-type(18) /" [ref=e314] [cursor=pointer]:
+                  - generic [ref=e316]: link
+                  - paragraph [ref=e318]: Contact Us in footer
+                  - generic "'Contact Us' link (77x21px) in footer" [ref=e322]:
+                    - generic [ref=e323]:
+                      - img [ref=e324]
+                      - generic [ref=e327]: Contact Us
+                  - generic [ref=e328]:
+                    - code [ref=e329]: a:nth-of-type(18)
+                    - button "Copy selector" [ref=e330]:
+                      - img [ref=e331]
+                  - generic [ref=e334]: /
+                - button "link Contact Us in main content Contact Us Role link › Contact Us /" [ref=e335] [cursor=pointer]:
+                  - generic [ref=e337]: link
+                  - paragraph [ref=e339]: Contact Us in main content
+                  - generic "'Contact Us' link (129x50px) in main content" [ref=e343]:
+                    - generic [ref=e344]:
+                      - img [ref=e345]
+                      - generic [ref=e348]: Contact Us
+                  - generic [ref=e349]:
+                    - generic [ref=e350]: Role
+                    - code [ref=e351]: link › Contact Us
+                    - button "Copy selector" [ref=e352]:
+                      - img [ref=e353]
+                  - generic [ref=e356]: /
+                - button "link Documentation in footer Documentation Role link › Documentation /" [ref=e357] [cursor=pointer]:
+                  - generic [ref=e359]: link
+                  - paragraph [ref=e361]: Documentation in footer
+                  - generic "'Documentation' link (110x21px) in footer" [ref=e365]:
+                    - generic [ref=e366]:
+                      - img [ref=e367]
+                      - generic [ref=e370]: Documentation
+                  - generic [ref=e371]:
+                    - generic [ref=e372]: Role
+                    - code [ref=e373]: link › Documentation
+                    - button "Copy selector" [ref=e374]:
+                      - img [ref=e375]
+                  - generic [ref=e378]: /
+                - button "link Electronic queue in top navigation Electronic queue Role link › Electronic queue /" [ref=e379] [cursor=pointer]:
+                  - generic [ref=e381]: link
+                  - paragraph [ref=e383]: Electronic queue in top navigation
+                  - generic "'Electronic queue' link (129x36px) in top navigation" [ref=e387]:
+                    - generic [ref=e388]:
+                      - img [ref=e389]
+                      - generic [ref=e392]: Electronic queue
+                  - generic [ref=e393]:
+                    - generic [ref=e394]: Role
+                    - code [ref=e395]: link › Electronic queue
+                    - button "Copy selector" [ref=e396]:
+                      - img [ref=e397]
+                  - generic [ref=e400]: /
+                - button "link FAQ in footer FAQ Role link › FAQ /" [ref=e401] [cursor=pointer]:
+                  - generic [ref=e403]: link
+                  - paragraph [ref=e405]: FAQ in footer
+                  - generic "'FAQ' link (29x21px) in footer" [ref=e409]:
+                    - generic [ref=e410]:
+                      - img [ref=e411]
+                      - generic [ref=e414]: FAQ
+                  - generic [ref=e415]:
+                    - generic [ref=e416]: Role
+                    - code [ref=e417]: link › FAQ
+                    - button "Copy selector" [ref=e418]:
+                      - img [ref=e419]
+                  - generic [ref=e422]: /
+                - button "link Get Insurance in main content Get Insurance Role link › Get Insurance /" [ref=e423] [cursor=pointer]:
+                  - generic [ref=e425]: link
+                  - paragraph [ref=e427]: Get Insurance in main content
+                  - generic "'Get Insurance' link (178x62px) in main content" [ref=e431]:
+                    - generic [ref=e432]:
+                      - img [ref=e433]
+                      - generic [ref=e436]: Get Insurance
+                  - generic [ref=e437]:
+                    - generic [ref=e438]: Role
+                    - code [ref=e439]: link › Get Insurance
+                    - button "Copy selector" [ref=e440]:
+                      - img [ref=e441]
+                  - generic [ref=e444]: /
+                - button "link Get Insurance Now in main content Get Insurance Now Role link › Get Insurance Now /" [ref=e445] [cursor=pointer]:
+                  - generic [ref=e447]: link
+                  - paragraph [ref=e449]: Get Insurance Now in main content
+                  - generic "'Get Insurance Now' link (214x48px) in main content" [ref=e453]:
+                    - generic [ref=e454]:
+                      - img [ref=e455]
+                      - generic [ref=e458]: Get Insurance Now
+                  - generic [ref=e459]:
+                    - generic [ref=e460]: Role
+                    - code [ref=e461]: link › Get Insurance Now
+                    - button "Copy selector" [ref=e462]:
+                      - img [ref=e463]
+                  - generic [ref=e466]: /
+                - button "link Help Center in footer Help Center Role link › Help Center /" [ref=e467] [cursor=pointer]:
+                  - generic [ref=e469]: link
+                  - paragraph [ref=e471]: Help Center in footer
+                  - generic "'Help Center' link (84x21px) in footer" [ref=e475]:
+                    - generic [ref=e476]:
+                      - img [ref=e477]
+                      - generic [ref=e480]: Help Center
+                  - generic [ref=e481]:
+                    - generic [ref=e482]: Role
+                    - code [ref=e483]: link › Help Center
+                    - button "Copy selector" [ref=e484]:
+                      - img [ref=e485]
+                  - generic [ref=e488]: /
+                - button "link Home in top navigation Home Role link › Home /" [ref=e489] [cursor=pointer]:
+                  - generic [ref=e491]: link
+                  - paragraph [ref=e493]: Home in top navigation
+                  - generic "'Home' link (63x36px) in top navigation" [ref=e497]:
+                    - generic [ref=e498]:
+                      - img [ref=e499]
+                      - generic [ref=e502]: Home
+                  - generic [ref=e503]:
+                    - generic [ref=e504]: Role
+                    - code [ref=e505]: link › Home
+                    - button "Copy selector" [ref=e506]:
+                      - img [ref=e507]
+                  - generic [ref=e510]: /
+                - button "link Insurance in footer Insurance Role link › Insurance /" [ref=e511] [cursor=pointer]:
+                  - generic [ref=e513]: link
+                  - paragraph [ref=e515]: Insurance in footer
+                  - generic "'Insurance' link (68x21px) in footer" [ref=e519]:
+                    - generic [ref=e520]:
+                      - img [ref=e521]
+                      - generic [ref=e524]: Insurance
+                  - generic [ref=e525]:
+                    - generic [ref=e526]: Role
+                    - code [ref=e527]: link › Insurance
+                    - button "Copy selector" [ref=e528]:
+                      - img [ref=e529]
+                  - generic [ref=e532]: /
+                - button "link Learn More in main content Learn More Role link › Learn More /" [ref=e533] [cursor=pointer]:
+                  - generic [ref=e535]: link
+                  - paragraph [ref=e537]: Learn More in main content
+                  - generic "'Learn More' link (185x62px) in main content" [ref=e541]:
+                    - generic [ref=e542]:
+                      - img [ref=e543]
+                      - generic [ref=e546]: Learn More
+                  - generic [ref=e547]:
+                    - generic [ref=e548]: Role
+                    - code [ref=e549]: link › Learn More
+                    - button "Copy selector" [ref=e550]:
+                      - img [ref=e551]
+                  - generic [ref=e554]: /
+                - button "link Login in top navigation Login Role link › Login /" [ref=e555] [cursor=pointer]:
+                  - generic [ref=e557]: link
+                  - paragraph [ref=e559]: Login in top navigation
+                  - generic "'Login' link (91x36px) in top navigation" [ref=e563]:
+                    - generic [ref=e564]:
+                      - img [ref=e565]
+                      - generic [ref=e568]: Login
+                  - generic [ref=e569]:
+                    - generic [ref=e570]: Role
+                    - code [ref=e571]: link › Login
+                    - button "Copy selector" [ref=e572]:
+                      - img [ref=e573]
+                  - generic [ref=e576]: /
+                - button "link Privacy in footer Privacy Role link › Privacy /" [ref=e577] [cursor=pointer]:
+                  - generic [ref=e579]: link
+                  - paragraph [ref=e581]: Privacy in footer
+                  - generic "'Privacy' link (49x21px) in footer" [ref=e585]:
+                    - generic [ref=e586]:
+                      - img [ref=e587]
+                      - generic [ref=e590]: Privacy
+                  - generic [ref=e591]:
+                    - generic [ref=e592]: Role
+                    - code [ref=e593]: link › Privacy
+                    - button "Copy selector" [ref=e594]:
+                      - img [ref=e595]
+                  - generic [ref=e598]: /
+                - button "link Read More in main content Read More a:nth-of-type(10) /" [ref=e599] [cursor=pointer]:
+                  - generic [ref=e601]: link
+                  - paragraph [ref=e603]: Read More in main content
+                  - generic "'Read More' link (97x24px) in main content" [ref=e607]:
+                    - generic [ref=e608]:
+                      - img [ref=e609]
+                      - generic [ref=e612]: Read More
+                  - generic [ref=e613]:
+                    - code [ref=e614]: a:nth-of-type(10)
+                    - button "Copy selector" [ref=e615]:
+                      - img [ref=e616]
+                  - generic [ref=e619]: /
+                - button "link Read More in main content Read More a:nth-of-type(9) /" [ref=e620] [cursor=pointer]:
+                  - generic [ref=e622]: link
+                  - paragraph [ref=e624]: Read More in main content
+                  - generic "'Read More' link (97x24px) in main content" [ref=e628]:
+                    - generic [ref=e629]:
+                      - img [ref=e630]
+                      - generic [ref=e633]: Read More
+                  - generic [ref=e634]:
+                    - code [ref=e635]: a:nth-of-type(9)
+                    - button "Copy selector" [ref=e636]:
+                      - img [ref=e637]
+                  - generic [ref=e640]: /
+                - button "link Read More in main content Read More Role link › Read More /" [ref=e641] [cursor=pointer]:
+                  - generic [ref=e643]: link
+                  - paragraph [ref=e645]: Read More in main content
+                  - generic "'Read More' link (97x24px) in main content" [ref=e649]:
+                    - generic [ref=e650]:
+                      - img [ref=e651]
+                      - generic [ref=e654]: Read More
+                  - generic [ref=e655]:
+                    - generic [ref=e656]: Role
+                    - code [ref=e657]: link › Read More
+                    - button "Copy selector" [ref=e658]:
+                      - img [ref=e659]
+                  - generic [ref=e662]: /
+                - button "link Registration in footer Registration Role link › Registration /" [ref=e663] [cursor=pointer]:
+                  - generic [ref=e665]: link
+                  - paragraph [ref=e667]: Registration in footer
+                  - generic "'Registration' link (84x21px) in footer" [ref=e671]:
+                    - generic [ref=e672]:
+                      - img [ref=e673]
+                      - generic [ref=e676]: Registration
+                  - generic [ref=e677]:
+                    - generic [ref=e678]: Role
+                    - code [ref=e679]: link › Registration
+                    - button "Copy selector" [ref=e680]:
+                      - img [ref=e681]
+                  - generic [ref=e684]: /
+                - button "link Technical Consultation in top navigation Technical Consultation Role link › Technical Consultation /" [ref=e685] [cursor=pointer]:
+                  - generic [ref=e687]: link
+                  - paragraph [ref=e689]: Technical Consultation in top navigation
+                  - generic "'Technical Consultation' link (166x36px) in top navigation" [ref=e693]:
+                    - generic [ref=e694]:
+                      - img [ref=e695]
+                      - generic [ref=e698]: Technical Consultation
+                  - generic [ref=e699]:
+                    - generic [ref=e700]: Role
+                    - code [ref=e701]: link › Technical Consultation
+                    - button "Copy selector" [ref=e702]:
+                      - img [ref=e703]
+                  - generic [ref=e706]: /
+                - button "link Terms in footer Terms Role link › Terms /" [ref=e707] [cursor=pointer]:
+                  - generic [ref=e709]: link
+                  - paragraph [ref=e711]: Terms in footer
+                  - generic "'Terms' link (41x21px) in footer" [ref=e715]:
+                    - generic [ref=e716]:
+                      - img [ref=e717]
+                      - generic [ref=e720]: Terms
+                  - generic [ref=e721]:
+                    - generic [ref=e722]: Role
+                    - code [ref=e723]: link › Terms
+                    - button "Copy selector" [ref=e724]:
+                      - img [ref=e725]
+                  - generic [ref=e728]: /
+                - button "link Terms of Service in footer Terms of Service Role link › Terms of Service /" [ref=e729] [cursor=pointer]:
+                  - generic [ref=e731]: link
+                  - paragraph [ref=e733]: Terms of Service in footer
+                  - generic "'Terms of Service' link (114x21px) in footer" [ref=e737]:
+                    - generic [ref=e738]:
+                      - img [ref=e739]
+                      - generic [ref=e742]: Terms of Service
+                  - generic [ref=e743]:
+                    - generic [ref=e744]: Role
+                    - code [ref=e745]: link › Terms of Service
+                    - button "Copy selector" [ref=e746]:
+                      - img [ref=e747]
+                  - generic [ref=e750]: /
+                - button "link TTS in top navigation TTS Role link › TTS /" [ref=e751] [cursor=pointer]:
+                  - generic [ref=e753]: link
+                  - paragraph [ref=e755]: TTS in top navigation
+                  - generic "'TTS' link (68x32px) in top navigation" [ref=e759]:
+                    - generic [ref=e760]:
+                      - img [ref=e761]
+                      - generic [ref=e764]: TTS
+                  - generic [ref=e765]:
+                    - generic [ref=e766]: Role
+                    - code [ref=e767]: link › TTS
+                    - button "Copy selector" [ref=e768]:
+                      - img [ref=e769]
+                  - generic [ref=e772]: /
+            - generic [ref=e773]:
+              - button "Text (13) ▾" [ref=e774] [cursor=pointer]:
+                - generic [ref=e775]: Text (13)
+                - generic [ref=e776]: ▾
+              - generic [ref=e777]:
+                - button "text Contact in footer Contact Role heading › Contact /" [ref=e778] [cursor=pointer]:
+                  - generic [ref=e780]: text
+                  - paragraph [ref=e782]: Contact in footer
+                  - generic "'Contact' text (280x28px) in footer" [ref=e786]:
+                    - generic [ref=e788]: Contact
+                  - generic [ref=e789]:
+                    - generic [ref=e790]: Role
+                    - code [ref=e791]: heading › Contact
+                    - button "Copy selector" [ref=e792]:
+                      - img [ref=e793]
+                  - generic [ref=e796]: /
+                - button "text Documentation in main content Documentation Role heading › Documentation /" [ref=e797] [cursor=pointer]:
+                  - generic [ref=e799]: text
+                  - paragraph [ref=e801]: Documentation in main content
+                  - generic "'Documentation' text (146x28px) in main content" [ref=e805]:
+                    - generic [ref=e807]: Documentation
+                  - generic [ref=e808]:
+                    - generic [ref=e809]: Role
+                    - code [ref=e810]: heading › Documentation
+                    - button "Copy selector" [ref=e811]:
+                      - img [ref=e812]
+                  - generic [ref=e815]: /
+                - button "text Exchange rates in main content Exchange rates Role heading › Exchange rates /" [ref=e816] [cursor=pointer]:
+                  - generic [ref=e818]: text
+                  - paragraph [ref=e820]: Exchange rates in main content
+                  - generic "'Exchange rates' text (122x28px) in main content" [ref=e824]:
+                    - generic [ref=e826]: Exchange rates
+                  - generic [ref=e827]:
+                    - generic [ref=e828]: Role
+                    - code [ref=e829]: heading › Exchange rates
+                    - button "Copy selector" [ref=e830]:
+                      - img [ref=e831]
+                  - generic [ref=e834]: /
+                - button "text Need Help? in main content Need Help? Role heading › Need Help? /" [ref=e835] [cursor=pointer]:
+                  - generic [ref=e837]: text
+                  - paragraph [ref=e839]: Need Help? in main content
+                  - generic "'Need Help?' text (1216x36px) in main content" [ref=e843]:
+                    - generic [ref=e845]: Need Help?
+                  - generic [ref=e846]:
+                    - generic [ref=e847]: Role
+                    - code [ref=e848]: heading › Need Help?
+                    - button "Copy selector" [ref=e849]:
+                      - img [ref=e850]
+                  - generic [ref=e853]: /
+                - button "text Our Services in main content Our Services Role heading › Our Services /" [ref=e854] [cursor=pointer]:
+                  - generic [ref=e856]: text
+                  - paragraph [ref=e858]: Our Services in main content
+                  - generic "'Our Services' text (1216x40px) in main content" [ref=e862]:
+                    - generic [ref=e864]: Our Services
+                  - generic [ref=e865]:
+                    - generic [ref=e866]: Role
+                    - code [ref=e867]: heading › Our Services
+                    - button "Copy selector" [ref=e868]:
+                      - img [ref=e869]
+                  - generic [ref=e872]: /
+                - button "text Services in footer Services Role heading › Services /" [ref=e873] [cursor=pointer]:
+                  - generic [ref=e875]: text
+                  - paragraph [ref=e877]: Services in footer
+                  - generic "'Services' text (280x28px) in footer" [ref=e881]:
+                    - generic [ref=e883]: Services
+                  - generic [ref=e884]:
+                    - generic [ref=e885]: Role
+                    - code [ref=e886]: heading › Services
+                    - button "Copy selector" [ref=e887]:
+                      - img [ref=e888]
+                  - generic [ref=e891]: /
+                - button "text Support in footer Support Role heading › Support /" [ref=e892] [cursor=pointer]:
+                  - generic [ref=e894]: text
+                  - paragraph [ref=e896]: Support in footer
+                  - generic "'Support' text (280x28px) in footer" [ref=e900]:
+                    - generic [ref=e902]: Support
+                  - generic [ref=e903]:
+                    - generic [ref=e904]: Role
+                    - code [ref=e905]: heading › Support
+                    - button "Copy selector" [ref=e906]:
+                      - img [ref=e907]
+                  - generic [ref=e910]: /
+                - button "text Transport Registration & Insurance Services in main content Transport Registrati... h1.text-4xl.sm\\:text-5xl.md\\:text-6xl /" [ref=e911] [cursor=pointer]:
+                  - generic [ref=e913]: text
+                  - paragraph [ref=e915]: Transport Registration & Insurance Services in main content
+                  - generic "'Transport Registration & Insurance Servi' text (768x120px) in main content" [ref=e919]:
+                    - generic [ref=e921]: Transport Registrati...
+                  - generic [ref=e922]:
+                    - code [ref=e923]: h1.text-4xl.sm\:text-5xl.md\:text-6xl
+                    - button "Copy selector" [ref=e924]:
+                      - img [ref=e925]
+                  - generic [ref=e928]: /
+                - button "text Transport Transit Service in main content Transport Transit Se... Role heading › Transport Transit Service /" [ref=e929] [cursor=pointer]:
+                  - generic [ref=e931]: text
+                  - paragraph [ref=e933]: Transport Transit Service in main content
+                  - generic "'Transport Transit Service' text (592x36px) in main content" [ref=e937]:
+                    - generic [ref=e939]: Transport Transit Se...
+                  - generic [ref=e940]:
+                    - generic [ref=e941]: Role
+                    - code [ref=e942]: heading › Transport Transit Service
+                    - button "Copy selector" [ref=e943]:
+                      - img [ref=e944]
+                  - generic [ref=e947]: /
+                - button "text Travel with Confidence in main content Travel with Confiden... Role heading › Travel with Confidence /" [ref=e948] [cursor=pointer]:
+                  - generic [ref=e950]: text
+                  - paragraph [ref=e952]: Travel with Confidence in main content
+                  - generic "'Travel with Confidence' text (592x40px) in main content" [ref=e956]:
+                    - generic [ref=e958]: Travel with Confiden...
+                  - generic [ref=e959]:
+                    - generic [ref=e960]: Role
+                    - code [ref=e961]: heading › Travel with Confidence
+                    - button "Copy selector" [ref=e962]:
+                      - img [ref=e963]
+                  - generic [ref=e966]: /
+                - button "text Vehicle Insurance in main content Vehicle Insurance Role heading › Vehicle Insurance /" [ref=e967] [cursor=pointer]:
+                  - generic [ref=e969]: text
+                  - paragraph [ref=e971]: Vehicle Insurance in main content
+                  - generic "'Vehicle Insurance' text (163x28px) in main content" [ref=e975]:
+                    - generic [ref=e977]: Vehicle Insurance
+                  - generic [ref=e978]:
+                    - generic [ref=e979]: Role
+                    - code [ref=e980]: heading › Vehicle Insurance
+                    - button "Copy selector" [ref=e981]:
+                      - img [ref=e982]
+                  - generic [ref=e985]: /
+                - button "text Vehicle Registration in main content Vehicle Registration Role heading › Vehicle Registration /" [ref=e986] [cursor=pointer]:
+                  - generic [ref=e988]: text
+                  - paragraph [ref=e990]: Vehicle Registration in main content
+                  - generic "'Vehicle Registration' text (187x28px) in main content" [ref=e994]:
+                    - generic [ref=e996]: Vehicle Registration
+                  - generic [ref=e997]:
+                    - generic [ref=e998]: Role
+                    - code [ref=e999]: heading › Vehicle Registration
+                    - button "Copy selector" [ref=e1000]:
+                      - img [ref=e1001]
+                  - generic [ref=e1004]: /
+                - button "text What Our Clients Say in main content What Our Clients Say Role heading › What Our Clients Say /" [ref=e1005] [cursor=pointer]:
+                  - generic [ref=e1007]: text
+                  - paragraph [ref=e1009]: What Our Clients Say in main content
+                  - generic "'What Our Clients Say' text (512x28px) in main content" [ref=e1013]:
+                    - generic [ref=e1015]: What Our Clients Say
+                  - generic [ref=e1016]:
+                    - generic [ref=e1017]: Role
+                    - code [ref=e1018]: heading › What Our Clients Say
+                    - button "Copy selector" [ref=e1019]:
+                      - img [ref=e1020]
+                  - generic [ref=e1023]: /
+            - generic [ref=e1024]:
+              - button "Buttons (2) ▾" [ref=e1025] [cursor=pointer]:
+                - generic [ref=e1026]: Buttons (2)
+                - generic [ref=e1027]: ▾
+              - generic [ref=e1028]:
+                - button "button Button in main content Button in main content Title Refresh Rates /" [ref=e1029] [cursor=pointer]:
+                  - generic [ref=e1031]: button
+                  - paragraph [ref=e1033]: Button in main content
+                  - generic "White 'button' button (32x32px) in main content" [ref=e1037]:
+                    - generic [ref=e1038]:
+                      - img [ref=e1039]
+                      - generic [ref=e1041]: Button in main content
+                  - generic [ref=e1042]:
+                    - generic [ref=e1043]: Title
+                    - code [ref=e1044]: Refresh Rates
+                    - button "Copy selector" [ref=e1045]:
+                      - img [ref=e1046]
+                  - generic [ref=e1049]: /
+                - button "button English button in top navigation English Role button › English /" [ref=e1050] [cursor=pointer]:
+                  - generic [ref=e1052]: button
+                  - paragraph [ref=e1054]: English button in top navigation
+                  - generic "'English' button (97x36px) in top navigation" [ref=e1058]:
+                    - generic [ref=e1059]:
+                      - img [ref=e1060]
+                      - generic [ref=e1062]: English
+                  - generic [ref=e1063]:
+                    - generic [ref=e1064]: Role
+                    - code [ref=e1065]: button › English
+                    - button "Copy selector" [ref=e1066]:
+                      - img [ref=e1067]
+                  - generic [ref=e1070]: /
+            - generic [ref=e1071]:
+              - button "Images (1) ▾" [ref=e1072] [cursor=pointer]:
+                - generic [ref=e1073]: Images (1)
+                - generic [ref=e1074]: ▾
+              - button "image img element in main content img element in main content img.w-full.h-auto.rounded-lg /" [ref=e1076] [cursor=pointer]:
+                - generic [ref=e1078]: image
+                - paragraph [ref=e1080]: img element in main content
+                - generic "'image' image (592x24px) in main content" [ref=e1084]:
+                  - generic [ref=e1085]:
+                    - img [ref=e1086]
+                    - generic [ref=e1090]: img element in main content
+                - generic [ref=e1091]:
+                  - code [ref=e1092]: img.w-full.h-auto.rounded-lg
+                  - button "Copy selector" [ref=e1093]:
+                    - img [ref=e1094]
+                - generic [ref=e1097]: /
+            - generic [ref=e1098]:
+              - paragraph [ref=e1099]: Showing 100 of 295 elements
+              - button "Load More (50 more)" [ref=e1100] [cursor=pointer]

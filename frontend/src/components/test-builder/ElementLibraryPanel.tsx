@@ -38,6 +38,33 @@ interface ElementLibraryPanelProps {
 }
 
 const UNATTRIBUTED_KEY = '__unattributed__';
+const SHARED_KEY = '__shared__';
+
+// Region suffixes appended to descriptions by element-detection.service.ts
+// `getVisualLocation()` (lines 929-1003). Only chrome regions go into the
+// Shared bucket — page-specific regions like form/main content do NOT.
+const SHARED_REGIONS = new Set([
+  'top navigation',
+  'navigation',
+  'header',
+  'footer',
+  'left sidebar',
+  'right sidebar',
+  'sidebar',
+]);
+
+const REGION_REGEX = / in (top navigation|navigation|header|footer|left sidebar|right sidebar|sidebar|login form|search form|signup form|form|main content)$/i;
+
+function extractRegion(description: string | undefined): string | null {
+  if (!description) return null;
+  const match = description.match(REGION_REGEX);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function isSharedRegion(description: string | undefined): boolean {
+  const region = extractRegion(description);
+  return region !== null && SHARED_REGIONS.has(region);
+}
 
 const TYPE_LABELS: Record<string, string> = {
   button: 'Buttons',
@@ -197,14 +224,27 @@ export function ElementLibraryPanel({
     });
   }, [elements, searchQuery]);
 
+  // Unique selectors of currently-loaded shared-region elements.
+  // The Shared bucket count and contents are derived from loaded elements only
+  // (pageIndex doesn't carry region info today). When all elements are loaded
+  // this is exact; otherwise it grows as the user paginates.
+  const sharedSelectors = useMemo(() => {
+    const set = new Set<string>();
+    for (const el of filteredElements) {
+      if (isSharedRegion(el.description)) set.add(el.selector);
+    }
+    return set;
+  }, [filteredElements]);
+
   // Build page list for left panel.
   // Primary source: server-side page index (real DB element counts, all pages
   // visible from t=0 regardless of which elements are paginated into memory).
-  // Fallback: derive from currently-loaded elements when the index isn't ready
-  // or the project was opened without pagination.
+  // Plus a synthetic "Shared elements" bucket for chrome (footer/nav/header/sidebar)
+  // so the same footer link doesn't duplicate under every page.
   const pageList = useMemo(() => {
+    let list: Array<{ url: string; title: string; count: number }>;
     if (pageIndex && pageIndex.length > 0) {
-      return pageIndex
+      list = pageIndex
         .map(entry => {
           const url = entry.url || UNATTRIBUTED_KEY;
           const title = url === UNATTRIBUTED_KEY
@@ -213,22 +253,31 @@ export function ElementLibraryPanel({
           return { url, title, count: entry.elementCount };
         })
         .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
+    } else {
+      // Fallback: derive from loaded elements (pre-server-index behaviour).
+      const pages = new Map<string, { url: string; title: string; count: number }>();
+      for (const el of filteredElements) {
+        const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
+        const title = url === UNATTRIBUTED_KEY
+          ? 'Unattributed elements'
+          : (el.sourceUrl?.title || getPathFromUrl(url));
+        if (!pages.has(url)) pages.set(url, { url, title, count: 0 });
+        pages.get(url)!.count++;
+      }
+      list = Array.from(pages.values()).sort(
+        (a, b) => b.count - a.count || a.title.localeCompare(b.title),
+      );
     }
 
-    // Fallback: derive from loaded elements (pre-server-index behaviour).
-    const pages = new Map<string, { url: string; title: string; count: number }>();
-    for (const el of filteredElements) {
-      const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
-      const title = url === UNATTRIBUTED_KEY
-        ? 'Unattributed elements'
-        : (el.sourceUrl?.title || getPathFromUrl(url));
-      if (!pages.has(url)) pages.set(url, { url, title, count: 0 });
-      pages.get(url)!.count++;
+    // Prepend the Shared bucket when any chrome elements have been loaded.
+    if (sharedSelectors.size > 0) {
+      list = [
+        { url: SHARED_KEY, title: 'Shared elements', count: sharedSelectors.size },
+        ...list,
+      ];
     }
-    return Array.from(pages.values()).sort(
-      (a, b) => b.count - a.count || a.title.localeCompare(b.title),
-    );
-  }, [pageIndex, filteredElements]);
+    return list;
+  }, [pageIndex, filteredElements, sharedSelectors]);
 
   // Auto-select first page when data loads or selection becomes invalid
   useEffect(() => {
@@ -238,14 +287,29 @@ export function ElementLibraryPanel({
   }, [pageList, selectedPageUrl]);
 
   // Elements for selected page, grouped by type.
-  // Null/missing elementType lands in a distinct 'other' bucket — separate from
-  // the detector's legitimate 'element' fallback so the two don't visually merge.
-  // Within each type group, elements are sorted alphabetically for a stable order.
+  // - SHARED_KEY: chrome elements deduped by selector across all pages.
+  // - Real page: elements for that sourceUrl, EXCLUDING shared-region duplicates
+  //   (they live under the Shared bucket).
+  // - Null/missing elementType lands in a distinct 'other' bucket.
+  // Within each type group, elements are sorted alphabetically.
   const elementsByType = useMemo(() => {
-    const els = filteredElements.filter(el => {
-      const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
-      return url === selectedPageUrl;
-    });
+    let els: ProjectElement[];
+    if (selectedPageUrl === SHARED_KEY) {
+      const seen = new Set<string>();
+      els = [];
+      for (const el of filteredElements) {
+        if (!isSharedRegion(el.description)) continue;
+        if (seen.has(el.selector)) continue;
+        seen.add(el.selector);
+        els.push(el);
+      }
+    } else {
+      els = filteredElements.filter(el => {
+        if (isSharedRegion(el.description)) return false;
+        const url = el.sourceUrl?.url || UNATTRIBUTED_KEY;
+        return url === selectedPageUrl;
+      });
+    }
 
     const groups = new Map<string, ProjectElement[]>();
     for (const el of els) {
@@ -388,7 +452,7 @@ export function ElementLibraryPanel({
         <div className="w-[30%] border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
           <div className="p-2">
             {pageList.map(page => {
-              const isUnattributed = page.url === UNATTRIBUTED_KEY;
+              const isPseudo = page.url === UNATTRIBUTED_KEY || page.url === SHARED_KEY;
               return (
                 <button
                   key={page.url}
@@ -400,7 +464,7 @@ export function ElementLibraryPanel({
                   }`}
                 >
                   <div className="truncate font-medium">{page.title}</div>
-                  {!isUnattributed && (
+                  {!isPseudo && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {getPathFromUrl(page.url)}
                     </div>
