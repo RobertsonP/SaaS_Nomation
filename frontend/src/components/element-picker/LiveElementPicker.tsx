@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { browserAPI } from '../../lib/api';
+import { browserAPI, projectsAPI } from '../../lib/api';
 import { ProjectElement } from '../../types/element.types';
 import { createLogger } from '../../lib/logger';
 import { SelectorGenerator } from './SelectorGenerator';
@@ -173,6 +173,8 @@ export function LiveElementPicker({
 
   const [picked, setPicked] = useState<PickedElement | null>(null);
   const [hoverSelector, setHoverSelector] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
 
   const sessionTokenRef = useRef<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -284,10 +286,34 @@ export function LiveElementPicker({
     return () => detachIframeListeners();
   }, []);
 
-  const handleSaveElement = () => {
-    if (!picked) return;
-    onSelectElement?.(picked.selector, picked.description);
-    onClose();
+  const handleSaveElement = async () => {
+    if (!picked || isSaving) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await projectsAPI.createElements(projectId, [
+        {
+          selector: picked.selector,
+          elementType: picked.elementType,
+          description: picked.description,
+          attributes: {
+            tagName: picked.tagName,
+            text: picked.textPreview,
+            capturedAtUrl: capturedUrl,
+          },
+          source: 'live-picker',
+        },
+      ]);
+      onSelectElement?.(picked.selector, picked.description);
+      setPicked(null);
+      setSavedCount(c => c + 1);
+    } catch (err: any) {
+      logger.error('Failed to save element:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to save element');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleClose = async () => {
@@ -318,11 +344,16 @@ export function LiveElementPicker({
             </span>
           )}
         </div>
+        {savedCount > 0 && (
+          <span className="px-3 py-1 text-xs font-medium bg-green-700 text-green-100 rounded-full">
+            Saved this session: {savedCount}
+          </span>
+        )}
         <button
           onClick={handleClose}
           className="px-4 py-1.5 bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md font-medium transition-colors"
         >
-          Close
+          {savedCount > 0 ? 'Done' : 'Close'}
         </button>
       </div>
 
@@ -413,9 +444,10 @@ export function LiveElementPicker({
                     </div>
                     <button
                       onClick={handleSaveElement}
-                      className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-sm font-medium transition-colors"
+                      disabled={isSaving}
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Save to Library
+                      {isSaving ? 'Saving...' : 'Save to Library'}
                     </button>
                   </div>
                 ) : (

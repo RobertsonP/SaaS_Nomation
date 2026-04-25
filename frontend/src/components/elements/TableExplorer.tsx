@@ -51,6 +51,18 @@ export function TableExplorer({ tableData, onClose, onAddStep }: TableExplorerPr
     const text = sampleData[rowIdx]?.[colIdx] || '';
     if (!selector) return;
 
+    // Auto-add an "Assert contains" step on click — the most common pattern.
+    // The popover still opens for alternatives (Assert equals, Click cell, etc.).
+    if (onAddStep) {
+      const truncated = text.length > 50 ? text.substring(0, 50) + '...' : text;
+      onAddStep({
+        type: 'assert',
+        selector,
+        value: text,
+        description: `Assert cell contains: "${truncated}"`,
+      });
+    }
+
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const containerRect = tableRef.current?.getBoundingClientRect() || rect;
 

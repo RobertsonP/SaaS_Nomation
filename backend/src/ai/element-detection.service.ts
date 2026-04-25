@@ -144,19 +144,50 @@ export class ElementDetectionService {
           const rowCellSelectors: string[] = [];
           const rowCellActions: Array<Array<{ text: string; selector: string; tag: string }>> = [];
           row.querySelectorAll('td, th').forEach((cell, cellIdx) => {
-            cells.push((cell.textContent || '').trim().substring(0, 100));
-            rowCellSelectors.push(`${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1})`);
+            const cellSelector = `${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1})`;
+            rowCellSelectors.push(cellSelector);
 
-            // Detect action buttons/links inside each cell
+            // Detect action buttons/links inside each cell.
+            // For icon-only buttons (no text), fall back to aria-label, title, or
+            // value so labels survive into the explorer + selector.
             const cellActionsList: Array<{ text: string; selector: string; tag: string }> = [];
-            cell.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]').forEach((actionEl) => {
-              const actionText = (actionEl.textContent || '').trim();
-              if (actionText && actionText.length < 50) {
-                const actionTag = actionEl.tagName.toLowerCase();
-                const actionSelector = `${rowTag}:nth-child(${nthChild}) td:nth-child(${cellIdx + 1}) ${actionTag}:has-text("${actionText.replace(/'/g, "\\'")}")`;
-                cellActionsList.push({ text: actionText, selector: actionSelector, tag: actionTag });
+            const actionEls = cell.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]');
+            actionEls.forEach((actionEl, actionIdx) => {
+              const el = actionEl as HTMLElement;
+              const rawText = (el.textContent || '').trim();
+              const ariaLabel = el.getAttribute('aria-label') || '';
+              const title = el.getAttribute('title') || '';
+              const value = (el as HTMLInputElement).value || '';
+              const label = rawText || ariaLabel || title || value;
+              if (!label || label.length >= 50) return;
+
+              const actionTag = el.tagName.toLowerCase();
+              // Build selector: prefer aria-label/title attribute selectors for
+              // icon-only buttons (text would be empty); fall back to has-text
+              // when there's real text; nth-of-type as last resort.
+              let actionSelector: string;
+              if (rawText) {
+                actionSelector = `${cellSelector} ${actionTag}:has-text("${rawText.replace(/"/g, '\\"')}")`;
+              } else if (ariaLabel) {
+                actionSelector = `${cellSelector} ${actionTag}[aria-label="${ariaLabel.replace(/"/g, '\\"')}"]`;
+              } else if (title) {
+                actionSelector = `${cellSelector} ${actionTag}[title="${title.replace(/"/g, '\\"')}"]`;
+              } else {
+                actionSelector = `${cellSelector} ${actionTag}:nth-of-type(${actionIdx + 1})`;
               }
+              cellActionsList.push({ text: label, selector: actionSelector, tag: actionTag });
             });
+
+            // Cell display text: prefer real textContent; if empty but the cell
+            // hosts interactive children, surface their labels so the explorer
+            // doesn't render a bare "-".
+            const rawCellText = (cell.textContent || '').trim();
+            let displayText = rawCellText;
+            if (!displayText && cellActionsList.length > 0) {
+              displayText = cellActionsList.map(a => `[${a.text}]`).join(' ');
+            }
+            cells.push(displayText.substring(0, 100));
+
             rowCellActions.push(cellActionsList);
           });
           sampleData.push(cells);
