@@ -409,10 +409,12 @@ export function TestBuilderPage() {
             setShowLivePicker(false);
           }}
           onSelectElement={(selector, description) => {
-            // Backward compatibility handler
+            // Per-save callback — toast confirms persistence (the picker has
+            // already saved server-side and dispatched the refresh event by
+            // the time this fires). Do NOT close the modal here; the user
+            // can keep picking more elements until they hit Done/Close.
             logger.debug('Selected Element', { selector, description });
-            showSuccess('Element Selected', `"${description}" added to library`);
-            setShowLivePicker(false);
+            showSuccess('Element saved', `"${description}" added to library`);
           }}
           initialUrl={selectedStartingUrl}
         />
