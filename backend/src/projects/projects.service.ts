@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -357,14 +357,10 @@ export class ProjectsService {
       include: { project: { select: { organizationId: true, userId: true } } },
     });
 
-    if (!projectUrl) {
-      throw new Error('URL not found');
-    }
-
-    const project = projectUrl.project;
-    const belongsToOrg = project.organizationId === organizationId;
-    if (!belongsToOrg) {
-      throw new Error('URL not found');
+    // Same 404 message for missing-URL and wrong-org so callers can't enumerate
+    // the existence of URLs they don't own.
+    if (!projectUrl || projectUrl.project.organizationId !== organizationId) {
+      throw new HttpException('URL not found', HttpStatus.NOT_FOUND);
     }
 
     const trimmed = (title || '').trim();

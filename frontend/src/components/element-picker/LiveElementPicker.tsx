@@ -34,7 +34,11 @@ function isMeaningfulId(id: string): boolean {
 }
 
 function escapeAttr(value: string): string {
-  return value.replace(/"/g, '\\"');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function buildStructuralPath(el: Element): string {
@@ -172,6 +176,11 @@ export function LiveElementPicker({
 
   const sessionTokenRef = useRef<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeListenersRef = useRef<{
+    doc: Document;
+    onClick: (e: MouseEvent) => void;
+    onMouseOver: (e: MouseEvent) => void;
+  } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -227,7 +236,21 @@ export function LiveElementPicker({
     }
   };
 
+  const detachIframeListeners = () => {
+    const prev = iframeListenersRef.current;
+    if (!prev) return;
+    try {
+      prev.doc.removeEventListener('click', prev.onClick, true);
+      prev.doc.removeEventListener('mouseover', prev.onMouseOver, true);
+    } catch {
+      // Document may already be torn down; ignore.
+    }
+    iframeListenersRef.current = null;
+  };
+
   const handleIframeLoad = () => {
+    detachIframeListeners();
+
     const iframe = iframeRef.current;
     const doc = iframe?.contentDocument;
     if (!iframe || !doc) return;
@@ -254,7 +277,12 @@ export function LiveElementPicker({
 
     doc.addEventListener('click', onClick, true);
     doc.addEventListener('mouseover', onMouseOver, true);
+    iframeListenersRef.current = { doc, onClick, onMouseOver };
   };
+
+  useEffect(() => {
+    return () => detachIframeListeners();
+  }, []);
 
   const handleSaveElement = () => {
     if (!picked) return;
