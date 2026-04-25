@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ElementAnalyzerService } from '../ai/element-analyzer.service';
 import { SelectorQualityService } from '../ai/selector-quality.service';
+import { UrlNormalizationService } from '../discovery/url-normalization.service';
 import { DetectedElement } from '../ai/interfaces/element.interface';
 import { TestStep } from '../common/types/execution.types';
 
@@ -11,6 +12,7 @@ export class ProjectElementsService {
     private prisma: PrismaService,
     private elementAnalyzer: ElementAnalyzerService,
     private selectorQualityService: SelectorQualityService,
+    private urlNormalizationService: UrlNormalizationService,
   ) {}
 
   async getProjectElements(organizationId: string, projectId: string, options?: {
@@ -163,21 +165,49 @@ export class ProjectElementsService {
       };
     }
 
+    // Resolve `capturedAtUrl` (sent by the Live Picker per element via
+    // attributes.capturedAtUrl) to a ProjectUrl row so the saved element lands
+    // under the correct page bucket in the library, not the unattributed
+    // bucket. Match via UrlNormalizationService so case / trailing-slash /
+    // tracking-param differences don't break attribution.
+    const projectUrls = await this.prisma.projectUrl.findMany({
+      where: { projectId },
+      select: { id: true, url: true },
+    });
+    const urlsByNorm = new Map<string, string>();
+    for (const u of projectUrls) {
+      urlsByNorm.set(this.urlNormalizationService.normalizeUrl(u.url), u.id);
+    }
+    const resolveSourceUrlId = (capturedAtUrl: unknown): string | null => {
+      if (!capturedAtUrl || typeof capturedAtUrl !== 'string') return null;
+      try {
+        const norm = this.urlNormalizationService.normalizeUrl(capturedAtUrl);
+        return urlsByNorm.get(norm) ?? null;
+      } catch {
+        return null;
+      }
+    };
+
     try {
-      const elementsToCreate = filteredElements.map(element => ({
-        projectId,
-        selector: element.selector,
-        elementType: element.elementType,
-        description: element.description,
-        confidence: element.confidence || 0.95,
-        attributes: (element.attributes || {}) as object,
-        category: element.category || 'project-analysis',
-        sourcePageTitle: `Source Code Analysis`,
-        sourceUrlPath: (element.attributes as Record<string, string>)?.filePath || 'unknown',
-        discoveryState: 'confirmed',
-        discoveryTrigger: element.source || 'project-upload',
-        screenshot: element.screenshot || null
-      }));
+      const elementsToCreate = filteredElements.map(element => {
+        const attrs = (element.attributes || {}) as Record<string, unknown>;
+        const sourceUrlId = resolveSourceUrlId(attrs.capturedAtUrl);
+        return {
+          projectId,
+          sourceUrlId,
+          selector: element.selector,
+          elementType: element.elementType,
+          description: element.description,
+          confidence: element.confidence || 0.95,
+          attributes: (element.attributes || {}) as object,
+          category: element.category || 'project-analysis',
+          sourcePageTitle: `Source Code Analysis`,
+          sourceUrlPath: (attrs.filePath as string) || 'unknown',
+          discoveryState: 'confirmed',
+          discoveryTrigger: element.source || 'project-upload',
+          screenshot: element.screenshot || null,
+        };
+      });
 
       const createdElements = await this.prisma.projectElement.createMany({
         data: elementsToCreate as any,
