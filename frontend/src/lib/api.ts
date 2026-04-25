@@ -341,7 +341,8 @@ export const testsAPI = {
 // Execution API
 export const executionAPI = {
   run: (testId: string) => api.post(`/api/execution/test/${testId}/run`),
-  runLive: (testId: string) => api.post(`/api/execution/test/${testId}/run-live`),
+  runLive: (testId: string, options?: { headed?: boolean }) =>
+    api.post(`/api/execution/test/${testId}/run-live`, { headed: options?.headed === true }),
   getJobStatus: (jobId: string) => api.get(`/api/execution/job/${jobId}`),
   stop: (executionId: string) => api.post(`/api/execution/${executionId}/stop`),
   getResults: (testId: string) => api.get(`/api/execution/test/${testId}/results`),

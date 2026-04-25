@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Query, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Query, Body, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException } from '@nestjs/common';
 import { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { join, resolve } from 'path';
@@ -107,7 +107,11 @@ export class ExecutionController {
   @Post('test/:testId/run-live')
   @UseGuards(OrganizationGuard)
   @HttpCode(HttpStatus.OK) // Always 200 OK
-  async runTestLive(@Request() req, @Param('testId') testId: string): Promise<ExecutionResult> {
+  async runTestLive(
+    @Request() req,
+    @Param('testId') testId: string,
+    @Body() body?: { headed?: boolean },
+  ): Promise<ExecutionResult> {
     try {
       // Verify test ownership before execution
       const test = await this.prisma.test.findUnique({
@@ -131,8 +135,12 @@ export class ExecutionController {
         };
       }
 
-      // Add test to queue with higher priority for live execution
-      const { jobId, position } = await this.queueService.addTestExecution(testId, 10); // Higher priority
+      // Add test to queue with higher priority for live execution.
+      // Pass `headed` flag through so the processor can decide whether to launch
+      // a visible Chromium window (with graceful headless fallback if no DISPLAY).
+      const { jobId, position } = await this.queueService.addTestExecution(testId, 10, {
+        headed: body?.headed === true,
+      });
 
       console.log(`✅ Live test ${testId} queued as job ${jobId} at position ${position}`);
 

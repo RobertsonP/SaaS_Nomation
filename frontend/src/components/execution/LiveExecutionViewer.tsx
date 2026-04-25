@@ -45,6 +45,11 @@ interface LiveExecutionViewerProps {
   isOpen: boolean;
   onClose: () => void;
   onExecutionComplete?: (result: LiveExecutionData) => void;
+  /**
+   * When true, the queue processor launches a real headed Chromium window so
+   * the user can watch the run. Headless fallback is automatic if no DISPLAY.
+   */
+  headed?: boolean;
 }
 
 export function LiveExecutionViewer({
@@ -52,7 +57,8 @@ export function LiveExecutionViewer({
   testName,
   isOpen,
   onClose,
-  onExecutionComplete
+  onExecutionComplete,
+  headed,
 }: LiveExecutionViewerProps) {
   const [executionData, setExecutionData] = useState<LiveExecutionData | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -245,7 +251,9 @@ export function LiveExecutionViewer({
 
       // Start the execution using the API
       // The API may return immediately with a job ID, or wait and return results
-      const response = await api.post(`/api/execution/test/${testId}/run-live`);
+      const response = await api.post(`/api/execution/test/${testId}/run-live`, {
+        headed: headed === true,
+      });
       const execution = response.data;
 
       // Check if we got a job ID (queued) or immediate results

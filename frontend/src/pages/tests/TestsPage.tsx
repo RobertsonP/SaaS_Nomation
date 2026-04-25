@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { testsAPI, projectsAPI } from '../../lib/api'
 import { LiveExecutionViewer } from '../../components/execution/LiveExecutionViewer'
 import { TestExecutionModal } from '../../components/execution/TestExecutionModal'
+import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TestStep } from '../../types/test.types'
@@ -51,7 +52,8 @@ export function TestsPage() {
     name: string
     executionId: string
   } | null>(null)
-  const [liveExecutionTest, setLiveExecutionTest] = useState<{id: string; name: string} | null>(null)
+  const [liveExecutionTest, setLiveExecutionTest] = useState<{id: string; name: string; headed: boolean} | null>(null)
+  const [runModePickerTest, setRunModePickerTest] = useState<{id: string; name: string} | null>(null)
   const [newTest, setNewTest] = useState({
     name: '',
     description: '',
@@ -122,9 +124,18 @@ export function TestsPage() {
     })
   }
 
-  const handleRunTestLive = async (testId: string, testName: string) => {
-    // Open live execution viewer
-    setLiveExecutionTest({ id: testId, name: testName })
+  const handleOpenRunPicker = (testId: string, testName: string) => {
+    setRunModePickerTest({ id: testId, name: testName })
+  }
+
+  const handlePickRunMode = (mode: 'headed' | 'headless') => {
+    if (!runModePickerTest) return
+    setLiveExecutionTest({
+      id: runModePickerTest.id,
+      name: runModePickerTest.name,
+      headed: mode === 'headed',
+    })
+    setRunModePickerTest(null)
   }
 
   const handleDeleteTest = async (testId: string, testName: string) => {
@@ -336,7 +347,7 @@ export function TestsPage() {
                       Edit
                     </Link>
                     <button
-                      onClick={() => handleRunTest(test.id)}
+                      onClick={() => handleOpenRunPicker(test.id, test.name)}
                       disabled={test.steps.length === 0 || (isExecuting && currentlyRunningTestId === test.id)}
                       className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
                         test.steps.length === 0
@@ -345,6 +356,7 @@ export function TestsPage() {
                             ? 'bg-blue-100 text-blue-800'
                             : 'text-green-600 hover:text-green-800 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                       }`}
+                      title="Run with live progress (choose headed or headless)"
                     >
                       {(isExecuting && currentlyRunningTestId === test.id) ? (
                         <span className="flex items-center">
@@ -355,18 +367,6 @@ export function TestsPage() {
                           {executionState?.status === 'waiting' ? `#${executionState.position}` : 'Running'}
                         </span>
                       ) : 'Run'}
-                    </button>
-                    <button
-                      onClick={() => handleRunTestLive(test.id, test.name)}
-                      disabled={test.steps.length === 0}
-                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
-                        test.steps.length === 0
-                          ? 'text-gray-400 cursor-not-allowed'
-                          : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                      }`}
-                      title="Run with live viewport viewer (replaced by single Run picker in Bundle 6)"
-                    >
-                      Run Live
                     </button>
                     <Link
                       to={`/tests/${test.id}/results`}
@@ -406,11 +406,20 @@ export function TestsPage() {
         <LiveExecutionViewer
           testId={liveExecutionTest.id}
           testName={liveExecutionTest.name}
+          headed={liveExecutionTest.headed}
           isOpen={!!liveExecutionTest}
           onClose={closeLiveExecution}
           onExecutionComplete={handleLiveExecutionComplete}
         />
       )}
+
+      {/* Run mode picker — Headed vs Headless */}
+      <RunModePickerModal
+        open={!!runModePickerTest}
+        testName={runModePickerTest?.name ?? ''}
+        onCancel={() => setRunModePickerTest(null)}
+        onPick={handlePickRunMode}
+      />
     </div>
   )
 }

@@ -77,18 +77,39 @@ export class ExecutionQueueProcessor {
       let errorMsg: string | null = null;
 
       try {
-        // Launch browser with Docker-compatible settings
-        browser = await chromium.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
-          ]
-        });
+        // Launch browser with Docker-compatible settings.
+        // When the job requests headed mode, try headless: false first; if the
+        // host has no display (typical in Docker/CI without Xvfb) the launch
+        // throws — catch and retry headless so the worker never crashes on a
+        // headed request.
+        const wantHeaded = (job.data as any)?.headed === true;
+        const launchArgs = [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+        ];
+        try {
+          browser = await chromium.launch({
+            headless: !wantHeaded,
+            args: launchArgs,
+          });
+        } catch (launchErr) {
+          if (wantHeaded) {
+            console.warn(
+              `⚠️ [Job ${job.id}] Headed Chromium launch failed (likely no DISPLAY). ` +
+              `Falling back to headless. Original error: ${(launchErr as Error).message}`,
+            );
+            browser = await chromium.launch({
+              headless: true,
+              args: launchArgs,
+            });
+          } else {
+            throw launchErr;
+          }
+        }
 
         // Create browser context with video recording
         const context = await browser.newContext({

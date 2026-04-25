@@ -6,6 +6,12 @@ export interface TestExecutionJobData {
   testId: string;
   userId?: string;
   priority?: number;
+  /**
+   * When true, the queue processor launches Chromium with `headless: false` so
+   * the user can watch the run live. Falls back to headless if the host has no
+   * display (e.g. Docker without Xvfb). Defaults to false (current behaviour).
+   */
+  headed?: boolean;
 }
 
 export interface QueueStatus {
@@ -28,11 +34,15 @@ export class ExecutionQueueService {
    * Add a test execution job to the queue
    * Returns job ID and position in queue
    */
-  async addTestExecution(testId: string, priority: number = 0): Promise<{ jobId: string; position: number }> {
+  async addTestExecution(
+    testId: string,
+    priority: number = 0,
+    options?: { headed?: boolean },
+  ): Promise<{ jobId: string; position: number }> {
     // Add job to queue with priority (higher number = higher priority)
     const job = await this.testExecutionQueue.add(
       'execute-test',
-      { testId } as TestExecutionJobData,
+      { testId, headed: options?.headed } as TestExecutionJobData,
       {
         priority: priority, // Higher priority jobs execute first
         jobId: `test-${testId}-${Date.now()}`, // Unique job ID
