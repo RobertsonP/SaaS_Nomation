@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ProjectElement } from '../../types/element.types';
-import { TableExplorer } from './TableExplorer';
+import { TableExplorerModal } from './TableExplorerModal';
 import { CellStepData } from './CellSelectorPopover';
 
 interface TablePreviewCardProps {
@@ -81,13 +81,9 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
           {hasExplorerData && (
             <button
               onClick={handleToggleExplorer}
-              className={`ml-auto px-2 py-0.5 text-xs rounded font-medium transition-colors ${
-                showExplorer
-                  ? 'bg-teal-600 text-white hover:bg-teal-700'
-                  : 'bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700'
-              }`}
+              className="ml-auto px-2 py-0.5 text-xs rounded font-medium bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700 transition-colors"
             >
-              {showExplorer ? 'Close' : 'Explore'}
+              Open Explorer
             </button>
           )}
         </div>
@@ -106,8 +102,8 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
           </div>
         )}
 
-        {/* Mini Table Preview (hidden when explorer is open) */}
-        {!showExplorer && headers && headers.length > 0 && (
+        {/* Mini Table Preview (always shown — full explorer lives in a modal) */}
+        {headers && headers.length > 0 && (
           <div className="overflow-x-auto" onClick={(e) => e.stopPropagation()}>
             <table className="w-full text-xs">
               <thead>
@@ -160,8 +156,8 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
           </div>
         )}
 
-        {/* Expand/Collapse (only when explorer is closed) */}
-        {!showExplorer && sampleData && sampleData.length > 3 && (
+        {/* Expand/Collapse (mini preview row count) */}
+        {sampleData && sampleData.length > 3 && (
           <button
             onClick={handleToggleExpand}
             className="w-full px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 border-t border-gray-100 dark:border-gray-700"
@@ -171,15 +167,15 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
         )}
       </div>
 
-      {/* Table Explorer (inline below the card) */}
-      {showExplorer && hasExplorerData && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <TableExplorer
-            tableData={tableData}
-            onClose={() => setShowExplorer(false)}
-            onAddStep={onAddStep}
-          />
-        </div>
+      {/* Table Explorer (modal — keeps the wide table from blowing out the page layout) */}
+      {hasExplorerData && (
+        <TableExplorerModal
+          open={showExplorer}
+          tableData={tableData}
+          onClose={() => setShowExplorer(false)}
+          onAddStep={onAddStep}
+          title={element.description || 'Data Table'}
+        />
       )}
     </div>
   );
