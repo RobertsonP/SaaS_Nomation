@@ -786,7 +786,31 @@ export function TestBuilderPanel({
           <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Test Steps ({steps.length})</h3>
-              <div className="flex space-x-2">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    onSave?.(steps);
+                    if (testId) {
+                      localStorage.removeItem(`nomation-test-steps-v1-${testId}`);
+                    }
+                    setHasUnsavedChanges(false);
+                  }}
+                  className={`px-3 py-1 text-xs text-white rounded font-medium transition-colors ${
+                    hasUnsavedChanges
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  title={hasUnsavedChanges ? 'Save unsaved changes' : 'Save test'}
+                >
+                  {hasUnsavedChanges ? '⚠️ Save' : 'Save'}
+                </button>
+                <button
+                  onClick={onCancel}
+                  className="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="Cancel and exit"
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={() => setShowExecutionModeModal(true)}
                   disabled={steps.length === 0 || isExecutingAllSteps || debugMode}
@@ -902,38 +926,13 @@ export function TestBuilderPanel({
           </div>
         )}
 
-        {/* Save/Cancel Buttons - Always Visible at Bottom */}
-        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex space-x-3">
-            <button
-              onClick={() => {
-                onSave?.(steps);
-                // Clear localStorage after saving
-                if (testId) {
-                  localStorage.removeItem(`nomation-test-steps-v1-${testId}`);
-                }
-                setHasUnsavedChanges(false);
-              }}
-              className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors font-medium ${
-                hasUnsavedChanges 
-                  ? 'bg-orange-600 hover:bg-orange-700' 
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
-            >
-              {hasUnsavedChanges ? '⚠️ ' : ''}
-              {steps.length > 0 
-                ? `Save Test (${steps.length} step${steps.length !== 1 ? 's' : ''})${hasUnsavedChanges ? ' - Unsaved Changes' : ''}` 
-                : 'Save Test Configuration'
-              }
-            </button>
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
+        {/* Compact unsaved-changes hint at the bottom (action buttons live in
+            the panel header now — no more floating Save bar). */}
+        {hasUnsavedChanges && (
+          <div className="flex-shrink-0 border-t border-orange-200 dark:border-orange-900/40 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-700 dark:text-orange-300">
+            ⚠️ {steps.length} step{steps.length !== 1 ? 's' : ''} with unsaved changes — click Save in the panel header.
           </div>
-        </div>
+        )}
       </div>
 
       {/* Add/Edit Step Modal */}
