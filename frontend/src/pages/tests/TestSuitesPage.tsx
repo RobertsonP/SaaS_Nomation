@@ -210,19 +210,19 @@ export function TestSuitesPage() {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Test Suites</h2>
-        <div className="flex space-x-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Test Suites</h2>
+        <div className="flex items-center gap-3">
           <Link
             to={`/projects/${projectId}/tests`}
-            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+            className="text-sm font-medium text-gray-700 dark:text-gray-300 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            📋 Manage Individual Tests
+            Manage Individual Tests
           </Link>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
           >
-            ➕ Create Test Suite
+            Create Test Suite
           </button>
         </div>
       </div>
@@ -258,17 +258,17 @@ export function TestSuitesPage() {
                 />
               </div>
             </div>
-            <div className="flex space-x-4">
+            <div className="flex items-center gap-3">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
               >
                 Create Suite
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
               </button>
@@ -289,9 +289,9 @@ export function TestSuitesPage() {
             <div className="space-y-4">
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
               >
-                ➕ Create Your First Test Suite
+                Create Your First Test Suite
               </button>
               <div className="text-sm text-gray-500 dark:text-gray-400">
                 Or{' '}
@@ -311,11 +311,11 @@ export function TestSuitesPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold">{suite.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        suite.status === 'active' 
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{suite.name}</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        suite.status === 'active'
+                          ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                       }`}>
                         {suite.status}
                       </span>
@@ -331,32 +331,36 @@ export function TestSuitesPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex items-center gap-3">
                     <Link
                       to={`/projects/${projectId}/suites/${suite.id}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1 border border-blue-200 rounded hover:bg-blue-50"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
                     >
-                      📝 Manage
+                      Manage
                     </Link>
                     <button
                       onClick={() => handleRunSuite(suite.id)}
                       disabled={suite.tests.length === 0}
-                      className="text-green-600 hover:text-green-800 text-sm px-3 py-1 border border-green-200 rounded hover:bg-green-50 disabled:text-gray-400 disabled:border-gray-200"
+                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                        suite.tests.length === 0
+                          ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                          : 'text-green-600 hover:text-green-800 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      }`}
                     >
-                      ▶️ Run Suite
+                      Run Suite
                     </button>
                     <Link
                       to={`/suites/${suite.id}/results`}
-                      className="text-purple-600 hover:text-purple-800 text-sm px-3 py-1 border border-purple-200 rounded hover:bg-purple-50"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1 rounded transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
                     >
-                      📊 Results
+                      Results
                     </Link>
                     <button
                       onClick={() => handleDeleteSuite(suite.id, suite.name)}
-                      className="text-red-600 hover:text-red-800 text-sm px-3 py-1 border border-red-200 rounded hover:bg-red-50"
+                      className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1 rounded transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                       title="Delete suite"
                     >
-                      🗑️ Delete
+                      Delete
                     </button>
                   </div>
                 </div>

@@ -324,10 +324,10 @@ export function SuiteExecutionModal({
       }`}>
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg">
+        <div className="bg-blue-600 text-white p-4 rounded-t-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">🚀 Test Suite Execution (Live)</h2>
+              <h2 className="text-lg font-semibold">Test Suite Execution (Live)</h2>
               <p className="text-sm opacity-90">{suiteName}</p>
             </div>
             <div className="flex items-center space-x-2">

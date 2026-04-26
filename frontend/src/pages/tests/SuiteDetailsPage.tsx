@@ -242,41 +242,41 @@ export function SuiteDetailsPage() {
               </span>
             </div>
           </div>
-          <div className="flex space-x-3">
+          <div className="flex items-center gap-3">
             <button
               onClick={handleRunSuite}
               disabled={testSuite.tests.length === 0}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="text-sm font-medium bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              ▶️ Run All Tests
+              Run All Tests
             </button>
           </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex space-x-4 mb-6">
+      <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => setShowAddTestModal(true)}
           disabled={getUnassignedTests().length === 0}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          ➕ Add Existing Tests
+          + Add Existing Tests
         </button>
         <button
           onClick={() => setShowCreateTestModal(true)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+          className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
         >
-          🆕 Create New Test
+          Create New Test
         </button>
       </div>
 
       {/* Tests in Suite */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold">Tests in Suite ({testSuite.tests.length})</h2>
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tests in Suite ({testSuite.tests.length})</h2>
         </div>
-        
+
         {testSuite.tests.length === 0 ? (
           <div className="p-8 text-center">
             <div className="text-4xl mb-4">📝</div>
@@ -284,19 +284,19 @@ export function SuiteDetailsPage() {
             <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
               Add existing tests or create new ones to build your test suite.
             </p>
-            <div className="space-x-4">
+            <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() => setShowAddTestModal(true)}
                 disabled={getUnassignedTests().length === 0}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+                className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                ➕ Add Existing Tests
+                + Add Existing Tests
               </button>
               <button
                 onClick={() => setShowCreateTestModal(true)}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
               >
-                🆕 Create New Test
+                Create New Test
               </button>
             </div>
           </div>
@@ -306,16 +306,16 @@ export function SuiteDetailsPage() {
               // Handle both nested structure from backend and direct test object
               const test = isTestSuiteTest(suiteTest) ? suiteTest.test : suiteTest
               return (
-                <div key={test.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <div key={test.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">#{index + 1}</span>
-                        <h3 className="text-lg font-medium">{test.name}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          test.status === 'active' 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">{test.name}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          test.status === 'active'
+                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                         }`}>
                           {test.status}
                         </span>
@@ -323,26 +323,26 @@ export function SuiteDetailsPage() {
                       {test.description && (
                         <p className="text-gray-600 dark:text-gray-400 mb-2">{test.description}</p>
                       )}
-                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span>⚡ {test.steps?.length || 0} steps</span>
-                        <span>📅 {new Date(test.createdAt).toLocaleDateString()}</span>
+                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span>{test.steps?.length || 0} steps</span>
+                        <span>Created {new Date(test.createdAt).toLocaleDateString()}</span>
                         {test.startingUrl && (
-                          <span className="truncate max-w-xs">🌐 {test.startingUrl}</span>
+                          <span className="truncate max-w-xs">{test.startingUrl}</span>
                         )}
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex items-center gap-3">
                       <Link
                         to={`/projects/${projectId}/tests/${test.id}/edit`}
-                        className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1 border border-blue-200 rounded hover:bg-blue-50"
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                       >
-                        ✏️ Edit
+                        Edit
                       </Link>
                       <button
                         onClick={() => handleRemoveTest(test.id)}
-                        className="text-red-600 hover:text-red-800 text-sm px-3 py-1 border border-red-200 rounded hover:bg-red-50"
+                        className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
-                        ❌ Remove
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -467,7 +467,7 @@ export function SuiteDetailsPage() {
                 <div className="flex space-x-3 mt-6">
                   <button
                     type="submit"
-                    className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                    className="flex-1 text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
                   >
                     Create & Add to Suite
                   </button>
