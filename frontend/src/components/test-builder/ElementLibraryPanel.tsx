@@ -158,9 +158,15 @@ export function ElementLibraryPanel({
     else setLoadMoreLoading(true);
 
     try {
+      // Shared and Unattributed are client-derived buckets — to populate them
+      // accurately we need ALL project elements in memory, not a 50-element
+      // window. Use a high take when those buckets are selected and skip the
+      // server-side sourceUrlId filter (it's null for those views anyway).
+      const isPseudoBucketFetch =
+        selectedPageUrl === SHARED_KEY || selectedPageUrl === UNATTRIBUTED_KEY;
       const params: { skip: number; take: number; sourceUrlId?: string; type?: string } = {
         skip,
-        take: PAGE_SIZE,
+        take: isPseudoBucketFetch ? 5000 : PAGE_SIZE,
       };
       if (selectedSourceUrlId) params.sourceUrlId = selectedSourceUrlId;
       if (selectedElementType && selectedElementType !== 'all') params.type = selectedElementType;
@@ -174,12 +180,14 @@ export function ElementLibraryPanel({
       if (isInitial) setPaginationLoading(false);
       else setLoadMoreLoading(false);
     }
-  }, [projectId, selectedSourceUrlId, selectedElementType]);
+  }, [projectId, selectedSourceUrlId, selectedElementType, selectedPageUrl]);
 
   // Load (or re-load) elements when the selected page or type filter changes.
+  // Don't pre-clear paginatedElements — let the new fetch atomically replace
+  // it on response. Pre-clearing makes the right panel blank for ~200-500ms,
+  // which feels like a full page reload on every sidebar click.
   useEffect(() => {
     if (usePagination) {
-      setPaginatedElements([]);
       fetchElements(0, false);
     }
   }, [usePagination, fetchElements]);
@@ -218,7 +226,13 @@ export function ElementLibraryPanel({
     fetchElements(paginatedElements.length, true);
   };
 
-  const hasMore = usePagination && paginatedElements.length < totalCount;
+  // Pagination only makes sense for real-page filters (server-scoped via
+  // sourceUrlId). The Shared and Unattributed pseudo-buckets are derived
+  // client-side from the loaded subset — pagination doesn't apply.
+  const isPseudoBucket =
+    selectedPageUrl === SHARED_KEY || selectedPageUrl === UNATTRIBUTED_KEY;
+  const hasMore =
+    usePagination && !isPseudoBucket && paginatedElements.length < totalCount;
 
   // Handle analyze button
   const handleAnalyzeClick = () => {
@@ -384,7 +398,11 @@ export function ElementLibraryPanel({
     });
   };
 
-  if (isLoading || paginationLoading) {
+  // Show the spinner only on the first mount (when there's literally nothing
+  // to display). On subsequent page-clicks keep the previous page's elements
+  // visible until the new fetch resolves — a brief flash of stale data is
+  // far less jarring than a blank panel that feels like a full reload.
+  if (isLoading || (paginationLoading && elements.length === 0)) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
