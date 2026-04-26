@@ -137,7 +137,7 @@ public/uploads/
 storage/
 
 # Test artifacts
-test-results/
+/test-results/
 playwright-report/
 playwright/.cache/
 

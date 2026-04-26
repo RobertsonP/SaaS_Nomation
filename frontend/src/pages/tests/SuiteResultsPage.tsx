@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { testSuitesAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
-import { RobotFrameworkSuiteResults } from '../../components/test-results/RobotFrameworkSuiteResults'
+import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
 
 interface SuiteExecution {
   id: string
@@ -180,7 +180,7 @@ export function SuiteResultsPage() {
         {/* Robot Framework Style Suite Results */}
         <div className="lg:col-span-2">
           {selectedExecution ? (
-            <RobotFrameworkSuiteResults
+            <SuiteExecutionReport
               execution={selectedExecution}
               suiteName={testSuite?.name || 'Unknown Suite'}
             />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { executionAPI, testsAPI, reportingAPI } from '../../lib/api'
-import { RobotFrameworkResults } from '../../components/test-results/RobotFrameworkResults'
+import { TestExecutionReport } from '../../components/test-results/TestExecutionReport'
 import { ExecutionVideoPlayer } from '../../components/execution/ExecutionVideoPlayer'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
@@ -283,12 +283,9 @@ export function TestResultsPage() {
                   seekToTimestamp={seekTimestamp}
                 />
               )}
-              <RobotFrameworkResults
+              <TestExecutionReport
                 execution={selectedExecution}
                 testName={test?.name || 'Unknown Test'}
-                testSteps={test?.steps || []}
-                projectId={test?.project.id}
-                onStepClick={(timestamp) => setSeekTimestamp(timestamp)}
               />
             </>
           ) : (
