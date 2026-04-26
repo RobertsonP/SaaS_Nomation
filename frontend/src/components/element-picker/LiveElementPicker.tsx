@@ -17,10 +17,19 @@ interface LiveElementPickerProps {
 
 interface PickedElement {
   selector: string;
+  fallbackSelectors: string[];
   description: string;
   elementType: string;
   tagName: string;
   textPreview: string;
+  // Rich attributes captured from the iframe DOM so the element library card
+  // renders the saved pick identically to analyzer-detected elements.
+  role: string | null;
+  ariaLabel: string | null;
+  region: string | null;
+  boundingRect: { x: number; y: number; width: number; height: number };
+  cssInfo: Record<string, string>;
+  resolvedColors: { backgroundColor: string; color: string };
 }
 
 const selectorGenerator = new SelectorGenerator();
@@ -72,10 +81,137 @@ function buildStructuralPath(el: Element): string {
   return parts.join(' > ');
 }
 
+// Map an HTML tag (and optional input type) to its implicit ARIA role.
+// Used to build Playwright `getByRole(...)` locators on iframe-clicked elements.
+function inferAriaRole(el: Element): string | null {
+  const explicit = el.getAttribute('role');
+  if (explicit) return explicit;
+  const tag = el.tagName.toLowerCase();
+  switch (tag) {
+    case 'a':
+      return el.getAttribute('href') ? 'link' : null;
+    case 'button':
+      return 'button';
+    case 'input': {
+      const type = (el.getAttribute('type') || 'text').toLowerCase();
+      switch (type) {
+        case 'submit':
+        case 'button':
+        case 'reset':
+          return 'button';
+        case 'checkbox':
+          return 'checkbox';
+        case 'radio':
+          return 'radio';
+        case 'range':
+          return 'slider';
+        case 'search':
+          return 'searchbox';
+        default:
+          return 'textbox';
+      }
+    }
+    case 'textarea':
+      return 'textbox';
+    case 'select':
+      return 'combobox';
+    case 'nav':
+      return 'navigation';
+    case 'main':
+      return 'main';
+    case 'header':
+      return 'banner';
+    case 'footer':
+      return 'contentinfo';
+    case 'aside':
+      return 'complementary';
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6':
+      return 'heading';
+    case 'img':
+      return el.getAttribute('alt') ? 'img' : null;
+    case 'ul':
+    case 'ol':
+      return 'list';
+    case 'li':
+      return 'listitem';
+    default:
+      return null;
+  }
+}
+
+// Best accessible-name proxy for the picker. Order: aria-label →
+// associated <label for=id> → title → trimmed innerText/textContent.
+function accessibleName(el: Element): string {
+  const aria = el.getAttribute('aria-label');
+  if (aria && aria.trim()) return aria.trim();
+
+  const id = el.getAttribute('id');
+  if (id) {
+    try {
+      const lbl = el.ownerDocument?.querySelector(`label[for="${CSS.escape(id)}"]`);
+      const txt = (lbl?.textContent || '').trim();
+      if (txt) return txt;
+    } catch {
+      // ignore CSS.escape failures (older sandboxed iframe)
+    }
+  }
+
+  const title = el.getAttribute('title');
+  if (title && title.trim()) return title.trim();
+
+  const innerText = (el as HTMLElement).innerText || '';
+  const textContent = el.textContent || '';
+  return (innerText || textContent).trim();
+}
+
+function escapeForLocatorString(value: string): string {
+  // Single-quoted string literal in the emitted Playwright call.
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function generateSelectorCandidates(el: Element): string[] {
   const candidates: string[] = [];
   const tag = el.tagName.toLowerCase();
 
+  // ── 1. Native Playwright locators (preferred). These match the format
+  // the executor's resolveLocator parses directly into getBy*() calls.
+  const role = inferAriaRole(el);
+  const rawName = accessibleName(el);
+  // Accessible names that are too long are usually noisy paragraph text.
+  const name = rawName && rawName.length > 0 && rawName.length <= 80 ? rawName : '';
+
+  for (const attr of ['data-testid', 'data-test', 'data-cy']) {
+    const v = el.getAttribute(attr);
+    if (v) candidates.push(`getByTestId('${escapeForLocatorString(v)}')`);
+  }
+  if (role && name) {
+    candidates.push(`getByRole('${role}', { name: '${escapeForLocatorString(name)}' })`);
+  }
+  const placeholder = el.getAttribute('placeholder');
+  if (placeholder && placeholder.trim()) {
+    candidates.push(`getByPlaceholder('${escapeForLocatorString(placeholder.trim())}')`);
+  }
+  const ariaLabel = el.getAttribute('aria-label');
+  if (ariaLabel && ariaLabel.trim() && !role) {
+    // Role + name already covered the aria-label case; only add getByLabel
+    // when role inference failed.
+    candidates.push(`getByLabel('${escapeForLocatorString(ariaLabel.trim())}')`);
+  }
+  const titleAttr = el.getAttribute('title');
+  if (titleAttr && titleAttr.trim() && !role && !ariaLabel) {
+    candidates.push(`getByTitle('${escapeForLocatorString(titleAttr.trim())}')`);
+  }
+  if (!role && name && name.length <= 60) {
+    candidates.push(`getByText('${escapeForLocatorString(name)}')`);
+  }
+
+  // ── 2. CSS fallbacks (used when no native locator could be built and as
+  // additional fallbackSelectors during execution).
   for (const attr of ['data-testid', 'data-test', 'data-cy']) {
     const v = el.getAttribute(attr);
     if (v) candidates.push(`[${attr}="${escapeAttr(v)}"]`);
@@ -84,24 +220,99 @@ function generateSelectorCandidates(el: Element): string[] {
   const id = el.getAttribute('id');
   if (id && isMeaningfulId(id)) candidates.push(`#${id}`);
 
-  const ariaLabel = el.getAttribute('aria-label');
   if (ariaLabel) candidates.push(`${tag}[aria-label="${escapeAttr(ariaLabel)}"]`);
+  const explicitRole = el.getAttribute('role');
+  if (explicitRole) candidates.push(`${tag}[role="${escapeAttr(explicitRole)}"]`);
 
-  const role = el.getAttribute('role');
-  if (role) candidates.push(`${tag}[role="${escapeAttr(role)}"]`);
-
-  const name = el.getAttribute('name');
-  if (name && ['input', 'textarea', 'select', 'button'].includes(tag)) {
-    candidates.push(`${tag}[name="${escapeAttr(name)}"]`);
+  const formName = el.getAttribute('name');
+  if (formName && ['input', 'textarea', 'select', 'button'].includes(tag)) {
+    candidates.push(`${tag}[name="${escapeAttr(formName)}"]`);
   }
 
-  const placeholder = el.getAttribute('placeholder');
   if (placeholder) candidates.push(`${tag}[placeholder="${escapeAttr(placeholder)}"]`);
 
   const path = buildStructuralPath(el);
   if (path) candidates.push(path);
 
   return candidates.length > 0 ? candidates : [tag];
+}
+
+function isNativeLocator(s: string): boolean {
+  return /^(getByRole|getByText|getByLabel|getByTestId|getByPlaceholder|getByTitle)\(/.test(s);
+}
+
+const REGION_TAGS: Record<string, string> = {
+  nav: 'top navigation',
+  header: 'header',
+  footer: 'footer',
+  aside: 'sidebar',
+  main: 'main content',
+};
+
+function detectRegion(el: Element): string | null {
+  let cur: Element | null = el;
+  let depth = 0;
+  while (cur && depth < 12) {
+    const tag = cur.tagName.toLowerCase();
+    if (REGION_TAGS[tag]) return REGION_TAGS[tag];
+    if (tag === 'form') return 'form';
+    cur = cur.parentElement;
+    depth++;
+  }
+  return null;
+}
+
+function captureCssInfo(el: Element): Record<string, string> {
+  try {
+    const cs = (el.ownerDocument?.defaultView || window).getComputedStyle(el as HTMLElement);
+    return {
+      backgroundColor: cs.backgroundColor || 'transparent',
+      color: cs.color || '#000000',
+      fontSize: cs.fontSize || '14px',
+      fontWeight: cs.fontWeight || 'normal',
+      fontFamily: cs.fontFamily || 'system-ui',
+      padding: cs.padding || '0px',
+      margin: cs.margin || '0px',
+      border: cs.border || 'none',
+      borderRadius: cs.borderRadius || '0px',
+      boxShadow: cs.boxShadow || 'none',
+      textAlign: cs.textAlign || 'left',
+      lineHeight: cs.lineHeight || 'normal',
+      textDecoration: cs.textDecoration || 'none',
+      opacity: cs.opacity || '1',
+      transform: cs.transform || 'none',
+    };
+  } catch {
+    return {};
+  }
+}
+
+function captureResolvedColors(el: Element): { backgroundColor: string; color: string } {
+  // Walk up to 8 ancestors finding the first non-transparent background.
+  let bg = '';
+  let fg = '';
+  let cur: Element | null = el;
+  let depth = 0;
+  const view = el.ownerDocument?.defaultView || window;
+  while (cur && depth < 8) {
+    try {
+      const cs = view.getComputedStyle(cur as HTMLElement);
+      if (!fg) fg = cs.color || '';
+      const c = cs.backgroundColor || '';
+      if (c && c !== 'transparent' && c !== 'rgba(0, 0, 0, 0)' && c !== 'rgba(0,0,0,0)') {
+        bg = c;
+        break;
+      }
+    } catch {
+      // ignore
+    }
+    cur = cur.parentElement;
+    depth++;
+  }
+  return {
+    backgroundColor: bg || 'rgb(255, 255, 255)',
+    color: fg || 'rgb(0, 0, 0)',
+  };
 }
 
 function pickElementFromTarget(el: Element): PickedElement {
@@ -129,17 +340,43 @@ function pickElementFromTarget(el: Element): PickedElement {
     ariaLabel: el.getAttribute('aria-label'),
   };
 
-  const selector = selectorGenerator.generateOptimalSelector(elementData);
+  // Prefer the first native Playwright locator emitted by
+  // generateSelectorCandidates over whatever the CSS scorer picks. Native
+  // locators (getByRole/getByText/...) are what the executor's resolveLocator
+  // parses directly; CSS path fallbacks remain available via fallbackSelectors.
+  const firstNative = candidates.find(isNativeLocator);
+  const selector = firstNative ?? selectorGenerator.generateOptimalSelector(elementData);
+  const fallbackSelectors = candidates.filter(s => s !== selector);
+
   const elementType = selectorGenerator.inferElementType(elementData);
-  const description = selectorGenerator.generateDescription(elementData);
+  let description = selectorGenerator.generateDescription(elementData);
+  const region = detectRegion(el);
+  if (region && !/ in (top navigation|navigation|header|footer|left sidebar|right sidebar|sidebar|login form|search form|signup form|form|main content)$/i.test(description)) {
+    description = `${description} in ${region}`;
+  }
   const textPreview = (innerText || textContent).trim().substring(0, 80);
+
+  const rect = (el as HTMLElement).getBoundingClientRect();
+  const boundingRect = {
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
 
   return {
     selector,
+    fallbackSelectors,
     description,
     elementType,
     tagName: el.tagName.toLowerCase(),
     textPreview,
+    role: inferAriaRole(el),
+    ariaLabel: el.getAttribute('aria-label'),
+    region,
+    boundingRect,
+    cssInfo: captureCssInfo(el),
+    resolvedColors: captureResolvedColors(el),
   };
 }
 
@@ -300,6 +537,16 @@ export function LiveElementPicker({
             tagName: picked.tagName,
             text: picked.textPreview,
             capturedAtUrl: capturedUrl,
+            // Match the analyzer's attribute shape so the element library card
+            // renders the saved pick with the same colored preview, dimensions,
+            // and locator-type badge as analyzer-detected elements.
+            role: picked.role,
+            'aria-label': picked.ariaLabel,
+            region: picked.region,
+            boundingRect: picked.boundingRect,
+            cssInfo: picked.cssInfo,
+            resolvedColors: picked.resolvedColors,
+            fallbackSelectors: picked.fallbackSelectors,
           },
           source: 'live-picker',
         },
