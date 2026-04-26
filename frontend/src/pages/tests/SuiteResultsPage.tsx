@@ -177,7 +177,7 @@ export function SuiteResultsPage() {
           </div>
         </div>
 
-        {/* Robot Framework Style Suite Results */}
+        {/* Suite Execution Report */}
         <div className="lg:col-span-2">
           {selectedExecution ? (
             <SuiteExecutionReport
@@ -192,7 +192,7 @@ export function SuiteResultsPage() {
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <div className="text-4xl mb-4">🧪</div>
                 <p className="text-lg mb-2">Professional Suite Results</p>
-                <p className="text-sm">Select an execution from the history to view Robot Framework-style suite results</p>
+                <p className="text-sm">Select an execution from the history to view its per-test breakdown</p>
               </div>
             </div>
           )}

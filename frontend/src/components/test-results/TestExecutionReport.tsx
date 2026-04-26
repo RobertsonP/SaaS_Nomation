@@ -63,11 +63,13 @@ export function TestExecutionReport({ execution, testName, showAttachments = tru
   const failedIndex = results.findIndex(r => r.status === 'failed');
   // The failure screenshot is the LAST entry in screenshots[] when a step
   // failed (the processor pushes the error screenshot before breaking out
-  // of the step loop).
-  const failureScreenshot =
-    failedIndex >= 0 && execution.screenshots && execution.screenshots.length > 0
-      ? execution.screenshots[execution.screenshots.length - 1]
-      : undefined;
+  // of the step loop). Backend stores raw base64 (no data: prefix) — add it
+  // here so <img src> renders correctly in ExecutionStepCard.
+  const failureScreenshot = (() => {
+    if (failedIndex < 0 || !execution.screenshots || execution.screenshots.length === 0) return undefined;
+    const last = execution.screenshots[execution.screenshots.length - 1];
+    return last.startsWith('data:') ? last : `data:image/png;base64,${last}`;
+  })();
 
   const overallPassed = execution.status === 'passed';
   const headerStatusClasses = overallPassed

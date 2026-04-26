@@ -270,7 +270,7 @@ export function TestResultsPage() {
           </div>
         </div>
 
-        {/* Robot Framework Style Results */}
+        {/* Test Execution Report */}
         <div className="lg:col-span-2">
           {selectedExecution ? (
             <>
@@ -296,7 +296,7 @@ export function TestResultsPage() {
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <div className="text-4xl mb-4">📊</div>
                 <p className="text-lg mb-2">Professional Test Results</p>
-                <p className="text-sm">Select an execution from the history to view Robot Framework-style results</p>
+                <p className="text-sm">Select an execution from the history to view its step-by-step report</p>
               </div>
             </div>
           )}
