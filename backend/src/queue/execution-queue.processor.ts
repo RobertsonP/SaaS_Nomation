@@ -8,7 +8,7 @@ import { LoginFlow } from '../ai/interfaces/element.interface';
 import { ExecutionProgressGateway } from '../execution/execution.gateway';
 import { TestExecutionJobData } from './execution-queue.service';
 import { join } from 'path';
-import { writeFile } from 'fs/promises';
+import { writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { SmartWaitService } from '../execution/smart-wait.service';
 import { StepExecutorService } from '../execution/step-executor.service';
@@ -75,6 +75,9 @@ export class ExecutionQueueProcessor {
       const screenshots: string[] = [];
       let success = true;
       let errorMsg: string | null = null;
+      // Read once at the top of the job so both browser launch and the
+      // video-retention block in the outer finally have access.
+      const wantHeaded = (job.data as any)?.headed === true;
 
       try {
         // Launch browser with Docker-compatible settings.
@@ -82,7 +85,6 @@ export class ExecutionQueueProcessor {
         // host has no display (typical in Docker/CI without Xvfb) the launch
         // throws — catch and retry headless so the worker never crashes on a
         // headed request.
-        const wantHeaded = (job.data as any)?.headed === true;
         const launchArgs = [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -111,18 +113,22 @@ export class ExecutionQueueProcessor {
           }
         }
 
-        // Create browser context with video recording.
-        // Viewport is 1280x720 to match the live-browser session (per project
-        // memory `project_session_lifecycle.md`) — 1920x1080 was too large for
-        // most host displays and made the headed-mode browser overflow the
-        // user's screen. The recorded video uses the same 1280x720 size.
-        const context = await browser.newContext({
-          recordVideo: {
+        // Create browser context. Viewport 1280x720 matches the live-browser
+        // session (per memory `project_session_lifecycle.md`).
+        // Video recording is conditional: in headed mode the user already
+        // watches the real Chromium window, so recording would just waste
+        // disk. In headless mode we record so failed runs can be reviewed
+        // (the file is later deleted on success — see retention block below).
+        const contextOptions: Parameters<typeof browser.newContext>[0] = {
+          viewport: { width: 1280, height: 720 },
+        };
+        if (!wantHeaded) {
+          contextOptions.recordVideo = {
             dir: join(process.cwd(), 'uploads', 'videos'),
             size: { width: 1280, height: 720 },
-          },
-          viewport: { width: 1280, height: 720 },
-        });
+          };
+        }
+        const context = await browser.newContext(contextOptions);
 
         page = await context.newPage();
 
@@ -187,8 +193,14 @@ export class ExecutionQueueProcessor {
 
         await job.progress(30);
 
-        // Capture initial screenshot
-        const initialScreenshot = await this.capturePageScreenshot(page);
+        // Per-step page.screenshot() forces a layout flush + repaint on the
+        // visible Chromium window in headed mode, causing it to flicker on
+        // every step. The video recording (in headless mode) and the final
+        // failure screenshot are independent of these per-step captures.
+        const captureStepShots = !wantHeaded;
+
+        // Capture initial screenshot (only in headless — headed user already sees the page).
+        const initialScreenshot = captureStepShots ? await this.capturePageScreenshot(page) : null;
         if (initialScreenshot) {
           screenshots.push(initialScreenshot);
         }
@@ -221,7 +233,7 @@ export class ExecutionQueueProcessor {
 
             const result = await this.executeStepWithRetry(page, step, execution.id, i, steps.length);
 
-            const stepScreenshot = await this.capturePageScreenshot(page);
+            const stepScreenshot = captureStepShots ? await this.capturePageScreenshot(page) : null;
             if (stepScreenshot) {
               screenshots.push(stepScreenshot);
             }
@@ -261,6 +273,9 @@ export class ExecutionQueueProcessor {
             success = false;
             errorMsg = `Step "${step.description}" failed: ${error.message}`;
 
+            // Always capture the failure screenshot — even in headed mode.
+            // One-off paint at the failure point is acceptable and
+            // critical for debugging.
             const errorScreenshot = await this.capturePageScreenshot(page);
             if (errorScreenshot) {
               screenshots.push(errorScreenshot);
@@ -302,43 +317,63 @@ export class ExecutionQueueProcessor {
         success = false;
         errorMsg = error.message;
       } finally {
-        //  CRITICAL: Video recording must NOT cause test failure
+        //  CRITICAL: Video recording must NOT cause test failure.
+        // Retention policy:
+        //   - headed:           no video at all (recordVideo wasn't set)
+        //   - headless + pass:  video file is deleted (waste of disk)
+        //   - headless + fail:  keep the video so the user can review
         let videoPath: string | null = null;
         let videoThumbnail: string | null = null;
 
         try {
-          // Get video path before closing page
+          // Get video path before closing page (Playwright finalizes the file
+          // on context.close()). Will be null in headed mode since recordVideo
+          // wasn't set on the context.
           const videoFilePath = page ? await page.video()?.path() : null;
 
           // Close page and browser to finalize video
           if (page) await page.close();
           if (browser) await browser.close();
 
-          // Check if video file was created
           if (videoFilePath && existsSync(videoFilePath)) {
-            videoPath = videoFilePath.replace(process.cwd() + '/', '');
-            console.log(`📹 [Job ${job.id}] Video saved successfully: ${videoPath}`);
-
-            // UX Enhancement: Generate thumbnail from final screenshot
-            if (screenshots.length > 0) {
+            if (success) {
+              // Passing test: delete the video file and don't save the path.
               try {
-                const lastScreenshot = screenshots[screenshots.length - 1];
-                const thumbnailFileName = `${testId}-${Date.now()}-thumb.png`;
-                const thumbnailFilePath = join(process.cwd(), 'uploads', 'videos', thumbnailFileName);
+                await unlink(videoFilePath);
+                console.log(`🗑️  [Job ${job.id}] Deleted passing-test video: ${videoFilePath}`);
+              } catch (deleteErr) {
+                console.warn(
+                  `⚠️  [Job ${job.id}] Failed to delete passing-test video (orphaned file will be cleaned by daily cron):`,
+                  (deleteErr as Error).message,
+                );
+              }
+              // videoPath stays null
+            } else {
+              // Failed test: keep the video.
+              videoPath = videoFilePath.replace(process.cwd() + '/', '');
+              console.log(`📹 [Job ${job.id}] Video kept for failed test: ${videoPath}`);
 
-                // Save base64 screenshot as thumbnail
-                const base64Data = lastScreenshot.replace(/^data:image\/png;base64,/, '');
-                await writeFile(thumbnailFilePath, base64Data, 'base64');
-                videoThumbnail = thumbnailFilePath.replace(process.cwd() + '/', '');
-                console.log(`🖼️  [Job ${job.id}] Thumbnail saved: ${videoThumbnail}`);
-              } catch (thumbError) {
-                console.warn(`⚠️  [Job ${job.id}] Thumbnail generation failed:`, thumbError.message);
-                // Continue - thumbnail is optional
+              // UX Enhancement: Generate thumbnail from final screenshot.
+              if (screenshots.length > 0) {
+                try {
+                  const lastScreenshot = screenshots[screenshots.length - 1];
+                  const thumbnailFileName = `${testId}-${Date.now()}-thumb.png`;
+                  const thumbnailFilePath = join(process.cwd(), 'uploads', 'videos', thumbnailFileName);
+
+                  const base64Data = lastScreenshot.replace(/^data:image\/png;base64,/, '');
+                  await writeFile(thumbnailFilePath, base64Data, 'base64');
+                  videoThumbnail = thumbnailFilePath.replace(process.cwd() + '/', '');
+                  console.log(`🖼️  [Job ${job.id}] Thumbnail saved: ${videoThumbnail}`);
+                } catch (thumbError) {
+                  console.warn(`⚠️  [Job ${job.id}] Thumbnail generation failed:`, thumbError.message);
+                  // Continue - thumbnail is optional
+                }
               }
             }
-          } else {
+          } else if (!wantHeaded) {
             console.warn(`⚠️  [Job ${job.id}] Video file not found after browser close`);
           }
+          // headed runs intentionally have no video file — no warning needed.
         } catch (videoError) {
           console.error(`❌ [Job ${job.id}] Video recording failed (non-blocking):`, videoError.message);
           // Test continues - video failure does NOT fail the test
