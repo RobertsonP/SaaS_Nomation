@@ -241,6 +241,42 @@ function isNativeLocator(s: string): boolean {
   return /^(getByRole|getByText|getByLabel|getByTestId|getByPlaceholder|getByTitle)\(/.test(s);
 }
 
+// Mirror of backend UrlNormalizationService.normalizeUrl. Used to compare a
+// captured iframe URL against the project's URL list so we can warn the user
+// when they're picking from a page outside the project.
+const TRACKING_PARAMS = [
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'fbclid', 'fb_action_ids', 'fb_action_types', 'fb_source',
+  'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
+  'msclkid', 'twclid',
+  'mc_cid', 'mc_eid', '_ga', '_gl',
+  'trk', 'trkid', 'tracking', 'click_id', 'clickid',
+  'sessionid', 'session', 'sid',
+];
+
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    let host = parsed.host;
+    if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'host.docker.internal') {
+      const port = parsed.port || '';
+      host = `localhost${port ? ':' + port : ''}`;
+    }
+    host = host.replace(/^www\./, '');
+    let path = parsed.pathname.replace(/\/+$/, '') || '/';
+    path = path.replace(/\/(index|default)\.(html?|php|aspx?|jsp)$/i, '') || '/';
+    TRACKING_PARAMS.forEach(p => parsed.searchParams.delete(p));
+    const sorted = new URLSearchParams(
+      [...parsed.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    );
+    const qs = sorted.toString();
+    return `${parsed.protocol.toLowerCase()}//${host.toLowerCase()}${path}${qs ? '?' + qs : ''}`;
+  } catch {
+    return url;
+  }
+}
+
 const REGION_TAGS: Record<string, string> = {
   nav: 'top navigation',
   header: 'header',
@@ -413,6 +449,13 @@ export function LiveElementPicker({
   const [isSaving, setIsSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
 
+  // Normalized project URL set used to detect when the user has navigated the
+  // captured browser to a page that's NOT in the project URL list. When a pick
+  // is saved from such a page it lands in the "Unattributed" bucket, so we
+  // surface the situation up front with an inline hint + "Add to project".
+  const [projectUrlNorms, setProjectUrlNorms] = useState<Set<string> | null>(null);
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+
   const sessionTokenRef = useRef<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const iframeListenersRef = useRef<{
@@ -453,6 +496,29 @@ export function LiveElementPicker({
       }
     };
   }, [isOpen, projectId, initialUrl]);
+
+  // Load the project's URL list (normalized) once when the picker opens.
+  // Drives the "this URL isn't in your project" hint so users understand why
+  // some saves land in the Unattributed bucket.
+  const refreshProjectUrls = async () => {
+    try {
+      const res = await projectsAPI.getById(projectId);
+      const urls: Array<{ url: string }> = res?.data?.urls || [];
+      const set = new Set<string>();
+      for (const u of urls) {
+        if (u?.url) set.add(normalizeUrl(u.url));
+      }
+      setProjectUrlNorms(set);
+    } catch (err) {
+      logger.warn('Failed to load project URLs for picker hint:', err);
+      setProjectUrlNorms(new Set());
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    refreshProjectUrls();
+  }, [isOpen, projectId]);
 
   const handleCapturePage = async () => {
     if (!sessionToken) return;
@@ -579,6 +645,41 @@ export function LiveElementPicker({
     onClose();
   };
 
+  // Saved picks from a URL not present in the project's URL list will land
+  // in the Unattributed bucket — surface this to the user before they save.
+  const capturedNorm = capturedUrl ? normalizeUrl(capturedUrl) : '';
+  const isCapturedUrlUnattributed = !!hasCaptured
+    && !!capturedNorm
+    && projectUrlNorms !== null
+    && !projectUrlNorms.has(capturedNorm);
+
+  const handleAddCapturedUrl = async () => {
+    if (!capturedUrl || isAddingUrl) return;
+    setIsAddingUrl(true);
+    try {
+      const res = await projectsAPI.getById(projectId);
+      const existing: Array<{ url: string; title?: string; description?: string }> =
+        (res?.data?.urls || []).map((u: any) => ({ url: u.url, title: u.title, description: u.description }));
+      const next = [
+        ...existing,
+        { url: capturedUrl, title: 'Picker capture', description: 'Added from Live Picker' },
+      ];
+      await projectsAPI.update(projectId, { urls: next });
+      // Refresh the local set so the hint disappears after save.
+      await refreshProjectUrls();
+      // Tell any element library panels to refetch the page index.
+      window.dispatchEvent(new CustomEvent('nomation:elements-changed', {
+        detail: { projectId, source: 'live-picker-add-url' },
+      }));
+    } catch (err: any) {
+      logger.error('Failed to add captured URL to project:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to add URL to project');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsAddingUrl(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -612,6 +713,22 @@ export function LiveElementPicker({
       {error && (
         <div className="flex-shrink-0 bg-red-600 dark:bg-red-700 text-white px-4 py-2 text-sm text-center">
           {error}
+        </div>
+      )}
+
+      {isCapturedUrlUnattributed && (
+        <div className="flex-shrink-0 bg-amber-700 dark:bg-amber-800 text-amber-50 px-4 py-2 text-sm flex items-center justify-between gap-3">
+          <span>
+            <strong>This page isn't in your project URLs.</strong> Picks saved from here will appear under
+            <span className="font-medium"> "Unattributed elements"</span> until you add the URL.
+          </span>
+          <button
+            onClick={handleAddCapturedUrl}
+            disabled={isAddingUrl}
+            className="flex-shrink-0 text-sm font-medium bg-amber-50 dark:bg-amber-100 text-amber-900 px-3 py-1 rounded-md hover:bg-white transition-colors disabled:opacity-50"
+          >
+            {isAddingUrl ? 'Adding...' : '+ Add this URL'}
+          </button>
         </div>
       )}
 
