@@ -1,22 +1,28 @@
 import { Loader2, CheckCircle, AlertCircle, Maximize2, X } from 'lucide-react';
-import { AnalysisProgressState } from '../../hooks/useAnalysisProgress';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAnalysisContext } from '../../contexts/AnalysisContext';
 
-interface AnalysisFloatingIndicatorProps {
-  isVisible: boolean;
-  projectName: string;
-  progress: AnalysisProgressState;
-  onRestore: () => void;
-  onDismiss: () => void;
-}
+/**
+ * Mounted inside the router (AuthLogoutListener) so it persists across route changes
+ * and has access to useNavigate.
+ * Visibility is driven entirely by AnalysisContext — no props needed.
+ */
+export function AnalysisFloatingIndicator() {
+  const { activeProjectId, projectName, isMinimized, progress, restoreAnalysis, clearAnalysis } = useAnalysisContext();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-export function AnalysisFloatingIndicator({
-  isVisible,
-  projectName,
-  progress,
-  onRestore,
-  onDismiss,
-}: AnalysisFloatingIndicatorProps) {
-  if (!isVisible) return null;
+  // Show when an analysis exists AND the user has minimized the modal.
+  if (!activeProjectId || !isMinimized) return null;
+
+  const onRestore = () => {
+    restoreAnalysis();
+    // Modal lives inside ProjectDetailsPage — bring user back if they're elsewhere.
+    if (!location.pathname.startsWith(`/projects/${activeProjectId}`)) {
+      navigate(`/projects/${activeProjectId}`);
+    }
+  };
+  const onDismiss = clearAnalysis;
 
   const { isComplete, hasError, currentPhaseLabel, overallPercent, currentUrlIndex, totalUrls, elementsFound } = progress;
   const isRunning = !isComplete && !hasError;

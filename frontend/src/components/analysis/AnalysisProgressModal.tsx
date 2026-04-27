@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AnalysisProgressState, AnalysisPhase, AnalysisEvent } from '../../hooks/useAnalysisProgress';
+import { AnalysisProgressState, AnalysisPhase, AnalysisEvent } from '../../contexts/AnalysisContext';
 
 interface AnalysisProgressModalProps {
   isOpen: boolean;

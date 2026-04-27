@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
-import { AnalysisFloatingIndicator } from '../../components/analysis/AnalysisFloatingIndicator';
 import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -12,7 +11,7 @@ import { useDiscoveryProgress } from '../../hooks/useDiscoveryProgress';
 import { ProjectElement } from '../../types/element.types';
 import { createLogger } from '../../lib/logger';
 import { useUrlManagement } from './hooks';
-import { useAnalysisProgress } from '../../hooks/useAnalysisProgress';
+import { useAnalysisContext } from '../../contexts/AnalysisContext';
 import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
 
 const logger = createLogger('ProjectDetails');
@@ -118,7 +117,9 @@ export function ProjectDetailsPage() {
   const [authFlows, setAuthFlows] = useState<any[]>([]);
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [isAnalysisMinimized, setIsAnalysisMinimized] = useState(false);
+  // Minimize state now lives in AnalysisContext (lifted to app shell so the
+  // floating indicator persists across route changes). See call sites below
+  // — they reference `isAnalysisMinimizedCtx` from the context destructure.
   const [showLivePicker, setShowLivePicker] = useState(false);
   const [elementsKey, setElementsKey] = useState(0);
 
@@ -185,16 +186,38 @@ export function ProjectDetailsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [currentAnalysisStep, setCurrentAnalysisStep] = useState('Ready');
 
-  // Unified analysis progress (single WebSocket connection)
-  const analysisProgress = useAnalysisProgress({
-    projectId,
-    onComplete: () => {
+  // Analysis progress lives in app-shell context so the floating indicator
+  // and progress survive route changes (per project_analysis_indicator_persistence.md).
+  const {
+    progress: analysisProgress,
+    startAnalysis,
+    minimizeAnalysis,
+    restoreAnalysis,
+    clearAnalysis,
+    isMinimized: isAnalysisMinimizedCtx,
+  } = useAnalysisContext();
+
+  // Fire side effects when the active analysis transitions to complete/error.
+  const lastCompletedRef = useRef(false);
+  const lastErroredRef = useRef(false);
+  useEffect(() => {
+    if (analysisProgress.isComplete && !lastCompletedRef.current) {
+      lastCompletedRef.current = true;
+      lastErroredRef.current = false;
       loadProject();
       setElementsKey(prev => prev + 1);
       loadAnalysisDashboard();
-    },
-    onError: (msg) => showError('Analysis Error', msg),
-  });
+    }
+    if (analysisProgress.hasError && !lastErroredRef.current) {
+      lastErroredRef.current = true;
+      lastCompletedRef.current = false;
+      showError('Analysis Error', analysisProgress.errorMessage);
+    }
+    if (!analysisProgress.isComplete && !analysisProgress.hasError) {
+      lastCompletedRef.current = false;
+      lastErroredRef.current = false;
+    }
+  }, [analysisProgress.isComplete, analysisProgress.hasError, analysisProgress.errorMessage]);
 
   // Derived state combining local busy state with WebSocket progress
   const isAnalysisRunning = analysisProgress.isRunning || analyzing;
@@ -287,10 +310,12 @@ export function ProjectDetailsPage() {
   const handleAnalyzeSelected = async () => {
     if (!projectId || selectedUrls.length === 0) return;
 
-    // Show progress modal and reset progress state
+    // Show progress modal; start the app-shell analysis context so the
+    // socket is owned by the provider and the floating indicator can persist
+    // across navigation.
     setShowAnalysisModal(true);
     setAnalyzing(true);
-    analysisProgress.reset();
+    startAnalysis(projectId, project?.name || 'Project');
 
     // Wait for WebSocket to connect before starting analysis
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -321,9 +346,9 @@ export function ProjectDetailsPage() {
   const handleAnalyzeProject = async () => {
     if (!projectId) return;
 
-    // Show progress modal and reset progress state
+    // Show progress modal; start the app-shell analysis context.
     setShowAnalysisModal(true);
-    analysisProgress.reset();
+    startAnalysis(projectId, project?.name || 'Project');
 
     // Wait for WebSocket to connect before starting analysis
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -356,29 +381,30 @@ export function ProjectDetailsPage() {
 
   const handleAnalysisModalClose = () => {
     setShowAnalysisModal(false);
-    setIsAnalysisMinimized(false);
-    // Reload project to ensure we have the latest data
+    // Once user dismisses the modal AND analysis is over, also clear the
+    // app-shell context so the floating indicator stops showing. While running
+    // we leave context alone — minimize-on-close is the user's call via the
+    // dedicated minimize button.
+    if (!analysisProgress.isRunning) {
+      clearAnalysis();
+    }
     loadProject();
-    // Force element library to re-render with new data
     setElementsKey(prev => prev + 1);
   };
 
   const handleAnalysisMinimize = () => {
     setShowAnalysisModal(false);
-    setIsAnalysisMinimized(true);
+    minimizeAnalysis();
   };
 
-  const handleAnalysisRestore = () => {
-    setIsAnalysisMinimized(false);
-    setShowAnalysisModal(true);
-  };
-
-  const handleAnalysisDismiss = () => {
-    setIsAnalysisMinimized(false);
-    // Reload project to ensure we have the latest data
-    loadProject();
-    setElementsKey(prev => prev + 1);
-  };
+  // Restore from the floating indicator → reopen the in-page modal.
+  // The floating indicator already calls restoreAnalysis() in context;
+  // we observe that via a useEffect (below) to reopen our local modal.
+  useEffect(() => {
+    if (!isAnalysisMinimizedCtx && analysisProgress.isRunning && !showAnalysisModal) {
+      setShowAnalysisModal(true);
+    }
+  }, [isAnalysisMinimizedCtx, analysisProgress.isRunning, showAnalysisModal]);
 
   // NEW: Handle clearing all elements
   const handleClearElements = async () => {
@@ -878,15 +904,7 @@ export function ProjectDetailsPage() {
         progress={analysisProgress}
       />
 
-      {/* Analysis Floating Indicator (when minimized) */}
-      <AnalysisFloatingIndicator
-        isVisible={isAnalysisMinimized && analysisProgress.isRunning}
-        projectName={project.name}
-        progress={analysisProgress}
-        onRestore={handleAnalysisRestore}
-        onDismiss={handleAnalysisDismiss}
-      />
-
+      {/* Analysis Floating Indicator is now rendered at app level via AnalysisContext */}
       {/* Discovery Floating Indicator is now rendered at app level via DiscoveryContext */}
 
       {/* Authentication Setup Modal */}

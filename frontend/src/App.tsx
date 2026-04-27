@@ -6,6 +6,8 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { ProjectsProvider } from './contexts/ProjectsContext'
 import { DiscoveryProvider } from './contexts/DiscoveryContext'
 import { DiscoveryFloatingIndicator } from './components/discovery/DiscoveryFloatingIndicator'
+import { AnalysisProvider } from './contexts/AnalysisContext'
+import { AnalysisFloatingIndicator } from './components/analysis/AnalysisFloatingIndicator'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -44,7 +46,14 @@ function AuthLogoutListener() {
     };
   }, [navigate]);
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      {/* Indicators must live INSIDE the router so they can use useNavigate. */}
+      <DiscoveryFloatingIndicator />
+      <AnalysisFloatingIndicator />
+    </>
+  );
 }
 
 const router = createBrowserRouter([
@@ -139,9 +148,10 @@ function App() {
           <ProjectsProvider>
             <NotificationProvider>
               <DiscoveryProvider>
-                <RouterProvider router={router} />
-                <NotificationContainer />
-                <DiscoveryFloatingIndicator />
+                <AnalysisProvider>
+                  <RouterProvider router={router} />
+                  <NotificationContainer />
+                </AnalysisProvider>
               </DiscoveryProvider>
             </NotificationProvider>
           </ProjectsProvider>
