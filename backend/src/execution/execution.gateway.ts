@@ -62,6 +62,21 @@ export class ExecutionProgressGateway implements OnGatewayConnection, OnGatewayD
     });
   }
 
+  // Subscribe a client to all execution events for a given test (regardless of execution ID).
+  // Used by TestResultsPage so it picks up completions from runs started elsewhere.
+  @SubscribeMessage('subscribe-to-test')
+  handleSubscribeToTest(client: Socket, testId: string) {
+    client.join(`test-${testId}`);
+    client.emit('test-subscription-confirmed', { testId });
+  }
+
+  // Same idea for suites — used by SuiteResultsPage.
+  @SubscribeMessage('subscribe-to-suite')
+  handleSubscribeToSuite(client: Socket, suiteId: string) {
+    client.join(`suite-${suiteId}`);
+    client.emit('suite-subscription-confirmed', { suiteId });
+  }
+
   // Subscribe client to execution updates
   subscribeToExecution(clientId: string, executionId: string) {
     this.clientExecutionMap.set(clientId, executionId);
@@ -81,6 +96,14 @@ export class ExecutionProgressGateway implements OnGatewayConnection, OnGatewayD
 
     // Also send to execution-specific room
     this.server.to(`execution-${event.executionId}`).emit('execution-progress', event);
+
+    // Mirror to test-/suite-scoped rooms so results pages can listen without knowing executionId.
+    if (event.testId) {
+      this.server.to(`test-${event.testId}`).emit('execution-progress', event);
+    }
+    if (event.suiteId) {
+      this.server.to(`suite-${event.suiteId}`).emit('execution-progress', event);
+    }
   }
 
   // ============================================================================

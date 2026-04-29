@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { io, Socket } from 'socket.io-client'
 import { executionAPI, testsAPI, reportingAPI } from '../../lib/api'
 import { TestExecutionReport } from '../../components/test-results/TestExecutionReport'
 import { ExecutionVideoPlayer } from '../../components/execution/ExecutionVideoPlayer'
@@ -94,6 +95,41 @@ export function TestResultsPage() {
   useEffect(() => {
     if (testId) {
       loadTestAndResults()
+    }
+  }, [testId])
+
+  // Socket.IO subscription so background-completed executions auto-refresh the page.
+  const socketRef = useRef<Socket | null>(null)
+  useEffect(() => {
+    if (!testId) return
+
+    const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002'
+    const wsBase = apiBase.replace(/\/api\/?$/, '')
+    const socket = io(`${wsBase}/execution-progress`, {
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+    })
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      socket.emit('subscribe-to-test', testId)
+    })
+
+    socket.on('execution-progress', (event: any) => {
+      if (event?.type !== 'test') return
+      if (event?.status === 'completed' || event?.status === 'failed') {
+        loadTestAndResults()
+        if (event.status === 'completed') {
+          showSuccess('Test Completed', `"${event.details?.testName || 'Test'}" finished successfully.`)
+        } else {
+          showError('Test Failed', `"${event.details?.testName || 'Test'}" failed. Check the report below.`)
+        }
+      }
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
     }
   }, [testId])
 

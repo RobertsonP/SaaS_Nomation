@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { io, Socket } from 'socket.io-client'
 import { testSuitesAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
@@ -29,7 +30,7 @@ interface TestSuite {
 
 export function SuiteResultsPage() {
   const { suiteId } = useParams<{ suiteId: string }>()
-  const { showError } = useNotification()
+  const { showError, showSuccess } = useNotification()
   
   const [testSuite, setTestSuite] = useState<TestSuite | null>(null)
   const [executions, setExecutions] = useState<SuiteExecution[]>([])
@@ -39,6 +40,43 @@ export function SuiteResultsPage() {
   useEffect(() => {
     if (suiteId) {
       loadSuiteAndResults()
+    }
+  }, [suiteId])
+
+  // Socket.IO subscription so background-completed suites auto-refresh the page.
+  const socketRef = useRef<Socket | null>(null)
+  useEffect(() => {
+    if (!suiteId) return
+
+    const apiBase = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002'
+    const wsBase = apiBase.replace(/\/api\/?$/, '')
+    const socket = io(`${wsBase}/execution-progress`, {
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+    })
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      socket.emit('subscribe-to-suite', suiteId)
+    })
+
+    socket.on('execution-progress', (event: any) => {
+      if (event?.type !== 'suite') return
+      if (event?.status === 'completed') {
+        loadSuiteAndResults()
+        const { passed, failed, suiteName } = event.details || {}
+        showSuccess('Suite Completed', `${suiteName || 'Suite'} finished — ${passed ?? 0} passed, ${failed ?? 0} failed.`)
+      } else if (event?.status === 'error') {
+        loadSuiteAndResults()
+        showError('Suite Failed', `${event.details?.suiteName || 'Suite'} failed during execution.`)
+      } else if (event?.status === 'progress') {
+        loadSuiteAndResults()
+      }
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
     }
   }, [suiteId])
 
