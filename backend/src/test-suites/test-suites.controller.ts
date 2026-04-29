@@ -172,11 +172,15 @@ export class TestSuitesController {
    * POST /api/test-suites/:suiteId/execute
    */
   @Post(':suiteId/execute')
-  async executeTestSuite(@Param('suiteId') suiteId: string) {
+  async executeTestSuite(
+    @Param('suiteId') suiteId: string,
+    @Body() body?: { headed?: boolean }
+  ) {
     try {
-      console.log(`🚀 API: Starting execution of test suite ${suiteId}`);
-      const execution = await this.testSuitesService.executeSuite(suiteId);
-      console.log(`✅ API: Suite execution completed with status: ${execution.status}`);
+      const headed = body?.headed ?? false;
+      console.log(`🚀 API: Starting execution of test suite ${suiteId} (headed=${headed})`);
+      const execution = await this.testSuitesService.executeSuite(suiteId, { headed });
+      console.log(`✅ API: Suite execution started with status: ${execution.status}`);
       return execution;
     } catch (error) {
       console.error(`❌ API: Suite execution failed:`, error);

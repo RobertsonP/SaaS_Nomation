@@ -2,17 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
-import { SuiteExecutionModal } from '../../components/test-suites/SuiteExecutionModal'
+import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
 
 const logger = createLogger('TestSuitesPage')
-
-// Suite execution progress type from modal callback
-interface SuiteExecutionProgress {
-  totalTests: number;
-  tests: Array<{ status: string }>;
-}
 
 interface TestSuite {
   id: string
@@ -65,12 +59,8 @@ export function TestSuitesPage() {
     name: '',
     description: ''
   })
-  const [executingSuite, setExecutingSuite] = useState<{
-    id: string;
-    name: string;
-    totalTests: number;
-    executionId: string;
-  } | null>(null)
+  const [pickerForSuite, setPickerForSuite] = useState<{ id: string; name: string } | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (projectId) {
@@ -115,49 +105,32 @@ export function TestSuitesPage() {
     }
   }
 
-  const handleRunSuite = async (suiteId: string) => {
+  const handleRunSuite = (suiteId: string) => {
+    const suite = testSuites.find(s => s.id === suiteId)
+    if (!suite) {
+      showError('Suite Not Found', 'Test suite not found')
+      return
+    }
+    if (suite.tests.length === 0) {
+      showError('No Tests', 'Cannot run empty test suite. Please add tests first.')
+      return
+    }
+    setPickerForSuite({ id: suiteId, name: suite.name })
+  }
+
+  const handleRunSuiteWithMode = async (mode: 'headed' | 'headless') => {
+    if (!pickerForSuite) return
+    const { id: suiteId, name } = pickerForSuite
+    setPickerForSuite(null)
+
     try {
-      const suite = testSuites.find(s => s.id === suiteId)
-      if (!suite) {
-        showError('Suite Not Found', 'Test suite not found')
-        return
-      }
-
-      if (suite.tests.length === 0) {
-        showError('No Tests', 'Cannot run empty test suite. Please add tests first.')
-        return
-      }
-
-      // Start actual execution and get execution ID
-      const executionResponse = await testSuitesAPI.execute(suiteId)
-      const executionId = executionResponse.data.id
-
-      logger.info(`Suite execution started with ID: ${executionId}`)
-
-      // Show execution modal with real execution ID
-      setExecutingSuite({
-        id: suiteId,
-        name: suite.name,
-        totalTests: suite.tests.length,
-        executionId: executionId
-      })
-
+      await testSuitesAPI.execute(suiteId, { headed: mode === 'headed' })
+      showSuccess('Suite Started', `Executing "${name}" (${mode}). Streaming progress on the results page.`)
+      navigate(`/suites/${suiteId}/results`)
     } catch (error) {
       logger.error('Failed to start test suite execution:', error)
       showError('Execution Failed', 'Failed to start test suite execution')
-      setExecutingSuite(null)
     }
-  }
-
-  const handleExecutionComplete = (results: SuiteExecutionProgress) => {
-    logger.info('Suite execution completed:', results)
-    showSuccess('Suite Completed', `Test suite execution completed! ${results.tests.filter((t) => t.status === 'passed').length}/${results.totalTests} tests passed.`)
-    // Refresh suite data to show latest execution
-    loadProjectAndData()
-  }
-
-  const handleCloseExecution = () => {
-    setExecutingSuite(null)
   }
 
   const handleDeleteSuite = async (suiteId: string, suiteName: string) => {
@@ -185,19 +158,14 @@ export function TestSuitesPage() {
 
   return (
     <>
-      {/* Suite Execution Modal */}
-      {executingSuite && (
-        <SuiteExecutionModal
-          isOpen={!!executingSuite}
-          onClose={handleCloseExecution}
-          suiteId={executingSuite.id}
-          suiteName={executingSuite.name}
-          totalTests={executingSuite.totalTests}
-          executionId={executingSuite.executionId}
-          onComplete={handleExecutionComplete}
-        />
-      )}
-      
+      <RunModePickerModal
+        open={!!pickerForSuite}
+        testName={pickerForSuite ? `Run All Tests — ${pickerForSuite.name}` : 'Run All Tests'}
+        onCancel={() => setPickerForSuite(null)}
+        onPick={handleRunSuiteWithMode}
+      />
+
+
     <div className="p-6">
       <div className="mb-6">
         <div className="flex items-center mb-4">

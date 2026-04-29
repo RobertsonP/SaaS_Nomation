@@ -379,7 +379,8 @@ export const testSuitesAPI = {
     api.delete(`/api/test-suites/${suiteId}/tests/${testId}`),
   reorderTests: (suiteId: string, testOrder: Array<{testId: string, order: number}>) =>
     api.put(`/api/test-suites/${suiteId}/tests/reorder`, { testOrder }),
-  execute: (suiteId: string) => api.post(`/api/test-suites/${suiteId}/execute`),
+  execute: (suiteId: string, options?: { headed?: boolean }) =>
+    api.post(`/api/test-suites/${suiteId}/execute`, { headed: options?.headed ?? false }),
   getExecutions: (suiteId: string) => api.get(`/api/test-suites/${suiteId}/executions`),
   getExecution: (executionId: string) => api.get(`/api/test-suites/executions/${executionId}`)
 };

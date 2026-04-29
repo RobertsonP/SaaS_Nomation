@@ -62,6 +62,19 @@ export class ExecutionQueueService {
   }
 
   /**
+   * Wait for a queued test job to finish and return the processor's result
+   * (`{ success, executionId, testId, duration, status }`). Throws if the job
+   * fails or cannot be found.
+   */
+  async waitForJobCompletion(jobId: string): Promise<any> {
+    const job = await this.testExecutionQueue.getJob(jobId);
+    if (!job) {
+      throw new Error(`Queued job ${jobId} not found`);
+    }
+    return job.finished();
+  }
+
+  /**
    * Get job status by job ID
    */
   async getJobStatus(jobId: string): Promise<any> {

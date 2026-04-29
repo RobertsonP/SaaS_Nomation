@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExecutionService } from '../execution/execution.service';
 import { ExecutionProgressGateway } from '../execution/execution.gateway';
+import { ExecutionQueueService } from '../queue/execution-queue.service';
 
 export interface CreateTestSuiteDto {
   name: string;
@@ -24,7 +25,8 @@ export class TestSuitesService {
   constructor(
     private prisma: PrismaService,
     private executionService: ExecutionService,
-    private progressGateway: ExecutionProgressGateway
+    private progressGateway: ExecutionProgressGateway,
+    private executionQueueService: ExecutionQueueService,
   ) {}
 
   // Core CRUD operations
@@ -211,11 +213,13 @@ export class TestSuitesService {
   }
 
   // Execution coordination
-  async executeSuite(suiteId: string) {
+  async executeSuite(suiteId: string, options?: { headed?: boolean }) {
     const suite = await this.findById(suiteId);
     if (!suite) {
       throw new Error('Test suite not found');
     }
+
+    const headed = options?.headed ?? false;
 
     // Create execution record
     const execution = await this.prisma.testSuiteExecution.create({
@@ -228,34 +232,70 @@ export class TestSuitesService {
       },
     });
 
-    console.log(`🚀 Starting execution of test suite "${suite.name}" with ${suite.tests.length} tests`);
+    console.log(`🚀 Starting execution of test suite "${suite.name}" with ${suite.tests.length} tests (headed=${headed})`);
 
     // Send WebSocket event: Suite started
     this.progressGateway.sendSuiteStarted(execution.id, suiteId, suite.name, suite.tests.length);
 
+    // Run the suite in the background so the controller returns immediately —
+    // the queue path is async and we don't want to block the HTTP request.
+    this.runSuiteInBackground(suite, execution.id, suiteId, headed).catch((error) => {
+      console.error('Suite background execution error:', error);
+    });
+
+    return execution;
+  }
+
+  private async runSuiteInBackground(
+    suite: any,
+    executionId: string,
+    suiteId: string,
+    headed: boolean,
+  ) {
     const results = [];
     let passedCount = 0;
     let failedCount = 0;
     let errorMsg: string | null = null;
+    const startedAt = Date.now();
 
     try {
-      // Execute each test in the suite in order
       for (let i = 0; i < suite.tests.length; i++) {
         const suiteTest = suite.tests[i];
 
         try {
-          console.log(`▶️  Executing test ${i + 1}/${suite.tests.length}: ${suiteTest.test.name}`);
+          console.log(`▶️  [Suite ${suiteId}] Executing test ${i + 1}/${suite.tests.length}: ${suiteTest.test.name}`);
 
-          // Send WebSocket event: Suite progress (test starting)
           this.progressGateway.sendSuiteProgress(
-            execution.id,
+            executionId,
             suiteId,
             i + 1,
             suite.tests.length,
             suiteTest.test.name
           );
 
-          const testExecution = await this.executionService.executeTest(suiteTest.test.id);
+          // Queue path gives us the headed flag, video recording, smart waits.
+          const { jobId } = await this.executionQueueService.addTestExecution(
+            suiteTest.test.id,
+            5,
+            { headed }
+          );
+
+          // Wait for the worker to complete this test before queuing the next.
+          // The processor returns { success, executionId, testId, duration, status }.
+          const jobResult: any = await this.executionQueueService.waitForJobCompletion(jobId);
+          const testExecutionId: string = jobResult?.executionId;
+          if (!testExecutionId) {
+            throw new Error('Queue job finished but did not return an executionId');
+          }
+
+          const testExecution = await this.prisma.testExecution.findUnique({
+            where: { id: testExecutionId },
+            include: { test: true },
+          });
+
+          if (!testExecution) {
+            throw new Error(`Execution ${testExecutionId} not found after job completion`);
+          }
 
           if (testExecution.status === 'passed') {
             passedCount++;
@@ -263,16 +303,7 @@ export class TestSuitesService {
             failedCount++;
           }
 
-          // Fetch full execution details for detailed results display
-          const fullExecution = await this.prisma.testExecution.findUnique({
-            where: { id: testExecution.id },
-            include: {
-              test: true
-            }
-          });
-
-          // Count steps and find failed step if any (steps are stored as JSON)
-          const steps = (fullExecution?.test?.steps as any[]) || [];
+          const steps = (testExecution.test?.steps as any[]) || [];
           const stepCount = Array.isArray(steps) ? steps.length : 0;
           const failedStepIndex = testExecution.errorMsg
             ? testExecution.errorMsg.match(/Step (\d+)/)
@@ -288,12 +319,12 @@ export class TestSuitesService {
             status: testExecution.status,
             duration: testExecution.duration,
             errorMsg: testExecution.errorMsg,
-            stepCount: stepCount,
+            stepCount,
             failedStep: failedStepDescription,
-            execution: fullExecution // Include full execution for detailed view
+            execution: testExecution,
           });
 
-          console.log(`${testExecution.status === 'passed' ? '✅' : '❌'} Test "${suiteTest.test.name}" ${testExecution.status}`);
+          console.log(`${testExecution.status === 'passed' ? '✅' : '❌'} [Suite ${suiteId}] Test "${suiteTest.test.name}" ${testExecution.status}`);
         } catch (error) {
           failedCount++;
           console.error(`❌ Test "${suiteTest.test.name}" failed:`, error.message);
@@ -320,21 +351,19 @@ export class TestSuitesService {
       errorMsg = `Suite execution failed: ${error.message}`;
       console.error('Suite execution error:', error);
 
-      // Send WebSocket event: Suite failed
-      this.progressGateway.sendSuiteFailed(execution.id, suiteId, suite.name, error.message);
+      this.progressGateway.sendSuiteFailed(executionId, suiteId, suite.name, error.message);
     }
 
-    // Update execution record with final results
-    const finalExecution = await this.prisma.testSuiteExecution.update({
-      where: { id: execution.id },
+    await this.prisma.testSuiteExecution.update({
+      where: { id: executionId },
       data: {
         status: failedCount === 0 ? 'passed' : 'failed',
         completedAt: new Date(),
-        duration: Date.now() - execution.startedAt.getTime(),
+        duration: Date.now() - startedAt,
         passedTests: passedCount,
         failedTests: failedCount,
         results: {
-          testResults: results // Structure for frontend component
+          testResults: results
         },
         errorMsg,
       },
@@ -342,10 +371,7 @@ export class TestSuitesService {
 
     console.log(`🏁 Suite "${suite.name}" completed: ${passedCount} passed, ${failedCount} failed`);
 
-    // Send WebSocket event: Suite completed
-    this.progressGateway.sendSuiteCompleted(execution.id, suiteId, suite.name, passedCount, failedCount);
-
-    return finalExecution;
+    this.progressGateway.sendSuiteCompleted(executionId, suiteId, suite.name, passedCount, failedCount);
   }
 
   async getExecutionHistory(suiteId: string) {

@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
+import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 
 const logger = createLogger('SuiteDetailsPage')
 
@@ -44,6 +45,7 @@ interface Project {
 export function SuiteDetailsPage() {
   const { projectId, suiteId } = useParams<{ projectId: string; suiteId: string }>()
   const { showSuccess, showError } = useNotification()
+  const navigate = useNavigate()
   
   const [testSuite, setTestSuite] = useState<TestSuite | null>(null)
   const [availableTests, setAvailableTests] = useState<Test[]>([])
@@ -51,6 +53,7 @@ export function SuiteDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddTestModal, setShowAddTestModal] = useState(false)
   const [showCreateTestModal, setShowCreateTestModal] = useState(false)
+  const [showRunModePicker, setShowRunModePicker] = useState(false)
   const [selectedTests, setSelectedTests] = useState<string[]>([])
   const [newTest, setNewTest] = useState({
     name: '',
@@ -152,21 +155,25 @@ export function SuiteDetailsPage() {
     }
   }
 
-  const handleRunSuite = async () => {
+  const handleRunSuite = () => {
+    if (!testSuite || testSuite.tests.length === 0) return
+    setShowRunModePicker(true)
+  }
+
+  const handleRunSuiteWithMode = async (mode: 'headed' | 'headless') => {
+    setShowRunModePicker(false)
     if (!testSuite) return
-    
+
     try {
-      showSuccess('Suite Started', `Executing "${testSuite.name}" with ${testSuite.tests.length} tests. This may take a few minutes.`)
-      
-      // Start execution (async - don't wait for completion)
-      testSuitesAPI.execute(testSuite.id)
-        .then(() => {
-          showSuccess('Suite Completed', `Test suite "${testSuite.name}" execution completed!`)
-        })
-        .catch((error) => {
-          logger.error('Suite execution failed', error)
-          showError('Execution Failed', `Test suite "${testSuite.name}" execution failed`)
-        })
+      showSuccess(
+        'Suite Started',
+        `Executing "${testSuite.name}" (${mode}) with ${testSuite.tests.length} tests. This may take a few minutes.`
+      )
+
+      // Backend now returns immediately and runs in background; queue events stream progress.
+      await testSuitesAPI.execute(testSuite.id, { headed: mode === 'headed' })
+
+      navigate(`/suites/${testSuite.id}/results`)
     } catch (error) {
       logger.error('Failed to start suite execution', error)
       showError('Execution Failed', 'Failed to start suite execution')
@@ -487,6 +494,13 @@ export function SuiteDetailsPage() {
           </div>
         </div>
       )}
+
+      <RunModePickerModal
+        open={showRunModePicker}
+        testName={testSuite?.name ? `Run All Tests — ${testSuite.name}` : 'Run All Tests'}
+        onCancel={() => setShowRunModePicker(false)}
+        onPick={handleRunSuiteWithMode}
+      />
     </div>
   )
 }
