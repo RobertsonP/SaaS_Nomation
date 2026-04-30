@@ -23,9 +23,15 @@ export function ExecutionVideoPlayer({ executionId, testName, videoPath, thumbna
 
   // Use environment variable for API URL
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-  const videoUrl = `${API_URL}/api/execution/${executionId}/video`;
-  const thumbnailUrl = `${API_URL}/api/execution/${executionId}/video/thumbnail`;
-  const downloadUrl = `${API_URL}/api/execution/${executionId}/video/download`;
+  // <video src> and <img src> can't carry an Authorization header, so the JWT
+  // is appended as a query parameter; the backend accepts either form.
+  const tokenParam = (() => {
+    const t = localStorage.getItem('auth_token');
+    return t ? `?token=${encodeURIComponent(t)}` : '';
+  })();
+  const videoUrl = `${API_URL}/api/execution/${executionId}/video${tokenParam}`;
+  const thumbnailUrl = `${API_URL}/api/execution/${executionId}/video/thumbnail${tokenParam}`;
+  const downloadUrl = `${API_URL}/api/execution/${executionId}/video/download${tokenParam}`;
 
   const handlePlay = () => {
     if (videoRef.current) {

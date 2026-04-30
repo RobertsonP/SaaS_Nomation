@@ -152,7 +152,12 @@ export function TestExecutionReport({ execution, testName, showAttachments = tru
                 Recording
               </div>
               <video
-                src={`/api/execution/${execution.id}/video`}
+                src={(() => {
+                  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+                  const t = localStorage.getItem('auth_token');
+                  const q = t ? `?token=${encodeURIComponent(t)}` : '';
+                  return `${apiUrl}/api/execution/${execution.id}/video${q}`;
+                })()}
                 controls
                 className="w-full max-w-3xl rounded border border-gray-200 dark:border-gray-700"
               />

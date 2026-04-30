@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Param, Query, Body, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Query, Body, UseGuards, HttpCode, HttpStatus, Res, NotFoundException, StreamableFile, SetMetadata, Request, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { join, resolve } from 'path';
+import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { ExecutionService } from './execution.service';
@@ -42,7 +43,35 @@ export class ExecutionController {
     private executionService: ExecutionService,
     private queueService: ExecutionQueueService,
     private prisma: PrismaService,
+    private jwtService: JwtService,
   ) {}
+
+  /**
+   * Resolve userId from either an Authorization Bearer header (XHR clients)
+   * or a ?token= query parameter (used by <video src> which cannot set headers).
+   * Throws UnauthorizedException if neither is valid.
+   */
+  private resolveUserIdForVideo(req: any, queryToken: string | undefined): string {
+    const authHeader: string | undefined = req?.headers?.authorization;
+    let token = '';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    } else if (queryToken) {
+      token = queryToken;
+    } else {
+      throw new UnauthorizedException('Missing auth token');
+    }
+    try {
+      const payload: any = this.jwtService.verify(token, { secret: process.env.JWT_SECRET });
+      const userId = payload?.userId || payload?.sub;
+      if (!userId) {
+        throw new UnauthorizedException('Token has no userId');
+      }
+      return userId;
+    } catch {
+      throw new UnauthorizedException('Invalid auth token');
+    }
+  }
 
   /**
    * Run a test using job queue.
@@ -387,15 +416,20 @@ export class ExecutionController {
    * GET /api/execution/:executionId/video
    *
    * Streams video file for a test execution.
-   * Returns 404 if execution not found or video doesn't exist.
-   * Requires authentication and ownership verification.
+   * Auth: Bearer header OR ?token=... query param. The query path exists
+   * because <video src> can't carry custom headers, so the frontend appends
+   * the JWT as a query parameter.
    */
   @Get(':executionId/video')
+  @SkipAuth()
   async getExecutionVideo(
     @Request() req,
     @Param('executionId') executionId: string,
+    @Query('token') queryToken: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const userId = this.resolveUserIdForVideo(req, queryToken);
+
     const execution = await this.prisma.testExecution.findUnique({
       where: { id: executionId },
       select: {
@@ -418,8 +452,8 @@ export class ExecutionController {
       throw new NotFoundException('Execution not found');
     }
 
-    // Verify ownership - user must own the project
-    if (execution.test.project.userId !== req.user.id) {
+    if (execution.test.project.userId !== userId) {
+      console.warn(`🔒 video 403: token user=${userId} project owner=${execution.test.project.userId}`);
       throw new ForbiddenException('Access denied to this execution');
     }
 
@@ -428,7 +462,7 @@ export class ExecutionController {
     }
 
     // Validate path to prevent traversal attacks
-    const filePath = validateFilePath('test-videos', execution.videoPath);
+    const filePath = validateFilePath('uploads', execution.videoPath);
 
     if (!existsSync(filePath)) {
       console.error(`Video file not found: ${filePath}`);
@@ -439,6 +473,8 @@ export class ExecutionController {
       'Content-Type': 'video/webm',
       'Content-Disposition': `inline; filename="${execution.test.name}-${execution.id}.webm"`,
       'Accept-Ranges': 'bytes',
+      // Browsers block <video src> cross-origin without this when COEP isn't relaxed.
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     const file = createReadStream(filePath);
@@ -452,11 +488,15 @@ export class ExecutionController {
    * Requires authentication and ownership verification.
    */
   @Get(':executionId/video/download')
+  @SkipAuth()
   async downloadExecutionVideo(
     @Request() req,
     @Param('executionId') executionId: string,
+    @Query('token') queryToken: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const userId = this.resolveUserIdForVideo(req, queryToken);
+
     const execution = await this.prisma.testExecution.findUnique({
       where: { id: executionId },
       select: {
@@ -479,13 +519,12 @@ export class ExecutionController {
       throw new NotFoundException('Video not found');
     }
 
-    // Verify ownership - user must own the project
-    if (execution.test.project.userId !== req.user.id) {
+    if (execution.test.project.userId !== userId) {
       throw new ForbiddenException('Access denied to this execution');
     }
 
     // Validate path to prevent traversal attacks
-    const filePath = validateFilePath('test-videos', execution.videoPath);
+    const filePath = validateFilePath('uploads', execution.videoPath);
 
     if (!existsSync(filePath)) {
       throw new NotFoundException('Video file not found');
@@ -494,6 +533,7 @@ export class ExecutionController {
     res.set({
       'Content-Type': 'video/webm',
       'Content-Disposition': `attachment; filename="${execution.test.name}-${execution.id}.webm"`,
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     const file = createReadStream(filePath);
@@ -507,11 +547,15 @@ export class ExecutionController {
    * Requires authentication and ownership verification.
    */
   @Get(':executionId/video/thumbnail')
+  @SkipAuth()
   async getVideoThumbnail(
     @Request() req,
     @Param('executionId') executionId: string,
+    @Query('token') queryToken: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const userId = this.resolveUserIdForVideo(req, queryToken);
+
     const execution = await this.prisma.testExecution.findUnique({
       where: { id: executionId },
       select: {
@@ -532,13 +576,12 @@ export class ExecutionController {
       throw new NotFoundException('Thumbnail not available');
     }
 
-    // Verify ownership - user must own the project
-    if (execution.test.project.userId !== req.user.id) {
+    if (execution.test.project.userId !== userId) {
       throw new ForbiddenException('Access denied to this execution');
     }
 
     // Validate path to prevent traversal attacks
-    const filePath = validateFilePath('test-videos', execution.videoThumbnail);
+    const filePath = validateFilePath('uploads', execution.videoThumbnail);
 
     if (!existsSync(filePath)) {
       throw new NotFoundException('Thumbnail file not found');
@@ -547,6 +590,7 @@ export class ExecutionController {
     res.set({
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=3600',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     const file = createReadStream(filePath);
