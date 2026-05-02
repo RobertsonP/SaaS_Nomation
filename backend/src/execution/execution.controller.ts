@@ -74,6 +74,22 @@ export class ExecutionController {
   }
 
   /**
+   * Verify the resolved user has access to the project that owns this execution
+   * (i.e. is a member of its organization). Mirrors the organizationId checks
+   * elsewhere in this controller (lines 100, 159) instead of the project-creator
+   * check, which would lock other org members out of recordings.
+   */
+  private async assertProjectAccess(userId: string, projectOrganizationId: string): Promise<void> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: projectOrganizationId, userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('Access denied to this execution');
+    }
+  }
+
+  /**
    * Run a test using job queue.
    * Returns immediately with job ID and position in queue.
    * ALWAYS returns 200 OK.
@@ -439,9 +455,7 @@ export class ExecutionController {
           select: {
             name: true,
             project: {
-              select: {
-                userId: true
-              }
+              select: { organizationId: true }
             }
           }
         }
@@ -452,10 +466,7 @@ export class ExecutionController {
       throw new NotFoundException('Execution not found');
     }
 
-    if (execution.test.project.userId !== userId) {
-      console.warn(`🔒 video 403: token user=${userId} project owner=${execution.test.project.userId}`);
-      throw new ForbiddenException('Access denied to this execution');
-    }
+    await this.assertProjectAccess(userId, execution.test.project.organizationId);
 
     if (!execution.videoPath) {
       throw new NotFoundException('No video available for this execution');
@@ -506,21 +517,21 @@ export class ExecutionController {
           select: {
             name: true,
             project: {
-              select: {
-                userId: true
-              }
+              select: { organizationId: true }
             }
           }
         }
       },
     });
 
-    if (!execution || !execution.videoPath) {
-      throw new NotFoundException('Video not found');
+    if (!execution) {
+      throw new NotFoundException('Execution not found');
     }
 
-    if (execution.test.project.userId !== userId) {
-      throw new ForbiddenException('Access denied to this execution');
+    await this.assertProjectAccess(userId, execution.test.project.organizationId);
+
+    if (!execution.videoPath) {
+      throw new NotFoundException('Video not found');
     }
 
     // Validate path to prevent traversal attacks
@@ -563,21 +574,21 @@ export class ExecutionController {
         test: {
           select: {
             project: {
-              select: {
-                userId: true
-              }
+              select: { organizationId: true }
             }
           }
         }
       },
     });
 
-    if (!execution?.videoThumbnail) {
-      throw new NotFoundException('Thumbnail not available');
+    if (!execution) {
+      throw new NotFoundException('Execution not found');
     }
 
-    if (execution.test.project.userId !== userId) {
-      throw new ForbiddenException('Access denied to this execution');
+    await this.assertProjectAccess(userId, execution.test.project.organizationId);
+
+    if (!execution.videoThumbnail) {
+      throw new NotFoundException('Thumbnail not available');
     }
 
     // Validate path to prevent traversal attacks
@@ -589,7 +600,8 @@ export class ExecutionController {
 
     res.set({
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
+      // Auth-gated resource — must NOT land in shared caches.
+      'Cache-Control': 'private, max-age=3600',
       'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 

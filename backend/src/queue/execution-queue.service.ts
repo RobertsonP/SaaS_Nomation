@@ -64,14 +64,35 @@ export class ExecutionQueueService {
   /**
    * Wait for a queued test job to finish and return the processor's result
    * (`{ success, executionId, testId, duration, status }`). Throws if the job
-   * fails or cannot be found.
+   * fails, can't be found, or doesn't complete within `timeoutMs`. The timeout
+   * prevents suite execution from hanging forever if the worker dies mid-job.
    */
-  async waitForJobCompletion(jobId: string): Promise<any> {
+  async waitForJobCompletion(jobId: string, timeoutMs: number = 15 * 60 * 1000): Promise<any> {
     const job = await this.testExecutionQueue.getJob(jobId);
     if (!job) {
       throw new Error(`Queued job ${jobId} not found`);
     }
-    return job.finished();
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`Queued job ${jobId} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      job.finished()
+        .then((result) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .catch((err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
   }
 
   /**

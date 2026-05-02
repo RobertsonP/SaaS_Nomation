@@ -213,10 +213,15 @@ export class TestSuitesService {
   }
 
   // Execution coordination
-  async executeSuite(suiteId: string, options?: { headed?: boolean }) {
+  async executeSuite(suiteId: string, options?: { headed?: boolean; organizationId?: string }) {
     const suite = await this.findById(suiteId);
     if (!suite) {
       throw new Error('Test suite not found');
+    }
+
+    // Multi-tenant guard: caller must belong to the suite's project organization.
+    if (options?.organizationId && suite.project.organizationId !== options.organizationId) {
+      throw new Error('Access denied to this test suite');
     }
 
     const headed = options?.headed ?? false;
@@ -352,26 +357,32 @@ export class TestSuitesService {
       console.error('Suite execution error:', error);
 
       this.progressGateway.sendSuiteFailed(executionId, suiteId, suite.name, error.message);
+    } finally {
+      // Always update the DB row so the suite never stays stuck in 'running' state,
+      // even if the loop above throws something the inner catch couldn't handle.
+      try {
+        await this.prisma.testSuiteExecution.update({
+          where: { id: executionId },
+          data: {
+            status: errorMsg ? 'failed' : (failedCount === 0 ? 'passed' : 'failed'),
+            completedAt: new Date(),
+            duration: Date.now() - startedAt,
+            passedTests: passedCount,
+            failedTests: failedCount,
+            results: { testResults: results },
+            errorMsg,
+          },
+        });
+      } catch (dbError) {
+        console.error('Failed to update suite execution row:', dbError);
+      }
     }
-
-    await this.prisma.testSuiteExecution.update({
-      where: { id: executionId },
-      data: {
-        status: failedCount === 0 ? 'passed' : 'failed',
-        completedAt: new Date(),
-        duration: Date.now() - startedAt,
-        passedTests: passedCount,
-        failedTests: failedCount,
-        results: {
-          testResults: results
-        },
-        errorMsg,
-      },
-    });
 
     console.log(`🏁 Suite "${suite.name}" completed: ${passedCount} passed, ${failedCount} failed`);
 
-    this.progressGateway.sendSuiteCompleted(executionId, suiteId, suite.name, passedCount, failedCount);
+    if (!errorMsg) {
+      this.progressGateway.sendSuiteCompleted(executionId, suiteId, suite.name, passedCount, failedCount);
+    }
   }
 
   async getExecutionHistory(suiteId: string) {
