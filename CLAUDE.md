@@ -135,29 +135,32 @@ Date: YYYY-MM-DD
 
 ---
 
-## Current State (Updated April 2026)
+## Current State (Updated May 2026)
 
-### BROKEN — Fix before any feature work:
-- `components/test-results/` directory missing — TestResultsPage and SuiteResultsPage crash
-- Live browser `executeAction` only handles click/hover/type — 11 other actions silently broken
-- Two execution engines (`execution.service.ts` vs `execution-queue.processor.ts`) behave differently
-- WebSocket CORS hardcoded to localhost in 3 gateway files
+### BACKEND DEBT — known incomplete, do not redesign UI around these:
+- **MCP module** (`backend/src/mcp/`) — 6 TODO stubs (memory server, Playwright tools, filesystem, GitHub, caching, tool execution at `mcp.service.ts:207`). Don't surface MCP features in the UI until the backend lands.
+- **AI `callAIAPI`** (`backend/src/ai/ai.service.ts:342-349`) — returns placeholder `{ elements: [] }`. Anthropic billing is the blocker; rule-based fallback runs in production.
+- **Crawler link prioritization** (`backend/src/discovery/link-discovery.service.ts`) — categorizes links by type (nav/content/external) but does not actually rank them during crawl, so content-heavy sites still over-fetch.
+- **Duplicate-button selector context** — `element-detection.service.ts:1536-1568` deduplicates and varies selectors but has no parent-content disambiguation; identical buttons on listing pages can still collide.
 
-### HALF-BUILT — Work carefully:
-- MCP module is 100% placeholder (800 lines of TODO) — don't build on it
-- AI `callAIAPI` returns empty — placeholder for cloud AI integration
-- `SmartWaitService` exists but only connected to queue processor
-- Multiple element card buttons are TODO placeholders
-- Interactive element discovery exists but is DISABLED in master
+### MISSING FEATURES — not bugs, just not built:
+- Mock Stripe billing (`sk_test_mock`) — billing UI exists but no live checkout.
+- Password reset flow.
+- File storage is local filesystem only (`backend/uploads/`).
 
-### KNOWN GOTCHAS (from deep investigation):
-- Element detection misses React components with onClick (no HTML onclick attribute)
-- Duplicate buttons on listing pages get non-unique selectors
-- Crawler follows ALL links including content items — overfetches on content-heavy sites
-- Billing uses mock Stripe key `sk_test_mock`
-- Password reset feature does not exist
-- File storage is local filesystem only (`uploads/` directory)
-- Docker URL translation code (`host.docker.internal`) scattered across 10+ files
+### VERIFIED FIXED — do not re-introduce as concerns:
+- `components/test-results/` directory exists with TestExecutionReport, SuiteExecutionReport, ExecutionStepCard.
+- Live browser `executeAction` handles all 16 step types (`live-browser.service.ts:603-660`).
+- Both execution engines route through shared `StepExecutorService`.
+- WebSocket CORS reads `process.env.CORS_ORIGIN` in all 3 gateways.
+- Element detection checks `computedStyle.cursor` and `__reactFiber$/__vue/__ng` for framework onClick handlers.
+- `SmartWaitService` connected to direct execution (`execution.service.ts:142`).
+- Interactive element discovery enabled (`element-analyzer.service.ts:21`).
+- ElementCard, SelectedElementsList, ProfileSettingsPage have no TODO placeholder buttons.
+
+### KNOWN GOTCHAS (still relevant):
+- Docker URL translation code (`host.docker.internal`) scattered across 10+ files.
+- Frontend TS compile: run from `frontend/`. Backend TS compile: run from `backend/`.
 
 ---
 
