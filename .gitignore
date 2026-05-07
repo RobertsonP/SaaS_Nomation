@@ -204,6 +204,10 @@ validate-selectors.js
 # Screenshots dumped during debugging (not source code)
 backend/*.png
 frontend/*.png
+# Root-level ad-hoc verification screenshots (live-picker-*.png, verify-*.png, etc.)
+/*.png
+# Playwright MCP verification snapshots
+.playwright-mcp/
 # Ad-hoc test scripts in wrong location (real tests are in backend/test/)
 backend/test-*.js
 backend/test-*.ts
