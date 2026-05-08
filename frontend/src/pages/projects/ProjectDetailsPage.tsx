@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
@@ -98,14 +98,51 @@ interface Project {
   };
 }
 
+type ProjectTab = 'overview' | 'sitemap' | 'urls' | 'elements' | 'auth';
+const VALID_TABS: ProjectTab[] = ['overview', 'sitemap', 'urls', 'elements', 'auth'];
+
 export function ProjectDetailsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showSuccess, showError } = useNotification();
   const { activeDiscovery, isMinimized } = useDiscoveryContext();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sitemap' | 'urls' | 'elements' | 'auth'>('overview');
+
+  // Active tab is sourced from `?tab=…` so the Verdant sidebar's per-project
+  // sub-nav (Sites/Sitemap/Elements/Auth) drives this page. Default = overview.
+  const tabFromUrl = searchParams.get('tab') as ProjectTab | null;
+  const initialTab: ProjectTab =
+    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview';
+  const [activeTab, setActiveTabRaw] = useState<ProjectTab>(initialTab);
+
+  // Keep state ↔ query string in sync. Sidebar navigation updates the URL,
+  // so we mirror that into local state. Tab clicks within the page update
+  // the URL so the sidebar's active highlight stays accurate.
+  useEffect(() => {
+    if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabRaw(tabFromUrl);
+    }
+    if (!tabFromUrl && activeTab !== 'overview') {
+      // URL has no tab → reset to overview without re-navigating.
+      setActiveTabRaw('overview');
+    }
+  }, [tabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setActiveTab = (next: ProjectTab) => {
+    setActiveTabRaw(next);
+    if (next === 'overview') {
+      // Clean URL: remove ?tab when returning to overview.
+      const params = new URLSearchParams(searchParams);
+      params.delete('tab');
+      setSearchParams(params, { replace: true });
+    } else {
+      const params = new URLSearchParams(searchParams);
+      params.set('tab', next);
+      setSearchParams(params, { replace: true });
+    }
+  };
   const [selectedElementType, setSelectedElementType] = useState<string>('all');
   const [selectedUrl, setSelectedUrl] = useState<string>('all');
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]); // URL IDs for selective analysis

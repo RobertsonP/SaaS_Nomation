@@ -22,6 +22,7 @@ interface Project {
     tests: number;
     elements: number;
     urls: number;
+    testSuites: number;
   };
   createdAt?: string;
   updatedAt?: string;

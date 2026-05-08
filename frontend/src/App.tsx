@@ -9,7 +9,7 @@ import { DiscoveryFloatingIndicator } from './components/discovery/DiscoveryFloa
 import { AnalysisProvider } from './contexts/AnalysisContext'
 import { AnalysisFloatingIndicator } from './components/analysis/AnalysisFloatingIndicator'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
-import { Layout } from './components/layout/Layout'
+import { VerdantShell } from './components/layout/VerdantShell'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -76,7 +76,7 @@ const router = createBrowserRouter([
       {
         element: (
           <ProtectedRoute>
-            <Layout />
+            <VerdantShell />
           </ProtectedRoute>
         ),
         children: [
