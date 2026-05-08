@@ -6,8 +6,9 @@ import { TestExecutionReport } from '../../components/test-results/TestExecution
 import { ExecutionVideoPlayer } from '../../components/execution/ExecutionVideoPlayer'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
-import { FileText, Mail, Download } from 'lucide-react'
+import { Download, Loader2, Mail, Play } from 'lucide-react'
 import { createLogger } from '../../lib/logger'
+import { Pill, PillKind } from '../../components/ui/Pill'
 
 const logger = createLogger('TestResultsPage')
 
@@ -172,12 +173,12 @@ export function TestResultsPage() {
   }
 
 
-  const getStatusColor = (status: string) => {
+  const getStatusKind = (status: string): PillKind => {
     switch (status) {
-      case 'passed': return 'text-green-600 bg-green-100'
-      case 'failed': return 'text-red-600 bg-red-100'
-      case 'running': return 'text-blue-600 bg-blue-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'passed': return 'ok'
+      case 'failed': return 'err'
+      case 'running': return 'info'
+      default: return 'mute'
     }
   }
 
@@ -188,130 +189,166 @@ export function TestResultsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading test results...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to={`/projects/${test?.project.id}/tests`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Tests
-          </Link>
-        </div>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{test?.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Project: {test?.project.name}</p>
-          </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={handleRunTest}
-              disabled={isExecuting}
-              className={`px-4 py-2 rounded-lg text-white ${
-                isExecuting 
-                  ? 'bg-blue-400 cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
+    <div className="content">
+      <div className="page-head">
+        <div>
+          {test?.project?.id && (
+            <Link
+              to={`/projects/${test.project.id}/tests`}
+              className="dim"
+              style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
             >
-              {isExecuting ? (
-                <div className="flex items-center space-x-2">
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>
-                    {executionState?.status === 'waiting' ? `Queued (#${executionState.position})` :
-                     executionState?.status === 'active' ? `Running (${executionState.progress}%)` :
-                     'Running...'}
-                  </span>
-                </div>
-              ) : 'Run Test'}
-            </button>
-          </div>
+              ← Back to Tests
+            </Link>
+          )}
+          <h1>{test?.name || 'Test results'}</h1>
+          {test?.project?.name && <div className="sub">Project: {test.project.name}</div>}
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <button
+            type="button"
+            onClick={handleRunTest}
+            disabled={isExecuting}
+            className="btn btn-primary"
+            style={isExecuting ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+          >
+            {isExecuting ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>
+                  {executionState?.status === 'waiting'
+                    ? `Queued (#${executionState.position})`
+                    : executionState?.status === 'active'
+                      ? `Running (${executionState.progress}%)`
+                      : 'Running…'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Play size={13} />
+                <span>Run Test</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div
+        className="split-2"
+        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}
+      >
         {/* Execution History */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-            <div className="p-4 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold">Execution History</h2>
-            </div>
-            <div className="divide-y dark:divide-gray-700 max-h-96 overflow-y-auto">
-              {executions.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No executions yet
+        <div className="card">
+          <div className="card-head">
+            <span className="card-title">Execution History</span>
+            <span className="dim tabular" style={{ fontSize: 11 }}>
+              {executions.length}
+            </span>
+          </div>
+          <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+            {executions.length === 0 ? (
+              <div className="empty" style={{ padding: '24px 16px' }}>
+                <div className="empty-icon">
+                  <Play size={18} />
                 </div>
-              ) : (
-                executions.map((execution) => (
-                  <div
+                <h3>No executions yet</h3>
+                <p>Click "Run Test" to start the first run.</p>
+              </div>
+            ) : (
+              executions.map((execution) => {
+                const isSelected = selectedExecution?.id === execution.id;
+                return (
+                  <button
                     key={execution.id}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                      selectedExecution?.id === execution.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
-                    }`}
+                    type="button"
                     onClick={() => setSelectedExecution(execution)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '10px 14px',
+                      borderBottom: '1px solid var(--hair)',
+                      background: isSelected ? 'var(--moss-soft)' : 'transparent',
+                      borderLeft: isSelected ? '2px solid var(--moss)' : '2px solid transparent',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
-                            {execution.status.toUpperCase()}
-                          </span>
-                          
-                          {/* Report Buttons */}
-                          {execution.status !== 'running' && (
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDownloadReport(execution.id)
-                                }}
-                                disabled={isDownloading}
-                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
-                                title="Download PDF Report"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleEmailReport(execution.id)
-                                }}
-                                disabled={isEmailing}
-                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-                                title="Email Report"
-                              >
-                                <Mail className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Pill kind={getStatusKind(execution.status)}>
+                          {execution.status.toUpperCase()}
+                        </Pill>
+                        <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
                           {new Date(execution.startedAt).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        </div>
+                        <div className="dim tabular" style={{ fontSize: 10.5 }}>
                           Duration: {formatDuration(execution.duration)}
-                        </p>
+                        </div>
                       </div>
+                      {execution.status !== 'running' && (
+                        <div className="row" style={{ gap: 2, flexShrink: 0 }}>
+                          <span
+                            className="icon-btn"
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadReport(execution.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.stopPropagation();
+                                handleDownloadReport(execution.id);
+                              }
+                            }}
+                            title="Download PDF report"
+                            style={isDownloading ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                          >
+                            <Download size={13} />
+                          </span>
+                          <span
+                            className="icon-btn"
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEmailReport(execution.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.stopPropagation();
+                                handleEmailReport(execution.id);
+                              }
+                            }}
+                            title="Email report"
+                            style={isEmailing ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                          >
+                            <Mail size={13} />
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
         {/* Test Execution Report */}
-        <div className="lg:col-span-2">
+        <div className="col" style={{ gap: 12 }}>
           {selectedExecution ? (
             <>
               {selectedExecution.videoPath && (
-                <ExecutionVideoPlayer 
+                <ExecutionVideoPlayer
                   executionId={selectedExecution.id}
                   testName={test?.name || 'Unknown'}
                   videoPath={selectedExecution.videoPath}
@@ -325,20 +362,21 @@ export function TestResultsPage() {
               />
             </>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-lg font-semibold">Select an execution to view details</h2>
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Select an execution</span>
               </div>
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                <div className="text-4xl mb-4">📊</div>
-                <p className="text-lg mb-2">Professional Test Results</p>
-                <p className="text-sm">Select an execution from the history to view its step-by-step report</p>
+              <div className="empty">
+                <div className="empty-icon">
+                  <Play size={20} />
+                </div>
+                <h3>No execution selected</h3>
+                <p>Pick a run from the history on the left to see its step-by-step report.</p>
               </div>
             </div>
           )}
         </div>
       </div>
-      
     </div>
   )
 }

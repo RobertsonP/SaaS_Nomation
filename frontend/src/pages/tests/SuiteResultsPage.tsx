@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { io, Socket } from 'socket.io-client'
+import { Layers, Play } from 'lucide-react'
 import { testSuitesAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
+import { Pill, PillKind } from '../../components/ui/Pill'
 
 interface SuiteExecution {
   id: string
@@ -118,12 +120,12 @@ export function SuiteResultsPage() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusKind = (status: string): PillKind => {
     switch (status) {
-      case 'passed': return 'text-green-600 bg-green-100'
-      case 'failed': return 'text-red-600 bg-red-100'
-      case 'running': return 'text-blue-600 bg-blue-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'passed': return 'ok'
+      case 'failed': return 'err'
+      case 'running': return 'info'
+      default: return 'mute'
     }
   }
 
@@ -139,98 +141,123 @@ export function SuiteResultsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading suite results...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to={`/projects/${testSuite?.project.id}/suites`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Test Suites
-          </Link>
+    <div className="content">
+      <div className="page-head">
+        <div>
+          {testSuite?.project?.id && (
+            <Link
+              to={`/projects/${testSuite.project.id}/suites`}
+              className="dim"
+              style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
+            >
+              ← Back to Test Suites
+            </Link>
+          )}
+          <h1>{testSuite?.name || 'Suite results'}</h1>
+          {testSuite?.project?.name && (
+            <div className="sub">
+              Project: {testSuite.project.name}
+              {testSuite.description ? ` · ${testSuite.description}` : ''}
+            </div>
+          )}
         </div>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{testSuite?.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Project: {testSuite?.project.name}</p>
-            {testSuite?.description && (
-              <p className="text-gray-500 dark:text-gray-400 mt-1">{testSuite.description}</p>
-            )}
-          </div>
-          <button
-            onClick={runSuite}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            ▶️ Run Suite
+        <div className="row" style={{ gap: 6 }}>
+          <button type="button" onClick={runSuite} className="btn btn-primary">
+            <Play size={13} />
+            <span>Run Suite</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Execution History */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-            <div className="p-4 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold">Execution History</h2>
-            </div>
-            <div className="divide-y dark:divide-gray-700 max-h-96 overflow-y-auto">
-              {executions.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No executions yet
+      <div
+        className="split-2"
+        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}
+      >
+        <div className="card">
+          <div className="card-head">
+            <span className="card-title">Execution History</span>
+            <span className="dim tabular" style={{ fontSize: 11 }}>
+              {executions.length}
+            </span>
+          </div>
+          <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+            {executions.length === 0 ? (
+              <div className="empty" style={{ padding: '24px 16px' }}>
+                <div className="empty-icon">
+                  <Layers size={18} />
                 </div>
-              ) : (
-                executions.map((execution) => (
-                  <div
+                <h3>No executions yet</h3>
+                <p>Click "Run Suite" to start the first run.</p>
+              </div>
+            ) : (
+              executions.map((execution) => {
+                const isSelected = selectedExecution?.id === execution.id;
+                return (
+                  <button
                     key={execution.id}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                      selectedExecution?.id === execution.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
-                    }`}
+                    type="button"
                     onClick={() => setSelectedExecution(execution)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '10px 14px',
+                      borderBottom: '1px solid var(--hair)',
+                      background: isSelected ? 'var(--moss-soft)' : 'transparent',
+                      borderLeft: isSelected ? '2px solid var(--moss)' : '2px solid transparent',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
-                          {execution.status.toUpperCase()}
-                        </span>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {new Date(execution.startedAt).toLocaleString()}
-                        </p>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
-                          <p>Duration: {formatDuration(execution.duration)}</p>
-                          <p>Tests: {execution.totalTests} total</p>
-                          <p className="text-green-600">✓ {execution.passedTests} passed</p>
-                          <p className="text-red-600">✗ {execution.failedTests} failed</p>
-                          <p>Pass Rate: {getPassRate(execution)}</p>
-                        </div>
-                      </div>
+                    <Pill kind={getStatusKind(execution.status)}>
+                      {execution.status.toUpperCase()}
+                    </Pill>
+                    <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
+                      {new Date(execution.startedAt).toLocaleString()}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    <div className="col" style={{ marginTop: 4, gap: 2, fontSize: 10.5 }}>
+                      <span className="dim tabular">
+                        Duration: {formatDuration(execution.duration)}
+                      </span>
+                      <span className="tabular" style={{ color: 'var(--moss)' }}>
+                        ✓ {execution.passedTests} passed
+                      </span>
+                      <span className="tabular" style={{ color: 'var(--clay)' }}>
+                        ✗ {execution.failedTests} failed
+                      </span>
+                      <span className="dim tabular">Pass rate: {getPassRate(execution)}</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Suite Execution Report */}
-        <div className="lg:col-span-2">
+        <div>
           {selectedExecution ? (
             <SuiteExecutionReport
               execution={selectedExecution}
               suiteName={testSuite?.name || 'Unknown Suite'}
             />
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-lg font-semibold">Select an execution to view details</h2>
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Select an execution</span>
               </div>
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                <div className="text-4xl mb-4">🧪</div>
-                <p className="text-lg mb-2">Professional Suite Results</p>
-                <p className="text-sm">Select an execution from the history to view its per-test breakdown</p>
+              <div className="empty">
+                <div className="empty-icon">
+                  <Layers size={20} />
+                </div>
+                <h3>No execution selected</h3>
+                <p>Pick a run from the history on the left to see its per-test breakdown.</p>
               </div>
             </div>
           )}
