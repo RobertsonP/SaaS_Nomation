@@ -683,98 +683,288 @@ export function LiveElementPicker({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex flex-col">
-      <div className="flex-shrink-0 bg-gray-800 dark:bg-gray-900 p-3 border-b border-gray-700 flex items-center gap-3">
-        <h3 className="text-lg font-semibold text-blue-400">Live Element Picker</h3>
-        <div className="flex-grow">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'var(--bone)',
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          background: 'var(--paper)',
+          borderBottom: '1px solid var(--hair)',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <div className="row" style={{ gap: 8 }}>
+          <div className="brand-mark" style={{ width: 16, height: 16 }} />
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--ink)',
+              letterSpacing: '-0.005em',
+            }}
+          >
+            Live Element Picker
+          </h3>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {hasCaptured && capturedUrl ? (
-            <span className="text-sm text-gray-400 dark:text-gray-500 font-mono truncate block">
+            <span
+              className="mono"
+              style={{
+                fontSize: 11.5,
+                color: 'var(--slate)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'block',
+              }}
+              title={capturedUrl}
+            >
               {capturedUrl}
             </span>
           ) : (
-            <span className="text-sm text-gray-400 dark:text-gray-500">
+            <span className="dim" style={{ fontSize: 11.5 }}>
               Navigate in the browser window, then capture
             </span>
           )}
         </div>
         {savedCount > 0 && (
-          <span className="px-3 py-1 text-xs font-medium bg-green-700 text-green-100 rounded-full">
+          <span className="pill pill-ok">
+            <span className="dot" />
             Saved this session: {savedCount}
           </span>
         )}
-        <button
-          onClick={handleClose}
-          className="px-4 py-1.5 bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md font-medium transition-colors"
-        >
+        <button onClick={handleClose} className="btn btn-outline btn-sm">
           {savedCount > 0 ? 'Done' : 'Close'}
         </button>
       </div>
 
       {error && (
-        <div className="flex-shrink-0 bg-red-600 dark:bg-red-700 text-white px-4 py-2 text-sm text-center">
+        <div
+          style={{
+            flexShrink: 0,
+            background: 'var(--clay-soft)',
+            borderBottom: '1px solid var(--clay-edge)',
+            color: 'var(--clay)',
+            padding: '8px 16px',
+            fontSize: 12,
+            textAlign: 'center',
+          }}
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       {isCapturedUrlUnattributed && (
-        <div className="flex-shrink-0 bg-amber-700 dark:bg-amber-800 text-amber-50 px-4 py-2 text-sm flex items-center justify-between gap-3">
+        <div
+          style={{
+            flexShrink: 0,
+            background: 'var(--amber-soft)',
+            borderBottom: '1px solid var(--amber-edge)',
+            color: 'var(--amber)',
+            padding: '8px 16px',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
           <span>
-            <strong>This page isn't in your project URLs.</strong> Picks saved from here will appear under
-            <span className="font-medium"> "Unattributed elements"</span> until you add the URL.
+            <strong>This page isn't in your project URLs.</strong> Picks saved from here will appear under{' '}
+            <span style={{ fontWeight: 600 }}>"Unattributed elements"</span> until you add the URL.
           </span>
           <button
             onClick={handleAddCapturedUrl}
             disabled={isAddingUrl}
-            className="flex-shrink-0 text-sm font-medium bg-amber-50 dark:bg-amber-100 text-amber-900 px-3 py-1 rounded-md hover:bg-white transition-colors disabled:opacity-50"
+            className="btn btn-sm"
+            style={{
+              flexShrink: 0,
+              background: 'var(--amber)',
+              color: 'var(--bone)',
+              borderColor: 'var(--amber)',
+              opacity: isAddingUrl ? 0.5 : 1,
+            }}
           >
-            {isAddingUrl ? 'Adding...' : '+ Add this URL'}
+            {isAddingUrl ? 'Adding…' : '+ Add this URL'}
           </button>
         </div>
       )}
 
-      <div className="flex-grow flex overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {isLoading && !hasCaptured && (
-          <div className="flex-grow flex items-center justify-center">
-            <div className="text-center text-white">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className="text-lg">Starting browser session...</p>
-              <p className="text-sm text-gray-400 mt-2">A browser window will open. This may take a moment.</p>
+          <div className="row" style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <div className="col" style={{ alignItems: 'center', gap: 14 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: 'var(--moss-soft)',
+                  border: '1px solid var(--moss-edge)',
+                  color: 'var(--moss)',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" />
+                </svg>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div
+                  style={{
+                    fontFamily: 'Inter Tight',
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: 'var(--ink)',
+                    marginBottom: 4,
+                  }}
+                >
+                  Starting browser session…
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>
+                  A browser window will open. This may take a moment.
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {!isLoading && !hasCaptured && sessionToken && (
-          <div className="flex-grow flex flex-col items-center justify-center p-8 text-center">
-            <div className="w-16 h-16 mb-4 rounded-full bg-blue-600 dark:bg-blue-700 flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <div
+            className="col"
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 32,
+              textAlign: 'center',
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                background: 'var(--moss-soft)',
+                border: '1px solid var(--moss-edge)',
+                color: 'var(--moss)',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <circle cx="6" cy="6" r="0.5" fill="currentColor" />
+                <circle cx="8.5" cy="6" r="0.5" fill="currentColor" />
+                <circle cx="11" cy="6" r="0.5" fill="currentColor" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-100 mb-2">Browser is Open</h3>
-            <p className="text-gray-400 mb-6 max-w-md">
-              Navigate to the page you want in the browser window, then click Capture to load it here.
-            </p>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'Inter Tight',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  letterSpacing: '-0.02em',
+                  color: 'var(--ink)',
+                  marginBottom: 6,
+                }}
+              >
+                Browser is open
+              </div>
+              <p
+                className="dim"
+                style={{ fontSize: 13, maxWidth: 420, margin: '0 auto', lineHeight: 1.5 }}
+              >
+                Navigate to the page you want to inspect in the browser window, then click{' '}
+                <strong style={{ color: 'var(--ink)' }}>Capture page</strong> to load it here for picking.
+              </p>
+            </div>
             <button
               onClick={handleCapturePage}
               disabled={isCapturing}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 font-medium text-lg transition-colors"
+              className="btn btn-primary btn-lg"
+              style={{
+                marginTop: 6,
+                opacity: isCapturing ? 0.6 : 1,
+                cursor: isCapturing ? 'not-allowed' : 'pointer',
+              }}
             >
-              {isCapturing ? 'Capturing...' : 'Capture Page'}
+              {isCapturing ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                    <circle cx="12" cy="12" r="10" opacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  <span>Capturing…</span>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <span>Capture page</span>
+                </>
+              )}
             </button>
           </div>
         )}
 
         {hasCaptured && capturedHtml && (
           <>
-            <div className="flex-1 overflow-auto p-3 bg-gray-900 dark:bg-gray-950 flex flex-col">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center justify-between">
-                <span className="truncate mr-4">{capturedUrl} -- Click any element to select it</span>
+            <div
+              style={{
+                flex: 1,
+                overflow: 'auto',
+                padding: 12,
+                background: 'var(--bone)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div
+                className="row"
+                style={{
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                  fontSize: 11.5,
+                  color: 'var(--ink-3)',
+                  gap: 12,
+                }}
+              >
+                <span
+                  className="mono"
+                  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={capturedUrl ?? ''}
+                >
+                  {capturedUrl} — Click any element to select it
+                </span>
                 <button
                   onClick={handleCapturePage}
                   disabled={isCapturing}
-                  className="px-3 py-1 bg-gray-700 dark:bg-gray-800 text-gray-200 rounded hover:bg-gray-600 dark:hover:bg-gray-700 text-xs transition-colors disabled:opacity-50 flex-shrink-0"
+                  className="btn btn-outline btn-sm"
+                  style={{ flexShrink: 0, opacity: isCapturing ? 0.5 : 1 }}
                 >
-                  {isCapturing ? 'Capturing...' : 'Recapture'}
+                  {isCapturing ? 'Capturing…' : 'Recapture'}
                 </button>
               </div>
               <iframe
@@ -783,64 +973,156 @@ export function LiveElementPicker({
                 srcDoc={capturedHtml}
                 sandbox="allow-same-origin"
                 onLoad={handleIframeLoad}
-                className="flex-1 w-full bg-white rounded border border-gray-600 dark:border-gray-700 shadow-lg"
-                style={{ minHeight: '500px' }}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  background: '#fff',
+                  borderRadius: 8,
+                  border: '1px solid var(--hair-2)',
+                  boxShadow: 'var(--shadow-md)',
+                  minHeight: 500,
+                }}
               />
               {hoverSelector && (
-                <div className="mt-2 text-xs text-gray-400 font-mono truncate">
+                <div
+                  className="mono dim"
+                  style={{
+                    marginTop: 6,
+                    fontSize: 11,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={hoverSelector}
+                >
                   Hover: {hoverSelector}
                 </div>
               )}
             </div>
 
-            <aside className="flex-shrink-0 w-80 border-l border-gray-700 dark:border-gray-800 overflow-y-auto bg-gray-800 dark:bg-gray-900 flex flex-col">
-              <div className="p-3 flex-grow">
+            <aside
+              style={{
+                flexShrink: 0,
+                width: 320,
+                borderLeft: '1px solid var(--hair)',
+                background: 'var(--paper)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflowY: 'auto',
+              }}
+            >
+              <div style={{ padding: 14, flex: 1 }}>
                 {picked ? (
                   <div>
-                    <h4 className="font-medium text-gray-100 mb-2">Selected Element</h4>
-                    <div className="bg-gray-900 dark:bg-gray-950 rounded-lg p-3 mb-3">
-                      <div className="text-sm text-gray-300 mb-2">{picked.description}</div>
-                      <code className="text-xs bg-gray-700 dark:bg-gray-800 px-2 py-1 rounded block mb-2 break-all text-green-400 dark:text-green-300 font-mono">
+                    <h4
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: 'var(--ink)',
+                        margin: '0 0 8px',
+                      }}
+                    >
+                      Selected Element
+                    </h4>
+                    <div
+                      style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--hair)',
+                        borderRadius: 6,
+                        padding: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: 'var(--ink-2)', marginBottom: 8 }}>
+                        {picked.description}
+                      </div>
+                      <code
+                        className="mono"
+                        style={{
+                          fontSize: 11,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--hair)',
+                          padding: '4px 6px',
+                          borderRadius: 4,
+                          display: 'block',
+                          marginBottom: 8,
+                          color: 'var(--moss)',
+                          wordBreak: 'break-all',
+                        }}
+                      >
                         {picked.selector}
                       </code>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
-                        <p>Tag: <span className="text-gray-300">&lt;{picked.tagName}&gt;</span></p>
-                        <p>Type: <span className="text-gray-300">{picked.elementType}</span></p>
+                      <div
+                        className="col"
+                        style={{ gap: 2, fontSize: 11, color: 'var(--ink-3)' }}
+                      >
+                        <span>
+                          Tag: <span style={{ color: 'var(--ink-2)' }}>&lt;{picked.tagName}&gt;</span>
+                        </span>
+                        <span>
+                          Type: <span style={{ color: 'var(--ink-2)' }}>{picked.elementType}</span>
+                        </span>
                         {picked.textPreview && (
-                          <p>Text: <span className="text-gray-300">{picked.textPreview}</span></p>
+                          <span>
+                            Text:{' '}
+                            <span style={{ color: 'var(--ink-2)' }}>{picked.textPreview}</span>
+                          </span>
                         )}
                       </div>
                     </div>
                     <button
                       onClick={handleSaveElement}
                       disabled={isSaving}
-                      className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn btn-primary"
+                      style={{
+                        width: '100%',
+                        justifyContent: 'center',
+                        opacity: isSaving ? 0.6 : 1,
+                      }}
                     >
-                      {isSaving ? 'Saving...' : 'Save to Library'}
+                      {isSaving ? 'Saving…' : 'Save to library'}
                     </button>
                   </div>
                 ) : (
-                  <div className="text-center py-6">
-                    <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-gray-700 dark:bg-gray-800 flex items-center justify-center">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+                  <div className="empty" style={{ padding: '24px 8px' }}>
+                    <div className="empty-icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 9h6v8a3 3 0 0 1-6 0z" />
+                        <path d="M9 9V5a3 3 0 0 1 6 0v4" />
+                        <path d="M12 2v3" />
                       </svg>
                     </div>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">
-                      Click any element in the page on the left to select it.
-                    </p>
+                    <h3>No element picked</h3>
+                    <p>Click any element in the captured page on the left to select it.</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex-shrink-0 p-3 border-t border-gray-700 dark:border-gray-800">
-                <div className="p-3 bg-gray-700 dark:bg-gray-800 rounded-lg text-xs text-gray-300">
-                  <p className="font-medium text-blue-400 dark:text-blue-300 mb-1">Tips:</p>
-                  <ul className="space-y-0.5 text-gray-400 dark:text-gray-500">
-                    <li>- Click any element in the page snapshot to select it</li>
-                    <li>- The captured page is a static DOM snapshot — no hover/dynamic states</li>
-                    <li>- External CSS/images may not load due to CORS — selector is still valid</li>
-                    <li>- Recapture after navigating in the browser window</li>
+              <div
+                style={{
+                  flexShrink: 0,
+                  padding: 12,
+                  borderTop: '1px solid var(--hair)',
+                }}
+              >
+                <div
+                  style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 6,
+                    padding: 10,
+                    fontSize: 11,
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: 'var(--moss)', marginBottom: 4 }}>
+                    Tips
+                  </div>
+                  <ul style={{ paddingLeft: 16, margin: 0, lineHeight: 1.6 }}>
+                    <li>Click any element in the snapshot to select it.</li>
+                    <li>The captured page is a static DOM — no hover/dynamic states.</li>
+                    <li>External CSS/images may not load due to CORS; selector is still valid.</li>
+                    <li>Recapture after navigating in the browser window.</li>
                   </ul>
                 </div>
               </div>

@@ -385,199 +385,211 @@ export function ProjectsPage() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create New Project</h2>
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
+        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
+          <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">Create New Project</div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowForm(false)}
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
 
-              {/* Tabs */}
-              <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-                <button
-                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-                    activeTab === 'manual'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  onClick={() => setActiveTab('manual')}
-                >
-                  Manual Setup
-                </button>
-                <button
-                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-                    activeTab === 'github'
-                      ? 'border-purple-600 text-purple-600 dark:text-purple-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  onClick={() => setActiveTab('github')}
-                >
-                  GitHub Import
-                </button>
-              </div>
+            <div className="tabs" style={{ margin: '0 18px' }}>
+              <button
+                type="button"
+                className={`tab ${activeTab === 'manual' ? 'active' : ''}`}
+                onClick={() => setActiveTab('manual')}
+              >
+                Manual Setup
+              </button>
+              <button
+                type="button"
+                className={`tab ${activeTab === 'github' ? 'active' : ''}`}
+                onClick={() => setActiveTab('github')}
+              >
+                GitHub Import
+              </button>
+            </div>
 
-              {/* Manual Tab Content */}
+            <div className="modal-body">
               {activeTab === 'manual' && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                    <p className="text-blue-700 dark:text-blue-300 text-sm">
-                      Create a project and add URLs to analyze. Best for testing live websites.
-                    </p>
+                <form onSubmit={handleSubmit} className="col" style={{ gap: 12 }}>
+                  <div
+                    style={{
+                      background: 'var(--moss-soft)',
+                      border: '1px solid var(--moss-edge)',
+                      color: 'var(--moss)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                    }}
+                  >
+                    Create a project and add URLs to analyze. Best for testing live websites.
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Project Name <span className="text-red-500">*</span>
+                  <div className="field">
+                    <label htmlFor="proj-name">
+                      Project Name <span style={{ color: 'var(--clay)' }}>*</span>
                     </label>
                     <input
+                      id="proj-name"
                       type="text"
                       required
-                      placeholder="e.g., My E-commerce Site"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="e.g. My E-commerce Site"
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Description (optional)
-                    </label>
-                    <textarea
-                      placeholder="Brief description..."
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      rows={3}
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Website URLs (optional)
-                    </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  <div className="field">
+                    <label htmlFor="proj-desc">Description (optional)</label>
+                    <textarea
+                      id="proj-desc"
+                      placeholder="Brief description…"
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>Website URLs (optional)</label>
+                    <span className="hint" style={{ marginBottom: 4 }}>
                       Add URLs to analyze and test. You can also add them later.
-                    </p>
-                    {formData.urls.map((url, index) => (
-                      <div key={index} className="flex items-center space-x-2 mb-2">
-                        <input
-                          type="url"
-                          placeholder="https://example.com"
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          value={url}
-                          onChange={(e) => updateUrl(index, e.target.value)}
-                        />
-                        {formData.urls.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeUrlField(index)}
-                            className="bg-red-500 text-white px-2 py-2 rounded-md hover:bg-red-600 text-sm"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    </span>
+                    <div className="col" style={{ gap: 6 }}>
+                      {formData.urls.map((url, index) => (
+                        <div key={index} className="row" style={{ gap: 6 }}>
+                          <input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={url}
+                            onChange={(e) => updateUrl(index, e.target.value)}
+                            className="mono"
+                            style={{
+                              flex: 1,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--hair-2)',
+                              borderRadius: 5,
+                              padding: '6px 8px',
+                              fontSize: 12.5,
+                              color: 'var(--ink)',
+                            }}
+                          />
+                          {formData.urls.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeUrlField(index)}
+                              className="icon-btn"
+                              style={{ color: 'var(--clay)' }}
+                              aria-label="Remove URL"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                     <button
                       type="button"
                       onClick={addUrlField}
-                      className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm mt-2"
+                      className="btn btn-outline btn-sm"
+                      style={{ alignSelf: 'flex-start', marginTop: 6 }}
                     >
-                      + Add URL
-                    </button>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating || !formData.name.trim()}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                    >
-                      {isCreating ? 'Creating...' : 'Create Project'}
+                      <Plus size={13} />
+                      <span>Add URL</span>
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* GitHub Tab Content */}
               {activeTab === 'github' && (
-                <form onSubmit={handleGitHubSubmit} className="space-y-4">
-                  <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
-                    <p className="text-purple-700 dark:text-purple-300 text-sm">
-                      Clone a public or private repository. We'll analyze the code structure to build your test project.
-                    </p>
+                <form onSubmit={handleGitHubSubmit} className="col" style={{ gap: 12 }}>
+                  <div
+                    style={{
+                      background: 'var(--slate-soft)',
+                      border: '1px solid var(--slate-edge)',
+                      color: 'var(--slate)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                    }}
+                  >
+                    Clone a public or private repository. We'll analyze the code structure to
+                    build your test project.
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Repository URL <span className="text-red-500">*</span>
+                  <div className="field">
+                    <label htmlFor="gh-repo">
+                      Repository URL <span style={{ color: 'var(--clay)' }}>*</span>
                     </label>
                     <input
+                      id="gh-repo"
                       type="url"
                       required
                       placeholder="https://github.com/username/repo"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       value={githubData.repoUrl}
-                      onChange={(e) => setGithubData({...githubData, repoUrl: e.target.value})}
+                      onChange={(e) => setGithubData({ ...githubData, repoUrl: e.target.value })}
+                      className="mono"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Personal Access Token (Optional)
-                    </label>
+                  <div className="field">
+                    <label htmlFor="gh-token">Personal Access Token (Optional)</label>
                     <input
+                      id="gh-token"
                       type="password"
                       placeholder="ghp_xxxxxxxxxxxx"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       value={githubData.token}
-                      onChange={(e) => setGithubData({...githubData, token: e.target.value})}
+                      onChange={(e) => setGithubData({ ...githubData, token: e.target.value })}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Required only for private repositories.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating || !githubData.repoUrl.trim()}
-                      className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center"
-                    >
-                      {isCreating ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Importing...
-                        </>
-                      ) : (
-                        'Import Repository'
-                      )}
-                    </button>
+                    <span className="hint">Required only for private repositories.</span>
                   </div>
                 </form>
+              )}
+            </div>
+
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
+              </button>
+              {activeTab === 'manual' ? (
+                <button
+                  type="submit"
+                  onClick={handleSubmit as any}
+                  disabled={isCreating || !formData.name.trim()}
+                  className="btn btn-primary"
+                  style={
+                    isCreating || !formData.name.trim()
+                      ? { opacity: 0.5, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {isCreating ? 'Creating…' : 'Create Project'}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  onClick={handleGitHubSubmit as any}
+                  disabled={isCreating || !githubData.repoUrl.trim()}
+                  className="btn btn-primary"
+                  style={
+                    isCreating || !githubData.repoUrl.trim()
+                      ? { opacity: 0.5, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {isCreating ? 'Importing…' : 'Import Repository'}
+                </button>
               )}
             </div>
           </div>
