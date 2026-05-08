@@ -38,28 +38,62 @@ function CollapsibleSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+    <div
+      style={{
+        border: '1px solid var(--hair)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: 'var(--surface)',
+      }}
+    >
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          background: 'var(--surface-2)',
+          borderBottom: isOpen ? '1px solid var(--hair)' : 'none',
+          color: 'var(--ink)',
+        }}
       >
-        <div className="flex items-center space-x-2">
-          {icon}
-          <span className="font-medium text-gray-900 dark:text-white">{title}</span>
-          <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs text-gray-600 dark:text-gray-300">
+        <div className="row" style={{ gap: 8 }}>
+          {icon && (
+            <span className="dim" style={{ display: 'inline-flex' }}>
+              {icon}
+            </span>
+          )}
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{title}</span>
+          <span
+            className="tabular dim"
+            style={{
+              fontSize: 11,
+              padding: '0 6px',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 999,
+            }}
+          >
             {count}
           </span>
         </div>
-        <svg
-          className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <span
+          className="dim"
+          style={{
+            display: 'inline-flex',
+            transform: isOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform .15s',
+          }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
       </button>
-      {isOpen && <div className="p-3 space-y-2">{children}</div>}
+      {isOpen && <div className="col" style={{ padding: 8, gap: 4 }}>{children}</div>}
     </div>
   );
 }
@@ -115,92 +149,147 @@ function UrlCard({
   };
 
   return (
-    <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:shadow-sm transition-shadow bg-white dark:bg-gray-800">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3 min-w-0 flex-1">
-          {showCheckbox && (
-            <input
-              type="checkbox"
-              checked={selectedUrls.includes(url.id)}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedUrls([...selectedUrls, url.id]);
-                } else {
-                  setSelectedUrls(selectedUrls.filter(id => id !== url.id));
-                }
-              }}
-              className="w-4 h-4 text-blue-600 rounded mt-1 flex-shrink-0"
-            />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {isEditing ? (
-                <input
-                  type="text"
-                  autoFocus
-                  value={draftTitle}
-                  onChange={(e) => setDraftTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveTitle();
-                    if (e.key === 'Escape') cancelEdit();
+    <div
+      style={{
+        border: '1px solid var(--hair)',
+        borderRadius: 6,
+        padding: 10,
+        background: 'var(--surface)',
+      }}
+    >
+      <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+        {showCheckbox && (
+          <input
+            type="checkbox"
+            checked={selectedUrls.includes(url.id)}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedUrls([...selectedUrls, url.id]);
+              } else {
+                setSelectedUrls(selectedUrls.filter((id) => id !== url.id));
+              }
+            }}
+            style={{ marginTop: 3, flexShrink: 0 }}
+          />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            {isEditing ? (
+              <input
+                type="text"
+                autoFocus
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveTitle();
+                  if (e.key === 'Escape') cancelEdit();
+                }}
+                placeholder="Page title"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: '4px 6px',
+                  fontSize: 12.5,
+                  border: '1px solid var(--hair-2)',
+                  borderRadius: 4,
+                  color: 'var(--ink)',
+                  background: 'var(--surface)',
+                }}
+              />
+            ) : (
+              url.title && (
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: 'var(--ink)',
                   }}
-                  placeholder="Page title"
-                  className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              ) : (
-                url.title && (
-                  <span className="font-medium text-gray-900 dark:text-white truncate">
-                    {url.title}
-                  </span>
-                )
-              )}
-              {!isEditing && url.pageType && (
-                <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs rounded">
-                  {url.pageType}
+                >
+                  {url.title}
                 </span>
-              )}
-            </div>
-            <a
-              href={url.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline truncate block"
-            >
-              {url.url}
-            </a>
-            <div className="flex items-center gap-2 mt-1">
-              {url.analyzed && (
-                <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs rounded">
-                  Analyzed
-                </span>
-              )}
-              {url.verified && (
-                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs rounded">
-                  Verified
-                </span>
-              )}
-              {url.discovered && (
-                <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs rounded">
-                  Auto-discovered
-                </span>
-              )}
-            </div>
+              )
+            )}
+            {!isEditing && url.pageType && (
+              <span
+                className="dim mono"
+                style={{
+                  fontSize: 10.5,
+                  padding: '1px 6px',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 3,
+                }}
+              >
+                {url.pageType}
+              </span>
+            )}
+          </div>
+          <a
+            href={url.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mono"
+            style={{
+              fontSize: 11.5,
+              color: 'var(--slate)',
+              textDecoration: 'none',
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginTop: 2,
+            }}
+            title={url.url}
+          >
+            {url.url}
+          </a>
+          <div className="row" style={{ gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+            {url.analyzed && (
+              <span
+                className="pill pill-ok"
+                style={{ fontSize: 10 }}
+              >
+                <span className="dot" />
+                Analyzed
+              </span>
+            )}
+            {url.verified && (
+              <span
+                className="pill pill-info"
+                style={{ fontSize: 10 }}
+              >
+                <span className="dot" />
+                Verified
+              </span>
+            )}
+            {url.discovered && (
+              <span
+                className="pill pill-mute"
+                style={{ fontSize: 10 }}
+              >
+                <span className="dot" />
+                Auto-discovered
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+        <div className="row" style={{ gap: 2, flexShrink: 0 }}>
           {isEditing ? (
             <>
               <button
+                type="button"
                 onClick={saveTitle}
                 disabled={savingTitle}
-                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1 disabled:opacity-50"
+                className="btn btn-primary btn-sm"
+                style={savingTitle ? { opacity: 0.5 } : undefined}
               >
-                {savingTitle ? 'Saving...' : 'Save'}
+                {savingTitle ? 'Saving…' : 'Save'}
               </button>
               <button
+                type="button"
                 onClick={cancelEdit}
                 disabled={savingTitle}
-                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-1"
+                className="btn btn-ghost btn-sm"
               >
                 Cancel
               </button>
@@ -209,29 +298,35 @@ function UrlCard({
             <>
               {onEditUrl && (
                 <button
+                  type="button"
                   onClick={() => onEditUrl(url)}
-                  className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
-                  title="Open the full Edit Site dialog"
+                  className="btn btn-ghost btn-sm"
+                  title="Open the full Edit dialog"
                 >
                   Edit
                 </button>
               )}
               <button
+                type="button"
                 onClick={startEdit}
-                className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
+                className="btn btn-ghost btn-sm"
+                title="Rename inline"
               >
                 Rename
               </button>
               <button
+                type="button"
                 onClick={() => onVerifyUrl(url.id)}
                 disabled={verifyingUrl === url.id}
-                className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
+                className="btn btn-ghost btn-sm"
               >
-                {verifyingUrl === url.id ? 'Verifying...' : 'Verify'}
+                {verifyingUrl === url.id ? 'Verifying…' : 'Verify'}
               </button>
               <button
+                type="button"
                 onClick={() => onRemoveUrl(url.url)}
-                className="text-xs text-red-600 hover:text-red-800 px-2 py-1"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--clay)' }}
               >
                 Remove
               </button>
@@ -293,79 +388,104 @@ export function ProjectUrlsTab({
   }, [project.urls]);
 
   return (
-    <div className="space-y-6">
+    <div className="col" style={{ gap: 16 }}>
       {/* Add URL Form */}
-      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-        <div className="flex space-x-3">
-          <div className="flex-1">
-            <input
-              type="url"
-              placeholder="https://example.com/page-to-test"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyDown={(e) => e.key === 'Enter' && onAddUrl()}
-            />
-          </div>
+      <div
+        style={{
+          background: 'var(--surface-2)',
+          border: '1px solid var(--hair)',
+          borderRadius: 8,
+          padding: 12,
+        }}
+      >
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            type="url"
+            placeholder="https://example.com/page-to-test"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onAddUrl()}
+            className="mono"
+            style={{
+              flex: 1,
+              padding: '6px 8px',
+              fontSize: 12.5,
+              border: '1px solid var(--hair-2)',
+              borderRadius: 5,
+              background: 'var(--surface)',
+              color: 'var(--ink)',
+            }}
+          />
           <button
+            type="button"
             onClick={onAddUrl}
             disabled={addingUrl || !newUrl.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary"
+            style={addingUrl || !newUrl.trim() ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
           >
-            {addingUrl ? 'Adding...' : '+ Add URL'}
+            {addingUrl ? 'Adding…' : '+ Add URL'}
           </button>
-          <button
-            onClick={onShowDiscoveryModal}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
+          <button type="button" onClick={onShowDiscoveryModal} className="btn btn-success">
             Auto-Discover
           </button>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        <p className="dim" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
           Add URLs manually or use Auto-Discover to find pages from a root URL.
         </p>
       </div>
 
       {/* URLs List */}
       {project.urls.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-            </svg>
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </div>
+            <h3>No URLs added yet</h3>
+            <p>Add your first URL or use Auto-Discover to get started.</p>
           </div>
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No URLs Added Yet</h4>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Add your first URL or use Auto-Discover to get started</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="col" style={{ gap: 12 }}>
           {/* Selective Analysis Controls */}
           {project.urls.length > 1 && (
-            <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600">
-              <div className="flex items-center space-x-3">
+            <div
+              className="row"
+              style={{
+                justifyContent: 'space-between',
+                paddingBottom: 8,
+                borderBottom: '1px solid var(--hair)',
+              }}
+            >
+              <label className="row" style={{ gap: 8, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={selectedUrls.length === project.urls.length}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedUrls(project.urls.map(u => u.id));
+                      setSelectedUrls(project.urls.map((u) => u.id));
                     } else {
                       setSelectedUrls([]);
                     }
                   }}
-                  className="w-4 h-4 text-blue-600 rounded"
                 />
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="dim" style={{ fontSize: 12 }}>
                   {selectedUrls.length > 0 ? `${selectedUrls.length} selected` : 'Select all'}
                 </span>
-              </div>
+              </label>
               {selectedUrls.length > 0 && (
                 <button
+                  type="button"
                   onClick={onAnalyzeSelected}
                   disabled={analyzing}
-                  className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                  className="btn btn-success btn-sm"
+                  style={analyzing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 >
-                  {analyzing ? 'Analyzing...' : `Analyze Selected (${selectedUrls.length})`}
+                  {analyzing ? 'Analyzing…' : `Analyze Selected (${selectedUrls.length})`}
                 </button>
               )}
             </div>
@@ -379,7 +499,7 @@ export function ProjectUrlsTab({
                 <CollapsibleSection
                   title="Manually Added"
                   count={groupedUrls.manualUrls.length}
-                  icon={<span className="text-lg">➕</span>}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
                 >
                   {groupedUrls.manualUrls.map(url => (
                     <UrlCard
@@ -403,7 +523,7 @@ export function ProjectUrlsTab({
                 <CollapsibleSection
                   title="Root Pages"
                   count={groupedUrls.rootUrls.length}
-                  icon={<span className="text-lg">🏠</span>}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>}
                 >
                   {groupedUrls.rootUrls.map(url => (
                     <UrlCard
@@ -427,7 +547,7 @@ export function ProjectUrlsTab({
                 <CollapsibleSection
                   title="Direct Links"
                   count={groupedUrls.level1Urls.length}
-                  icon={<span className="text-lg">🔗</span>}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>}
                   defaultOpen={groupedUrls.level1Urls.length <= 10}
                 >
                   {groupedUrls.level1Urls.map(url => (
@@ -452,7 +572,7 @@ export function ProjectUrlsTab({
                 <CollapsibleSection
                   title="Deep Links"
                   count={groupedUrls.deepUrls.length}
-                  icon={<span className="text-lg">📁</span>}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>}
                   defaultOpen={false}
                 >
                   {groupedUrls.deepUrls.map(url => (

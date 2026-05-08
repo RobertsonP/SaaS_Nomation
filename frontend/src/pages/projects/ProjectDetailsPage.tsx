@@ -635,7 +635,7 @@ export function ProjectDetailsPage() {
   const tabs: Array<{ id: typeof activeTab; label: string; count?: number }> = [
     { id: 'overview', label: 'Overview' },
     { id: 'sitemap', label: 'Site Map' },
-    { id: 'urls', label: 'Sites', count: project._count.urls },
+    { id: 'urls', label: 'URLs', count: project._count.urls },
     { id: 'elements', label: 'Elements', count: project._count.elements },
     { id: 'auth', label: 'Authentication', count: authFlows.length || undefined },
   ];

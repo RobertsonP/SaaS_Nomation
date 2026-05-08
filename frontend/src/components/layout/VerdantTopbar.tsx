@@ -64,7 +64,7 @@ function useCrumbs(): Crumb[] {
       if (isOnProjectRoot) {
         const tab = search.get('tab');
         crumbs.push({ label: projectLabel, href: tab ? projectHref : undefined });
-        if (tab === 'urls') crumbs.push({ label: 'Sites' });
+        if (tab === 'urls') crumbs.push({ label: 'URLs' });
         else if (tab === 'sitemap') crumbs.push({ label: 'Sitemap' });
         else if (tab === 'elements') crumbs.push({ label: 'Elements' });
         else if (tab === 'auth') crumbs.push({ label: 'Auth flows' });

@@ -249,7 +249,7 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
                     indent
                     to={`${projectRoot}?tab=urls`}
                     icon={<Globe size={ICON_SIZE} />}
-                    label="Sites"
+                    label="URLs"
                     count={p._count?.urls ?? p.urls?.length ?? 0}
                     exact
                   />
