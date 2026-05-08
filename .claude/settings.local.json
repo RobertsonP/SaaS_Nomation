@@ -180,7 +180,10 @@
       "mcp__playwright__browser_click",
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_evaluate",
-      "Bash(awk NR>=85 && NR<=140 *)"
+      "Bash(awk NR>=85 && NR<=140 *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Get-CimInstance *)"
     ],
     "deny": []
   },

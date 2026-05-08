@@ -1,4 +1,15 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  FileX,
+  Loader2,
+  MousePointerClick,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
@@ -404,229 +415,376 @@ export function ElementLibraryPanel({
   // far less jarring than a blank panel that feels like a full reload.
   if (isLoading || (paginationLoading && elements.length === 0)) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading elements...</p>
+      <div className="empty" style={{ padding: '40px 20px' }}>
+        <div className="empty-icon">
+          <Loader2 size={20} className="animate-spin" />
         </div>
+        <h3>Loading elements…</h3>
+        <p>Pulling element library from the server.</p>
       </div>
     );
   }
 
   if (elements.length === 0) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <p className="text-lg font-medium mb-2">No elements found</p>
-          <p className="text-sm mb-4">Analyze pages to discover elements, or use the Live Picker</p>
-          <div className="flex gap-2 justify-center">
-            {(onAnalyzePages || onAnalyzeSelected) && (
-              <button
-                onClick={handleAnalyzeClick}
-                className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
-              >
-                Analyze Pages
-              </button>
-            )}
+      <div className="empty" style={{ padding: '40px 20px' }}>
+        <div className="empty-icon">
+          <FileX size={20} />
+        </div>
+        <h3>No elements found</h3>
+        <p>Analyze pages to discover elements, or use the Live Picker.</p>
+        <div className="row" style={{ gap: 8, justifyContent: 'center' }}>
+          {(onAnalyzePages || onAnalyzeSelected) && (
             <button
-              onClick={() => setShowLivePicker(true)}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              type="button"
+              onClick={handleAnalyzeClick}
+              className="btn btn-success btn-sm"
             >
-              Live Picker
+              <Sparkles size={12} />
+              <span>Analyze pages</span>
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowLivePicker(true)}
+            className="btn btn-primary btn-sm"
+          >
+            <MousePointerClick size={12} />
+            <span>Live picker</span>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="col" style={{ height: '100%', background: 'var(--paper)' }}>
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Elements
-            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+      <div
+        style={{
+          flexShrink: 0,
+          padding: 12,
+          borderBottom: '1px solid var(--hair)',
+          background: 'var(--surface)',
+        }}
+      >
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+          <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+            <span
+              style={{
+                fontFamily: 'Inter Tight',
+                fontSize: 15,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                color: 'var(--ink)',
+              }}
+            >
+              Elements
+            </span>
+            <span
+              className="tabular dim"
+              style={{
+                fontSize: 11,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--hair)',
+                padding: '1px 7px',
+                borderRadius: 999,
+              }}
+            >
               {usePagination
                 ? (searchQuery.trim()
-                    ? `${filteredElements.length} matching of ${paginatedElements.length} loaded (${totalCount} total)`
+                    ? `${filteredElements.length} of ${paginatedElements.length} loaded · ${totalCount} total`
                     : `${paginatedElements.length} of ${totalCount}`)
-                : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`
-              }
+                : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`}
             </span>
-          </h3>
-          <div className="flex gap-2">
+          </div>
+          <div className="row" style={{ gap: 4 }}>
             {(onAnalyzePages || onAnalyzeSelected) && (
               <button
+                type="button"
                 onClick={handleAnalyzeClick}
                 disabled={isAnalyzing}
-                className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
-                  isAnalyzing
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
+                className="btn btn-success btn-sm"
+                style={isAnalyzing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {isAnalyzing ? 'Analyzing...' : 'Analyze'}
+                {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                <span>{isAnalyzing ? 'Analyzing…' : 'Analyze'}</span>
               </button>
             )}
             <button
+              type="button"
               onClick={() => setShowLivePicker(true)}
-              className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
+              className="btn btn-primary btn-sm"
             >
-              Live Picker
+              <MousePointerClick size={12} />
+              <span>Live picker</span>
             </button>
             {onClearElements && elements.length > 0 && (
               <button
+                type="button"
                 onClick={onClearElements}
-                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 border border-red-300 dark:border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md font-medium"
+                className="icon-btn"
                 title="Clear all elements"
+                style={{ color: 'var(--clay)' }}
               >
-                Clear
+                <Trash2 size={13} />
               </button>
             )}
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+        <div style={{ position: 'relative' }}>
+          <Search
+            size={13}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--ink-3)',
+              pointerEvents: 'none',
+            }}
+          />
           <input
             type="text"
+            className="field"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search elements..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Search elements…"
+            style={{ paddingLeft: 30, paddingRight: searchQuery ? 30 : 12 }}
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="icon-btn"
+              aria-label="Clear search"
+              style={{
+                position: 'absolute',
+                right: 4,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 22,
+                height: 22,
+              }}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={11} />
             </button>
           )}
         </div>
       </div>
 
       {/* Two-panel layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="row" style={{ flex: 1, overflow: 'hidden', gap: 0, alignItems: 'stretch' }}>
         {/* Left panel: Page list */}
-        <div className="w-[30%] border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
-          <div className="p-2">
+        <div
+          style={{
+            width: '30%',
+            borderRight: '1px solid var(--hair)',
+            overflowY: 'auto',
+            background: 'var(--bone)',
+          }}
+        >
+          <div style={{ padding: 8 }}>
             {pageList.map(page => {
               const isPseudo = page.url === UNATTRIBUTED_KEY || page.url === SHARED_KEY;
+              const active = selectedPageUrl === page.url;
               return (
                 <button
                   key={page.url}
+                  type="button"
                   onClick={() => setSelectedPageUrl(page.url)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-                    selectedPageUrl === page.url
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    fontSize: 12.5,
+                    marginBottom: 3,
+                    border: `1px solid ${active ? 'var(--moss-edge)' : 'transparent'}`,
+                    background: active ? 'var(--moss-soft)' : 'transparent',
+                    color: active ? 'var(--ink)' : 'var(--ink-2)',
+                    cursor: 'pointer',
+                    transition: 'background .12s ease',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) e.currentTarget.style.background = 'var(--surface-2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) e.currentTarget.style.background = 'transparent';
+                  }}
                 >
-                  <div className="truncate font-medium">{page.title}</div>
+                  {active && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 6,
+                        bottom: 6,
+                        width: 2,
+                        background: 'var(--moss)',
+                      }}
+                    />
+                  )}
+                  <div
+                    style={{
+                      fontWeight: active ? 600 : 500,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {page.title}
+                  </div>
                   {!isPseudo && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <div
+                      className="dim mono"
+                      style={{
+                        fontSize: 10.5,
+                        marginTop: 2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {getPathFromUrl(page.url)}
                     </div>
                   )}
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{page.count} elements</div>
+                  <div className="dim tabular" style={{ fontSize: 10.5, marginTop: 1 }}>
+                    {page.count} element{page.count === 1 ? '' : 's'}
+                  </div>
                 </button>
               );
             })}
             {pageList.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 p-3">No pages analyzed yet</p>
+              <p className="dim" style={{ fontSize: 12, padding: 12, textAlign: 'center' }}>
+                No pages analyzed yet
+              </p>
             )}
           </div>
         </div>
 
         {/* Right panel: Elements grouped by type */}
-        <div className="w-[70%] overflow-y-auto">
-          <div className="p-3">
+        <div style={{ width: '70%', overflowY: 'auto', background: 'var(--paper)' }}>
+          <div style={{ padding: 12 }}>
             {selectedPageUrl && elementsByType.length > 0 ? (
-              elementsByType.map(([type, typeElements]) => (
-                <div key={type} className="mb-3">
-                  {/* Type section header */}
-                  <button
-                    onClick={() => toggleTypeCollapse(type)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {(TYPE_LABELS[type] ?? type)} ({typeElements.length})
-                    </span>
-                    <span className="text-gray-400 dark:text-gray-500 text-xs">
-                      {collapsedTypes.has(type) ? '\u25B8' : '\u25BE'}
-                    </span>
-                  </button>
+              elementsByType.map(([type, typeElements]) => {
+                const collapsed = collapsedTypes.has(type);
+                return (
+                  <div key={type} style={{ marginBottom: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleTypeCollapse(type)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--hair)',
+                        cursor: 'pointer',
+                        transition: 'background .12s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--surface)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'var(--surface-2)';
+                      }}
+                    >
+                      <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+                        <span style={{ color: 'var(--ink-3)', display: 'grid', placeItems: 'center' }}>
+                          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                        </span>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                          {TYPE_LABELS[type] ?? type}
+                        </span>
+                        <span
+                          className="tabular dim"
+                          style={{
+                            fontSize: 10.5,
+                            background: 'var(--surface)',
+                            border: '1px solid var(--hair)',
+                            padding: '1px 6px',
+                            borderRadius: 999,
+                          }}
+                        >
+                          {typeElements.length}
+                        </span>
+                      </span>
+                    </button>
 
-                  {/* Element cards */}
-                  {!collapsedTypes.has(type) && (
-                    <div className="mt-2 space-y-2">
-                      {typeElements.map(element => {
-                        const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
-                        const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
+                    {!collapsed && (
+                      <div className="col" style={{ gap: 6, marginTop: 6 }}>
+                        {typeElements.map(element => {
+                          const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
+                          const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
 
-                        if (hasTableData) {
+                          if (hasTableData) {
+                            return (
+                              <div key={element.id}>
+                                <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                              </div>
+                            );
+                          }
+                          if (hasDropdownData) {
+                            return (
+                              <div key={element.id}>
+                                <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={element.id}>
-                              <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                            </div>
+                            <ElementPreviewCard
+                              key={element.id}
+                              element={element}
+                              onSelectElement={onSelectElement}
+                              showQuality
+                            />
                           );
-                        }
-                        if (hasDropdownData) {
-                          return (
-                            <div key={element.id}>
-                              <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                            </div>
-                          );
-                        }
-                        return (
-                          <ElementPreviewCard
-                            key={element.id}
-                            element={element}
-                            onSelectElement={onSelectElement}
-                            showQuality
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+              <p className="dim" style={{ fontSize: 12.5, textAlign: 'center', padding: '32px 12px' }}>
                 {selectedPageUrl ? 'No elements found for this page' : 'Select a page to view elements'}
               </p>
             )}
 
             {/* Load More */}
             {hasMore && (
-              <div className="py-4 text-center border-t border-gray-100 dark:border-gray-700 mt-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <div
+                style={{
+                  padding: '14px 0',
+                  textAlign: 'center',
+                  borderTop: '1px solid var(--hair)',
+                  marginTop: 12,
+                }}
+              >
+                <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
                   Showing {paginatedElements.length} of {totalCount} elements
                 </p>
                 <button
+                  type="button"
                   onClick={handleLoadMore}
                   disabled={loadMoreLoading}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    loadMoreLoading
-                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
+                  className="btn btn-outline btn-sm"
+                  style={loadMoreLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 >
                   {loadMoreLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      Loading...
-                    </span>
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Loading…</span>
+                    </>
                   ) : (
-                    `Load More (${Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)`
+                    <span>Load more ({Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)</span>
                   )}
                 </button>
               </div>
@@ -634,11 +792,14 @@ export function ElementLibraryPanel({
 
             {/* No Results */}
             {filteredElements.length === 0 && elements.length > 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 mb-2">No elements match your search</p>
+              <div style={{ textAlign: 'center', padding: '40px 12px' }}>
+                <p className="dim" style={{ marginBottom: 8, fontSize: 12.5 }}>
+                  No elements match your search
+                </p>
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                  className="btn btn-ghost btn-sm"
                 >
                   Clear search
                 </button>
