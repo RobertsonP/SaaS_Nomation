@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { VerdantSidebar } from './VerdantSidebar';
 import { VerdantTopbar } from './VerdantTopbar';
+import { FlowDiagramModal } from '../ui/FlowDiagramModal';
 
 const COLLAPSED_KEY = 'verdant-sidebar-collapsed';
 const MOBILE_BREAKPOINT = 768;
@@ -14,6 +15,8 @@ export function VerdantShell() {
   });
   // Mobile-only: drawer state for the off-canvas sidebar.
   const [mobileOpen, setMobileOpen] = useState(false);
+  // "How it works" modal — globally accessible from the topbar.
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
 
   // Auto-close the mobile drawer on every route change so it doesn't linger
   // on top of the new page.
@@ -52,9 +55,13 @@ export function VerdantShell() {
       )}
       <VerdantSidebar collapsed={collapsed} setCollapsed={handleSetCollapsed} />
       <div className="main">
-        <VerdantTopbar onToggleMobileMenu={() => setMobileOpen((v) => !v)} />
+        <VerdantTopbar
+          onToggleMobileMenu={() => setMobileOpen((v) => !v)}
+          onOpenHowItWorks={() => setHowItWorksOpen(true)}
+        />
         <Outlet />
       </div>
+      <FlowDiagramModal open={howItWorksOpen} onClose={() => setHowItWorksOpen(false)} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface LoadingModalProps {
   isOpen: boolean;
@@ -6,30 +7,44 @@ interface LoadingModalProps {
   subMessage?: string;
 }
 
-export const LoadingModal: React.FC<LoadingModalProps> = ({
-  isOpen,
-  message,
-  subMessage,
-}) => {
+export const LoadingModal: React.FC<LoadingModalProps> = ({ isOpen, message, subMessage }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
-        <div className="flex flex-col items-center">
-          {/* Spinner */}
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-6"></div>
-          
-          {/* Main message */}
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 text-center">
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 400 }}>
+        <div className="modal-body" style={{ padding: 28, textAlign: 'center' }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: 'var(--moss-soft)',
+              border: '1px solid var(--moss-edge)',
+              color: 'var(--moss)',
+              display: 'grid',
+              placeItems: 'center',
+              margin: '0 auto 14px',
+            }}
+          >
+            <Loader2 size={22} className="animate-spin" />
+          </div>
+          <div
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: '-0.005em',
+              color: 'var(--ink)',
+              marginBottom: 4,
+            }}
+          >
             {message}
-          </h3>
-          
-          {/* Sub message */}
+          </div>
           {subMessage && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>
               {subMessage}
-            </p>
+            </div>
           )}
         </div>
       </div>

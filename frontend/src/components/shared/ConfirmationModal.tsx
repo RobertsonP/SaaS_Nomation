@@ -1,12 +1,14 @@
+import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
+
 interface ConfirmationModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  title: string
-  message: string
-  confirmText?: string
-  cancelText?: string
-  variant?: 'info' | 'warning' | 'danger' | 'success'
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'info' | 'warning' | 'danger' | 'success';
 }
 
 export function ConfirmationModal({
@@ -17,82 +19,63 @@ export function ConfirmationModal({
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  variant = 'info'
+  variant = 'info',
 }: ConfirmationModalProps) {
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleConfirm = () => {
-    onConfirm()
-    onClose()
-  }
+    onConfirm();
+    onClose();
+  };
 
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'success':
-        return {
-          icon: '✅',
-          headerBg: 'bg-green-50',
-          headerText: 'text-green-900',
-          confirmBg: 'bg-green-600 hover:bg-green-700',
-        }
-      case 'warning':
-        return {
-          icon: '⚠️',
-          headerBg: 'bg-yellow-50',
-          headerText: 'text-yellow-900',
-          confirmBg: 'bg-yellow-600 hover:bg-yellow-700',
-        }
-      case 'danger':
-        return {
-          icon: '❌',
-          headerBg: 'bg-red-50',
-          headerText: 'text-red-900',
-          confirmBg: 'bg-red-600 hover:bg-red-700',
-        }
-      default:
-        return {
-          icon: 'ℹ️',
-          headerBg: 'bg-blue-50',
-          headerText: 'text-blue-900',
-          confirmBg: 'bg-blue-600 hover:bg-blue-700',
-        }
-    }
-  }
-
-  const styles = getVariantStyles()
+  // Map variant → icon + accent color + confirm button style
+  const accent =
+    variant === 'success'
+      ? { color: 'var(--moss)', icon: <CheckCircle2 size={16} />, btn: 'btn btn-success' }
+      : variant === 'warning'
+      ? { color: 'var(--amber)', icon: <AlertTriangle size={16} />, btn: 'btn btn-primary' }
+      : variant === 'danger'
+      ? { color: 'var(--clay)', icon: <AlertTriangle size={16} />, btn: 'btn btn-danger' }
+      : { color: 'var(--slate)', icon: <Info size={16} />, btn: 'btn btn-primary' };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        {/* Header */}
-        <div className={`px-6 py-4 border-b border-gray-200 ${styles.headerBg}`}>
-          <div className="flex items-center space-x-3">
-            <span className="text-2xl">{styles.icon}</span>
-            <h2 className={`text-lg font-bold ${styles.headerText}`}>{title}</h2>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ color: accent.color, marginTop: 1 }}>{accent.icon}</span>
+            <div>
+              <div className="modal-title">{title}</div>
+            </div>
           </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <X size={14} />
+          </button>
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-4">
-          <p className="text-gray-700 whitespace-pre-wrap">{message}</p>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+        <div className="modal-body">
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12.5,
+              color: 'var(--ink-2)',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.55,
+            }}
           >
+            {message}
+          </p>
+        </div>
+
+        <div className="modal-foot">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
             {cancelText}
           </button>
-          <button
-            onClick={handleConfirm}
-            className={`px-4 py-2 text-white rounded-lg transition-colors ${styles.confirmBg}`}
-          >
+          <button type="button" className={accent.btn} onClick={handleConfirm}>
             {confirmText}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
