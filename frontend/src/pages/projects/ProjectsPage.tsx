@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Folder, Pencil, Plus, Trash2 } from 'lucide-react';
 import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useProjects } from '../../contexts/ProjectsContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
+import { Pill } from '../../components/ui/Pill';
 import { AuthStep } from '../../types/api.types';
 import { createLogger } from '../../lib/logger';
 
@@ -14,6 +16,7 @@ type Project = ReturnType<typeof import('../../contexts/ProjectsContext').usePro
 
 export function ProjectsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showSuccess, showError } = useNotification();
   const { projects, loading, refreshProjects, removeProjectFromCache } = useProjects();
 
@@ -23,6 +26,18 @@ export function ProjectsPage() {
     refreshProjects();
   }, [refreshProjects]);
   const [showForm, setShowForm] = useState(false);
+
+  // Auto-open the create-project modal when navigated here with ?new=1
+  // (used by the dashboard's "New project" button).
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setShowForm(true);
+      // Clear the query param so a refresh doesn't re-trigger the modal.
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -353,15 +368,20 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Projects</h1>
-        <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Create Project
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <h1>Projects</h1>
+          <div className="sub">
+            {projects.length} project{projects.length === 1 ? '' : 's'} in this workspace
+          </div>
+        </div>
+        <div className="row">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={13} />
+            <span>New project</span>
           </button>
+        </div>
       </div>
 
       {showForm && (
@@ -564,129 +584,181 @@ export function ProjectsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => {
-          return (
-            <div
-              key={project.id}
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow hover:shadow-lg dark:shadow-gray-900/50 transition-shadow cursor-pointer border border-transparent dark:border-gray-700"
-              onDoubleClick={() => navigate(`/projects/${project.id}`)}
-            >
-              {/* Project Header with Analysis and Delete Buttons */}
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-semibold flex-1 text-gray-900 dark:text-white">{project.name}</h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/projects/${project.id}`);
-                    }}
-                    className="px-3 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    title="View and edit project details"
-                  >
-                    ✏️ Open
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent double-click navigation
-                      handleDeleteProject(project.id, project.name);
-                    }}
-                    className="px-3 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors"
-                    title="Delete project"
-                  >
-                    🗑️ Delete
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-gray-600 dark:text-gray-400 mb-2">{project.description}</p>
-              <div className="mb-4">
-                {project.urls && project.urls.length > 0 ? (
-                  <div className="space-y-1">
-                    {project.urls.slice(0, 2).map((url, index) => (
-                      <p key={url.id || index} className="text-sm text-blue-600 dark:text-blue-400 truncate">{url.url}</p>
-                    ))}
-                    {project.urls.length > 2 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">+ {project.urls.length - 2} more URLs</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="text-yellow-600 dark:text-yellow-400">⚠️</div>
-                      <div>
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Setup Required</p>
-                        <p className="text-xs text-yellow-700 dark:text-yellow-400">Add URLs and analyze pages to get started</p>
+      {projects.length === 0 && !showForm ? (
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">
+              <Folder size={20} />
+            </div>
+            <h3>No projects yet</h3>
+            <p>Create your first project to start adding URLs, picking elements, and authoring tests.</p>
+            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+              <Plus size={13} />
+              <span>Create your first project</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="stat-grid-4"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+          }}
+        >
+          {projects.map((project) => {
+            const hasUrls = project.urls && project.urls.length > 0;
+            return (
+              <div
+                key={project.id}
+                className="card"
+                style={{ overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => navigate(`/projects/${project.id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') navigate(`/projects/${project.id}`);
+                }}
+              >
+                <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: 'var(--ink)',
+                          letterSpacing: '-0.005em',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {project.name}
                       </div>
+                      {project.description && (
+                        <div
+                          className="dim"
+                          style={{
+                            fontSize: 11.5,
+                            marginTop: 2,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {project.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="row" style={{ gap: 4, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm btn-icon"
+                        title="Open project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}`);
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm btn-icon"
+                        title="Delete project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProject(project.id, project.name);
+                        }}
+                        style={{ color: 'var(--clay)' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Project Stats */}
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-3 text-sm text-gray-500 dark:text-gray-400">
-                  <span>{project._count.tests} tests</span>
-                  {project._count.elements !== undefined && (
-                    <>
-                      <span>•</span>
-                      <span>{project._count.elements} elements</span>
-                    </>
+                  {hasUrls ? (
+                    <div className="col" style={{ gap: 2 }}>
+                      {project.urls.slice(0, 2).map((url, index) => (
+                        <div
+                          key={url.id || index}
+                          className="mono"
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--slate)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={url.url}
+                        >
+                          {url.url}
+                        </div>
+                      ))}
+                      {project.urls.length > 2 && (
+                        <div className="dim" style={{ fontSize: 10.5 }}>
+                          + {project.urls.length - 2} more
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: 'var(--amber-soft)',
+                        border: '1px solid var(--amber-edge)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        fontSize: 11.5,
+                        color: 'var(--amber)',
+                      }}
+                    >
+                      Setup needed — add URLs to get started.
+                    </div>
                   )}
-                </div>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}
-                </span>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex space-x-2">
-                {project.urls && project.urls.length > 0 ? (
-                  <>
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.tests} test{project._count.tests === 1 ? '' : 's'}
+                    </Pill>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.elements} element{project._count.elements === 1 ? '' : 's'}
+                    </Pill>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.urls} URL{project._count.urls === 1 ? '' : 's'}
+                    </Pill>
+                  </div>
+
+                  <div
+                    className="row"
+                    style={{
+                      gap: 6,
+                      paddingTop: 8,
+                      borderTop: '1px solid var(--hair)',
+                    }}
+                  >
                     <Link
                       to={`/projects/${project.id}/tests`}
-                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-center text-sm"
+                      className="btn btn-outline btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      View Tests
+                      View tests
                     </Link>
                     <Link
                       to={`/projects/${project.id}/tests/new`}
-                      className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-center text-sm"
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Create Test
+                      New test
                     </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      to={`/projects/${project.id}`}
-                      className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 text-center text-sm font-medium"
-                    >
-                      Setup Project
-                    </Link>
-                    <Link
-                      to={`/projects/${project.id}/tests`}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-center text-sm"
-                    >
-                      View ({project._count.tests})
-                    </Link>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {projects.length === 0 && !showForm && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">No projects yet</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
-          >
-            Create Your First Project
-          </button>
+            );
+          })}
         </div>
       )}
 

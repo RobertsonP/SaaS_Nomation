@@ -143,6 +143,7 @@ export function DashboardPage() {
       </div>
 
       <div
+        className="stat-grid-4"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
@@ -179,7 +180,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 12 }}>
+      <div className="split-2" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 12 }}>
         <div className="card">
           <div className="card-head">
             <div className="row" style={{ gap: 10 }}>

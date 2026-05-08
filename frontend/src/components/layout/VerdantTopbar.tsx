@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Zap } from 'lucide-react';
+import { Menu, Search, Zap } from 'lucide-react';
 import { useProjects } from '../../contexts/ProjectsContext';
 
 interface Crumb {
@@ -110,13 +110,23 @@ interface VerdantTopbarProps {
   actions?: React.ReactNode;
   /** Click handler for "How it works" — wired in Phase 7 to FlowDiagramModal. */
   onOpenHowItWorks?: () => void;
+  /** Mobile menu toggle (only visible below 768px via CSS). */
+  onToggleMobileMenu?: () => void;
 }
 
-export function VerdantTopbar({ actions, onOpenHowItWorks }: VerdantTopbarProps) {
+export function VerdantTopbar({ actions, onOpenHowItWorks, onToggleMobileMenu }: VerdantTopbarProps) {
   const crumbs = useCrumbs();
 
   return (
     <div className="topbar">
+      <button
+        type="button"
+        className="icon-btn mobile-menu-btn"
+        onClick={onToggleMobileMenu}
+        aria-label="Open menu"
+      >
+        <Menu size={16} />
+      </button>
       <div className="crumbs">
         {crumbs.map((c, i) => (
           <span key={i} className="row" style={{ gap: 6 }}>

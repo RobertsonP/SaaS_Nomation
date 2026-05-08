@@ -1,6 +1,7 @@
 /* Verdant Pro design system (tokens + base typography + component classes).
    Must load first so Tailwind utilities can still override individual properties. */
 @import './styles/verdant.css';
+@import './styles/verdant-responsive.css';
 
 @tailwind base;
 @tailwind components;

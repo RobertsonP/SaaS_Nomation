@@ -291,13 +291,15 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
                     label="Auth flows"
                     exact
                   />
-                  {/* Per-project Settings is not a separate route yet; point at the Overview
-                      until Phase 3 carves it out. */}
+                  {/* Per-project Settings tab is not implemented yet; the ?tab=settings
+                      query disambiguates the sidebar active state from Overview while
+                      ProjectDetailsPage falls back to its overview view. */}
                   <NavLink
                     indent
-                    to={projectRoot}
+                    to={`${projectRoot}?tab=settings`}
                     icon={<Settings size={ICON_SIZE} />}
                     label="Settings"
+                    exact
                   />
                 </div>
               )}

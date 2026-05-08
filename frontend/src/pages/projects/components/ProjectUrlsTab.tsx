@@ -17,6 +17,8 @@ interface ProjectUrlsTabProps {
   onAnalyzeSelected: () => void;
   onShowDiscoveryModal: () => void;
   onProjectReload: () => Promise<void> | void;
+  /** Open the rich Edit Site modal for a single URL row. */
+  onEditUrl?: (url: ProjectUrl) => void;
 }
 
 // Collapsible section component for URL grouping
@@ -72,6 +74,7 @@ function UrlCard({
   onVerifyUrl,
   onRemoveUrl,
   onProjectReload,
+  onEditUrl,
 }: {
   url: ProjectUrl;
   selectedUrls: string[];
@@ -81,6 +84,7 @@ function UrlCard({
   onVerifyUrl: (urlId: string) => void;
   onRemoveUrl: (urlStr: string) => void;
   onProjectReload: () => Promise<void> | void;
+  onEditUrl?: (url: ProjectUrl) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(url.title || '');
@@ -203,6 +207,15 @@ function UrlCard({
             </>
           ) : (
             <>
+              {onEditUrl && (
+                <button
+                  onClick={() => onEditUrl(url)}
+                  className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
+                  title="Open the full Edit Site dialog"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 onClick={startEdit}
                 className="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1"
@@ -245,6 +258,7 @@ export function ProjectUrlsTab({
   onAnalyzeSelected,
   onShowDiscoveryModal,
   onProjectReload,
+  onEditUrl,
 }: ProjectUrlsTabProps) {
   // Group URLs by depth
   const groupedUrls = useMemo(() => {
@@ -378,6 +392,7 @@ export function ProjectUrlsTab({
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
                       onProjectReload={onProjectReload}
+                      onEditUrl={onEditUrl}
                     />
                   ))}
                 </CollapsibleSection>
@@ -401,6 +416,7 @@ export function ProjectUrlsTab({
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
                       onProjectReload={onProjectReload}
+                      onEditUrl={onEditUrl}
                     />
                   ))}
                 </CollapsibleSection>
@@ -425,6 +441,7 @@ export function ProjectUrlsTab({
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
                       onProjectReload={onProjectReload}
+                      onEditUrl={onEditUrl}
                     />
                   ))}
                 </CollapsibleSection>
@@ -449,6 +466,7 @@ export function ProjectUrlsTab({
                       onVerifyUrl={onVerifyUrl}
                       onRemoveUrl={onRemoveUrl}
                       onProjectReload={onProjectReload}
+                      onEditUrl={onEditUrl}
                     />
                   ))}
                 </CollapsibleSection>
@@ -468,6 +486,7 @@ export function ProjectUrlsTab({
                   onVerifyUrl={onVerifyUrl}
                   onRemoveUrl={onRemoveUrl}
                   onProjectReload={onProjectReload}
+                  onEditUrl={onEditUrl}
                 />
               ))}
             </div>

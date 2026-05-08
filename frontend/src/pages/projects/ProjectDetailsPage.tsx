@@ -13,6 +13,7 @@ import { createLogger } from '../../lib/logger';
 import { useUrlManagement } from './hooks';
 import { useAnalysisContext } from '../../contexts/AnalysisContext';
 import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
+import { EditSiteModal, EditSiteUrl } from '../../components/projects/EditSiteModal';
 
 const logger = createLogger('ProjectDetails');
 
@@ -159,6 +160,9 @@ export function ProjectDetailsPage() {
   // — they reference `isAnalysisMinimizedCtx` from the context destructure.
   const [showLivePicker, setShowLivePicker] = useState(false);
   const [elementsKey, setElementsKey] = useState(0);
+  // Edit Site modal — opened from per-URL row in the URLs tab.
+  const [editingSite, setEditingSite] = useState<EditSiteUrl | null>(null);
+  const [editingSiteSaving, setEditingSiteSaving] = useState(false);
 
   // Analysis dashboard state
   const [showAnalysisDashboard, setShowAnalysisDashboard] = useState(false);
@@ -602,154 +606,230 @@ export function ProjectDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading project details...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Project not found</h1>
-          <Link to="/projects" className="text-blue-600 hover:text-blue-800">
-            ← Back to Projects
-          </Link>
+      <div className="content">
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">!</div>
+            <h3>Project not found</h3>
+            <p>The project you tried to open doesn't exist or you don't have access.</p>
+            <Link to="/projects" className="btn btn-outline">
+              ← Back to Projects
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
+  const analyzedUrlsCount = project.urls.filter(u => u.analyzed).length;
+  const tabs: Array<{ id: typeof activeTab; label: string; count?: number }> = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'sitemap', label: 'Site Map' },
+    { id: 'urls', label: 'Sites', count: project._count.urls },
+    { id: 'elements', label: 'Elements', count: project._count.elements },
+    { id: 'auth', label: 'Authentication', count: authFlows.length || undefined },
+  ];
+
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <Link to="/projects" className="text-blue-600 hover:text-blue-800 mb-2 inline-block">
-              ← Back to Projects
-            </Link>
-            <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-            {project.description && (
-              <p className="text-gray-600 mt-2">{project.description}</p>
-            )}
-          </div>
-          <div className="flex space-x-2">
-            <Link
-              to={`/projects/${project.id}/suites`}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-              Test Suites
-            </Link>
-            <Link
-              to={`/projects/${project.id}/tests`}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-            >
-              Tests ({project._count.tests})
-            </Link>
-            {project._count.elements > 0 && (
-              <button
-                onClick={handleGenerateTests}
-                disabled={isGeneratingTests}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isGeneratingTests
-                    ? 'bg-amber-300 dark:bg-amber-800 text-amber-100 cursor-not-allowed'
-                    : 'bg-amber-500 text-white hover:bg-amber-600'
-                }`}
-              >
-                {isGeneratingTests ? 'Generating...' : 'AI Generate Tests'}
-              </button>
-            )}
-            {project.urls.length > 0 ? (
-              <Link
-                to={`/projects/${project.id}/tests/new`}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-              >
-                Create Test
-              </Link>
-            ) : (
-              <button
-                onClick={() => setShowUrlManager(true)}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 font-medium"
-              >
-                Setup Project
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Project Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div
-            className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => setActiveTab('urls')}
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <Link
+            to="/projects"
+            className="dim"
+            style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
           >
-            <div className="text-xs font-semibold text-blue-900 dark:text-blue-200 uppercase tracking-wide">URLs</div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{project._count.urls}</div>
-          </div>
-          <div
-            className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => setActiveTab('elements')}
-          >
-            <div className="text-xs font-semibold text-green-900 dark:text-green-200 uppercase tracking-wide">Elements</div>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{project._count.elements}</div>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs font-semibold text-purple-900 dark:text-purple-200 uppercase tracking-wide">Tests</div>
-            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{project._count.tests}</div>
-          </div>
-          <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-xs font-semibold text-orange-900 dark:text-orange-200 uppercase tracking-wide">Analyzed</div>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
-              {project.urls.filter(url => url.analyzed).length}
-            </div>
-          </div>
+            ← Back to Projects
+          </Link>
+          <h1>{project.name}</h1>
+          {project.description && <div className="sub">{project.description}</div>}
         </div>
-
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-          <nav className="flex space-x-1" aria-label="Tabs">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'sitemap', label: 'Site Map' },
-              { id: 'urls', label: 'URLs' },
-              { id: 'elements', label: 'Elements' },
-              { id: 'auth', label: 'Authentication' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`px-5 py-3 text-sm font-medium rounded-t-lg transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-gray-800 border-t border-l border-r border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 -mb-px'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {tab.label}
-                {tab.id === 'urls' && project._count.urls > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                    {project._count.urls}
-                  </span>
-                )}
-                {tab.id === 'elements' && project._count.elements > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
-                    {project._count.elements}
-                  </span>
-                )}
-                {tab.id === 'auth' && authFlows.length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300">
-                    {authFlows.length}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+          <Link to={`/projects/${project.id}/suites`} className="btn btn-outline btn-sm">
+            Test Suites
+          </Link>
+          <Link to={`/projects/${project.id}/tests`} className="btn btn-outline btn-sm">
+            Tests ({project._count.tests})
+          </Link>
+          {project._count.elements > 0 && (
+            <button
+              type="button"
+              onClick={handleGenerateTests}
+              disabled={isGeneratingTests}
+              className="btn btn-outline btn-sm"
+              style={{ color: 'var(--amber)', borderColor: 'var(--amber-edge)' }}
+            >
+              {isGeneratingTests ? 'Generating…' : 'AI Generate Tests'}
+            </button>
+          )}
+          {project.urls.length > 0 ? (
+            <Link to={`/projects/${project.id}/tests/new`} className="btn btn-primary btn-sm">
+              Create Test
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowUrlManager(true)}
+              className="btn btn-primary btn-sm"
+            >
+              Setup Project
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Project stat row — matches the prototype's compact 4-up layout. */}
+      <div
+        className="stat-grid-4"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <button
+          type="button"
+          className="card card-pad"
+          onClick={() => setActiveTab('urls')}
+          style={{ textAlign: 'left', cursor: 'pointer' }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-3)',
+            }}
+          >
+            URLs
+          </div>
+          <div
+            className="tabular"
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 24,
+              fontWeight: 600,
+              letterSpacing: '-0.02em',
+              color: 'var(--ink)',
+              marginTop: 4,
+            }}
+          >
+            {project._count.urls}
+          </div>
+        </button>
+        <button
+          type="button"
+          className="card card-pad"
+          onClick={() => setActiveTab('elements')}
+          style={{ textAlign: 'left', cursor: 'pointer' }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-3)',
+            }}
+          >
+            Elements
+          </div>
+          <div
+            className="tabular"
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 24,
+              fontWeight: 600,
+              letterSpacing: '-0.02em',
+              color: 'var(--ink)',
+              marginTop: 4,
+            }}
+          >
+            {project._count.elements}
+          </div>
+        </button>
+        <div className="card card-pad">
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-3)',
+            }}
+          >
+            Tests
+          </div>
+          <div
+            className="tabular"
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 24,
+              fontWeight: 600,
+              letterSpacing: '-0.02em',
+              color: 'var(--ink)',
+              marginTop: 4,
+            }}
+          >
+            {project._count.tests}
+          </div>
+        </div>
+        <div className="card card-pad">
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-3)',
+            }}
+          >
+            Analyzed
+          </div>
+          <div
+            className="tabular"
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 24,
+              fontWeight: 600,
+              letterSpacing: '-0.02em',
+              color: 'var(--ink)',
+              marginTop: 4,
+            }}
+          >
+            {analyzedUrlsCount}
+          </div>
+        </div>
+      </div>
+
+      <div className="tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span>{tab.label}</span>
+            {typeof tab.count === 'number' && <span className="count">{tab.count}</span>}
+          </button>
+        ))}
+      </div>
+
       {/* Tab Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="card" style={{ padding: 16 }}>
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <ProjectOverviewTab
@@ -797,6 +877,14 @@ export function ProjectDetailsPage() {
               setShowDiscoveryModal(true);
             }}
             onProjectReload={loadProject}
+            onEditUrl={(url) => setEditingSite({
+              id: url.id,
+              url: url.url,
+              title: url.title,
+              analyzed: url.analyzed,
+              verified: url.verified,
+              discovered: (url as any).discovered ?? false,
+            })}
           />
         )}
 
@@ -977,6 +1065,36 @@ export function ProjectDetailsPage() {
           );
           // Switch to sitemap tab to show the results
           setActiveTab('sitemap');
+        }}
+      />
+
+      {/* Edit Site modal — opened from per-row "Edit" button in the URLs tab. */}
+      <EditSiteModal
+        open={!!editingSite}
+        url={editingSite}
+        onClose={() => setEditingSite(null)}
+        isSaving={editingSiteSaving}
+        isVerifying={!!verifyingUrl}
+        onSave={async (urlId, title) => {
+          setEditingSiteSaving(true);
+          try {
+            await projectsAPI.renameUrl(urlId, title);
+            await loadProject();
+            setEditingSite(null);
+            showSuccess('Site updated', `Title saved as "${title || '(empty)'}"`);
+          } catch (err: any) {
+            showError('Save Failed', err?.message || 'Could not save the site');
+          } finally {
+            setEditingSiteSaving(false);
+          }
+        }}
+        onVerify={async (urlId) => {
+          await handleVerifyUrl(urlId);
+        }}
+        onRemove={async (rawUrl) => {
+          if (!confirm(`Remove ${rawUrl} from this project?`)) return;
+          await handleRemoveUrl(rawUrl);
+          setEditingSite(null);
         }}
       />
     </div>
