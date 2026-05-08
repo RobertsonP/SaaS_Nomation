@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Eye, EyeOff, X } from 'lucide-react';
 
 interface RunModePickerModalProps {
   open: boolean;
@@ -20,48 +21,90 @@ export function RunModePickerModal({ open, testName, onCancel, onPick }: RunMode
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onCancel}
-    >
-      <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
-            Run "{testName}"
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Choose how the test should run.
-          </p>
-          <div className="space-y-3">
-            <button
-              onClick={() => onPick('headed')}
-              className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-            >
-              <div className="font-medium text-gray-900 dark:text-gray-100">Headed</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                A real Chromium window opens on the host. Watch the test execute live.
-                Video is recorded; progress streams to the modal.
-                Falls back to headless if the host has no display.
-              </div>
-            </button>
-            <button
-              onClick={() => onPick('headless')}
-              className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-            >
-              <div className="font-medium text-gray-900 dark:text-gray-100">Headless</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                No browser window opens. Same video recording, same step-by-step progress
-                streamed to the modal. Faster on busy machines.
-              </div>
-            </button>
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div className="modal-title">Run "{testName}"</div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+              Choose how the test should run.
+            </div>
           </div>
+          <button type="button" className="icon-btn" onClick={onCancel} aria-label="Close">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="modal-body col" style={{ gap: 10 }}>
           <button
-            onClick={onCancel}
-            className="mt-4 w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+            type="button"
+            onClick={() => onPick('headed')}
+            style={{
+              textAlign: 'left',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 8,
+              padding: 14,
+              cursor: 'pointer',
+              transition: 'border-color .15s ease, background .15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--info)';
+              e.currentTarget.style.background = 'var(--info-soft)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--hair)';
+              e.currentTarget.style.background = 'var(--surface)';
+            }}
           >
+            <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              <Eye size={14} style={{ color: 'var(--info)' }} />
+              <span style={{ fontFamily: 'Inter Tight', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                Headed
+              </span>
+            </div>
+            <div className="dim" style={{ fontSize: 12, lineHeight: 1.55 }}>
+              A real Chromium window opens on the host. Watch the test execute live.
+              Video is recorded; progress streams to the modal. Falls back to headless if
+              the host has no display.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onPick('headless')}
+            style={{
+              textAlign: 'left',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 8,
+              padding: 14,
+              cursor: 'pointer',
+              transition: 'border-color .15s ease, background .15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--moss)';
+              e.currentTarget.style.background = 'var(--moss-soft)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--hair)';
+              e.currentTarget.style.background = 'var(--surface)';
+            }}
+          >
+            <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+              <EyeOff size={14} style={{ color: 'var(--moss)' }} />
+              <span style={{ fontFamily: 'Inter Tight', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                Headless
+              </span>
+            </div>
+            <div className="dim" style={{ fontSize: 12, lineHeight: 1.55 }}>
+              No browser window opens. Same video recording, same step-by-step progress
+              streamed to the modal. Faster on busy machines.
+            </div>
+          </button>
+        </div>
+
+        <div className="modal-foot">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
             Cancel
           </button>
         </div>

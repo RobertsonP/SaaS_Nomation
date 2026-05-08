@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Loader2, CheckCircle, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock, StopCircle } from 'lucide-react';
+import { X, Search, Loader2, CheckCircle2, AlertCircle, Globe, Map, Link as LinkIcon, Database, Minimize2, Lock, Unlock, StopCircle } from 'lucide-react';
 import { SiteMapGraph } from './SiteMapGraph';
 import { useSiteMapData, SiteMapNodeData, SiteMapEdgeData } from './useSiteMapData';
 import { authFlowsAPI } from '../../lib/api';
@@ -223,75 +223,90 @@ export function DiscoveryModal({
   const showError = isFailed && !siteMapData;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal modal-xl"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              {showResults ? 'Discovery Results' : showProgress ? 'Discovering Pages...' : 'Discover Pages'}
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="modal-title">
+              {showResults ? 'Discovery results' : showProgress ? 'Discovering pages…' : 'Discover pages'}
+            </div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
               {showProgress
                 ? `${activeDiscovery?.pagesFound || 0} pages found so far`
                 : showResults
                 ? `${siteMapData?.nodes.length || 0} pages discovered`
                 : 'Automatically find pages on your website'}
-            </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Stop and Minimize buttons — during discovery */}
+          <div className="row" style={{ gap: 2 }}>
             {showProgress && (
               <>
                 <button
+                  type="button"
+                  className="icon-btn"
                   onClick={() => setShowStopConfirm(true)}
-                  className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
                   title="Stop discovery"
+                  style={{ color: 'var(--clay)' }}
                 >
-                  <StopCircle className="w-5 h-5" />
+                  <StopCircle size={14} />
                 </button>
                 <button
+                  type="button"
+                  className="icon-btn"
                   onClick={handleMinimize}
-                  className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                   title="Minimize — discovery continues in background"
                 >
-                  <Minimize2 className="w-5 h-5" />
+                  <Minimize2 size={14} />
                 </button>
               </>
             )}
             <button
+              type="button"
+              className="icon-btn"
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X size={14} />
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="col" style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {showForm && (
-            /* Discovery Form */
-            <div className="p-6 space-y-6 overflow-y-auto">
-              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <Search className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div className="modal-body col" style={{ gap: 16, overflowY: 'auto' }}>
+              <div
+                style={{
+                  background: 'var(--info-soft)',
+                  border: '1px solid var(--info-edge)',
+                  borderRadius: 8,
+                  padding: 12,
+                }}
+              >
+                <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                  <Search size={16} style={{ color: 'var(--info)', marginTop: 2, flexShrink: 0 }} />
                   <div>
-                    <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200">Smart Discovery</h3>
-                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                      Smart discovery
+                    </div>
+                    <p className="dim" style={{ margin: '4px 0 0', fontSize: 11.5, lineHeight: 1.55 }}>
                       Enter your website URL and we'll automatically discover all pages using sitemaps and link crawling.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Starting URL <span className="text-red-500">*</span>
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Starting URL <span style={{ color: 'var(--clay)' }}>*</span>
                 </label>
                 {projectUrls.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="col" style={{ gap: 8 }}>
                     <select
+                      className="field"
                       value={useCustomUrl ? '__custom__' : rootUrl}
                       onChange={(e) => {
                         if (e.target.value === '__custom__') {
@@ -301,22 +316,21 @@ export function DiscoveryModal({
                           setRootUrl(e.target.value);
                         }
                       }}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       {projectUrls.map((url) => (
                         <option key={url.id} value={url.url}>
-                          {url.title ? `${url.title} - ${url.url}` : url.url}
+                          {url.title ? `${url.title} — ${url.url}` : url.url}
                         </option>
                       ))}
-                      <option value="__custom__">Enter a custom URL...</option>
+                      <option value="__custom__">Enter a custom URL…</option>
                     </select>
                     {useCustomUrl && (
                       <input
                         type="url"
+                        className="field mono"
                         value={customUrl}
                         onChange={(e) => setCustomUrl(e.target.value)}
                         placeholder="https://example.com/custom-page"
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         autoFocus
                       />
                     )}
@@ -324,53 +338,69 @@ export function DiscoveryModal({
                 ) : (
                   <input
                     type="url"
+                    className="field mono"
                     value={rootUrl}
                     onChange={(e) => setRootUrl(e.target.value)}
                     placeholder="https://example.com"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Depth</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                <div className="col" style={{ gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                    Max depth
+                  </label>
                   <select
+                    className="field"
                     value={maxDepth}
                     onChange={(e) => setMaxDepth(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value={1}>1 level</option>
                     <option value={2}>2 levels</option>
                     <option value={3}>3 levels (recommended)</option>
                     <option value={5}>5 levels</option>
                   </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">How deep to follow links from the root</p>
+                  <p className="dim" style={{ margin: 0, fontSize: 11 }}>
+                    How deep to follow links from the root.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Pages</label>
+                <div className="col" style={{ gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                    Max pages
+                  </label>
                   <select
+                    className="field"
                     value={maxPages}
                     onChange={(e) => setMaxPages(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value={25}>25 pages</option>
                     <option value={50}>50 pages (recommended)</option>
                     <option value={100}>100 pages</option>
                     <option value={200}>200 pages</option>
                   </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum pages to discover</p>
+                  <p className="dim" style={{ margin: 0, fontSize: 11 }}>
+                    Maximum pages to discover.
+                  </p>
                 </div>
               </div>
 
-              {/* Auth Flow Selector */}
               {authFlows.length === 0 && !loadingAuthFlows && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Unlock className="w-5 h-5 text-amber-500 dark:text-amber-400 mt-0.5" />
+                <div
+                  style={{
+                    background: 'var(--amber-soft)',
+                    border: '1px solid var(--amber-edge)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                    <Unlock size={16} style={{ color: 'var(--amber)', marginTop: 2, flexShrink: 0 }} />
                     <div>
-                      <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">No Authentication Configured</h3>
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                        No authentication configured
+                      </div>
+                      <p className="dim" style={{ margin: '4px 0 0', fontSize: 11.5, lineHeight: 1.55 }}>
                         Only public pages will be discovered. To find pages behind login, set up an authentication flow first.
                       </p>
                     </div>
@@ -378,23 +408,32 @@ export function DiscoveryModal({
                 </div>
               )}
               {authFlows.length > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
+                <div
+                  style={{
+                    background: 'var(--amber-soft)',
+                    border: '1px solid var(--amber-edge)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
                     {selectedAuthFlowId ? (
-                      <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                      <Lock size={16} style={{ color: 'var(--amber)', marginTop: 2, flexShrink: 0 }} />
                     ) : (
-                      <Unlock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                      <Unlock size={16} style={{ color: 'var(--amber)', marginTop: 2, flexShrink: 0 }} />
                     )}
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-amber-900 dark:text-amber-200">Authenticated Discovery</h3>
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 mb-3">
-                        Select an auth flow to discover pages that require login
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                        Authenticated discovery
+                      </div>
+                      <p className="dim" style={{ margin: '4px 0 8px', fontSize: 11.5, lineHeight: 1.55 }}>
+                        Select an auth flow to discover pages that require login.
                       </p>
                       <select
+                        className="field"
                         value={selectedAuthFlowId}
                         onChange={(e) => setSelectedAuthFlowId(e.target.value)}
                         disabled={loadingAuthFlows}
-                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500"
                       >
                         <option value="">No authentication (public pages only)</option>
                         {authFlows.map((flow) => (
@@ -404,8 +443,8 @@ export function DiscoveryModal({
                         ))}
                       </select>
                       {selectedAuthFlowId && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
+                        <p className="row" style={{ gap: 4, margin: '6px 0 0', fontSize: 11.5, color: 'var(--moss)', alignItems: 'center' }}>
+                          <CheckCircle2 size={11} />
                           Will log in before crawling to discover protected pages
                         </p>
                       )}
@@ -417,37 +456,59 @@ export function DiscoveryModal({
           )}
 
           {showProgress && (
-            /* Discovery Progress View */
-            <div className="p-6 space-y-6">
-              {/* Phase Progress */}
-              <div className="space-y-3">
+            <div className="modal-body col" style={{ gap: 16 }}>
+              <div className="col" style={{ gap: 8 }}>
                 {DISCOVERY_PHASES.map((phase) => {
                   const status = getPhaseStatus(phase.id);
                   const Icon = phase.icon;
+                  let bg = 'var(--surface-2)';
+                  let fg = 'var(--ink-3)';
+                  let edge = 'var(--hair)';
+                  let textColor = 'var(--ink-3)';
+                  let textWeight = 500;
+                  if (status === 'completed') {
+                    bg = 'var(--moss-soft)';
+                    fg = 'var(--moss)';
+                    edge = 'var(--moss-edge)';
+                    textColor = 'var(--moss)';
+                  } else if (status === 'active') {
+                    bg = 'var(--info-soft)';
+                    fg = 'var(--info)';
+                    edge = 'var(--info-edge)';
+                    textColor = 'var(--ink)';
+                    textWeight = 600;
+                  } else if (status === 'error') {
+                    bg = 'var(--clay-soft)';
+                    fg = 'var(--clay)';
+                    edge = 'var(--clay-edge)';
+                    textColor = 'var(--clay)';
+                  }
                   return (
-                    <div key={phase.id} className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        status === 'completed' ? 'bg-green-100 dark:bg-green-900/40' :
-                        status === 'active' ? 'bg-blue-100 dark:bg-blue-900/40' :
-                        status === 'error' ? 'bg-red-100 dark:bg-red-900/40' :
-                        'bg-gray-100 dark:bg-gray-700'
-                      }`}>
+                    <div key={phase.id} className="row" style={{ alignItems: 'center', gap: 10 }}>
+                      <span
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 999,
+                          background: bg,
+                          color: fg,
+                          border: `1px solid ${edge}`,
+                          display: 'grid',
+                          placeItems: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
                         {status === 'completed' ? (
-                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <CheckCircle2 size={14} />
                         ) : status === 'active' ? (
-                          <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
+                          <Loader2 size={14} className="animate-spin" />
                         ) : status === 'error' ? (
-                          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <AlertCircle size={14} />
                         ) : (
-                          <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                          <Icon size={14} />
                         )}
-                      </div>
-                      <span className={`text-sm ${
-                        status === 'completed' ? 'text-green-700 dark:text-green-300' :
-                        status === 'active' ? 'text-blue-700 dark:text-blue-300 font-medium' :
-                        status === 'error' ? 'text-red-700 dark:text-red-300' :
-                        'text-gray-400 dark:text-gray-500'
-                      }`}>
+                      </span>
+                      <span style={{ fontSize: 12.5, color: textColor, fontWeight: textWeight }}>
                         {phase.label}
                       </span>
                     </div>
@@ -455,9 +516,8 @@ export function DiscoveryModal({
                 })}
               </div>
 
-              {/* Progress Bar */}
               <div>
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <div className="row dim tabular" style={{ justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                   <span>{activeDiscovery?.pagesFound || 0} pages found</span>
                   <span>
                     {activeDiscovery?.maxPages
@@ -466,65 +526,96 @@ export function DiscoveryModal({
                     {elapsedSeconds > 0 ? ` · ${elapsedSeconds}s` : ''}
                   </span>
                 </div>
-                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  style={{
+                    height: 6,
+                    background: 'var(--surface-2)',
+                    borderRadius: 999,
+                    overflow: 'hidden',
+                  }}
+                >
                   <div
-                    className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all duration-500 ease-out"
                     style={{
+                      height: '100%',
                       width: `${activeDiscovery?.maxPages
                         ? Math.min(100, Math.round(((activeDiscovery.pagesFound || 0) / activeDiscovery.maxPages) * 100))
                         : 0}%`,
+                      background: 'var(--info)',
+                      transition: 'width .5s ease',
                     }}
                   />
                 </div>
               </div>
 
-              {/* Recently discovered URLs */}
               {activeDiscovery?.discoveredUrls && activeDiscovery.discoveredUrls.length > 0 && (
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Recent pages:</div>
-                  <div className="space-y-1">
+                <div
+                  style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 6,
+                    padding: 10,
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                  }}
+                >
+                  <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                    Recent pages
+                  </div>
+                  <div className="col" style={{ gap: 3 }}>
                     {activeDiscovery.discoveredUrls.slice(-8).reverse().map((url, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                        <Globe className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{(() => { try { return new URL(url).pathname; } catch { return url; } })()}</span>
+                      <div key={idx} className="row mono" style={{ gap: 6, fontSize: 11, color: 'var(--ink-2)' }}>
+                        <Globe size={11} style={{ flexShrink: 0, color: 'var(--info)' }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {(() => { try { return new URL(url).pathname; } catch { return url; } })()}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Stop Discovery Confirmation */}
               {showStopConfirm && (
-                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <StopCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                <div
+                  style={{
+                    background: 'var(--amber-soft)',
+                    border: '1px solid var(--amber-edge)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                    <StopCircle size={16} style={{ color: 'var(--amber)', marginTop: 2, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
                         Stop discovery?
-                      </h4>
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                      </div>
+                      <p className="dim" style={{ margin: '4px 0 10px', fontSize: 11.5 }}>
                         {activeDiscovery?.pagesFound || 0} URLs found so far will be saved.
                       </p>
-                      <div className="flex gap-2 mt-3">
+                      <div className="row" style={{ gap: 6 }}>
                         <button
+                          type="button"
                           onClick={() => setShowStopConfirm(false)}
                           disabled={isCancelling}
-                          className="px-3 py-1.5 text-xs bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                          className="btn btn-ghost btn-sm"
+                          style={isCancelling ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                         >
-                          Continue Discovery
+                          Continue discovery
                         </button>
                         <button
+                          type="button"
                           onClick={handleStopDiscovery}
                           disabled={isCancelling}
-                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+                          className="btn btn-danger btn-sm"
+                          style={isCancelling ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                         >
                           {isCancelling ? (
                             <>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              Stopping...
+                              <Loader2 size={11} className="animate-spin" />
+                              <span>Stopping…</span>
                             </>
                           ) : (
-                            'Stop & Save'
+                            <span>Stop & save</span>
                           )}
                         </button>
                       </div>
@@ -536,33 +627,47 @@ export function DiscoveryModal({
           )}
 
           {showError && (
-            /* Error View */
-            <div className="p-6">
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-sm font-medium">Discovery failed</span>
+            <div className="modal-body">
+              <div
+                style={{
+                  background: 'var(--clay-soft)',
+                  border: '1px solid var(--clay-edge)',
+                  borderRadius: 8,
+                  padding: 12,
+                }}
+              >
+                <div className="row" style={{ alignItems: 'center', gap: 8, color: 'var(--clay)' }}>
+                  <AlertCircle size={16} />
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Discovery failed</span>
                 </div>
-                <p className="text-sm text-red-600 dark:text-red-300 mt-1">{discoveryError}</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--clay)' }}>
+                  {discoveryError}
+                </p>
               </div>
             </div>
           )}
 
           {showResults && siteMapData && (
-            /* Site Map Results View */
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="p-4 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-green-900 dark:text-green-100">
-                      Discovery Complete — {siteMapData.nodes.length} pages found!
-                    </h3>
-                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                      <strong>Next step:</strong> Select pages to add, then click "Add Pages".
+            <div className="col" style={{ flex: 1, minHeight: 0 }}>
+              <div
+                style={{
+                  padding: 14,
+                  background: 'var(--moss-soft)',
+                  borderBottom: '1px solid var(--moss-edge)',
+                }}
+              >
+                <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                  <CheckCircle2 size={16} style={{ color: 'var(--moss)', marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                      Discovery complete — {siteMapData.nodes.length} pages found
+                    </div>
+                    <p className="dim" style={{ margin: '4px 0 0', fontSize: 11.5 }}>
+                      <strong style={{ color: 'var(--ink)' }}>Next step:</strong> select pages to add, then click "Add pages".
                     </p>
                     {onAnalyzePages && (
                       <button
+                        type="button"
                         onClick={() => {
                           const urls = siteMapData.nodes
                             .filter(n => selectedNodes.includes(n.id))
@@ -570,36 +675,56 @@ export function DiscoveryModal({
                           onAnalyzePages(urls);
                         }}
                         disabled={selectedNodes.length === 0}
-                        className="mt-2 px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        className="btn btn-success btn-sm"
+                        style={{
+                          marginTop: 8,
+                          ...(selectedNodes.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+                        }}
                       >
-                        <Search className="w-3 h-3" />
-                        Analyze {selectedNodes.length} selected page{selectedNodes.length !== 1 ? 's' : ''} for elements
+                        <Search size={11} />
+                        <span>
+                          Analyze {selectedNodes.length} selected page{selectedNodes.length !== 1 ? 's' : ''} for elements
+                        </span>
                       </button>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Selection Controls */}
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600 dark:text-gray-300">
-                    <strong>{selectedNodes.length}</strong> of {siteMapData.nodes.length} pages selected
+              <div
+                className="row"
+                style={{
+                  padding: 12,
+                  borderBottom: '1px solid var(--hair)',
+                  background: 'var(--surface-2)',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div className="row" style={{ alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+                    <strong style={{ color: 'var(--ink)' }}>{selectedNodes.length}</strong> of {siteMapData.nodes.length} pages selected
                   </span>
-                  <div className="flex gap-2">
-                    <button onClick={handleSelectAll} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                      Select All
+                  <div className="row" style={{ gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      Select all
                     </button>
-                    <span className="text-gray-300 dark:text-gray-500">|</span>
-                    <button onClick={handleSelectNone} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                      Select None
+                    <button
+                      type="button"
+                      onClick={handleSelectNone}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      Select none
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Graph */}
-              <div className="flex-1 min-h-[400px]">
+              <div style={{ flex: 1, minHeight: 400, background: 'var(--bone)' }}>
                 <SiteMapGraph
                   nodes={siteMapData.nodes}
                   edges={siteMapData.edges}
@@ -613,75 +738,88 @@ export function DiscoveryModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+        <div className="modal-foot" style={{ justifyContent: 'space-between' }}>
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
+            className="btn btn-ghost"
           >
             {showProgress ? 'Close' : 'Cancel'}
           </button>
-          <div className="flex gap-3">
+          <div className="row" style={{ gap: 6 }}>
             {showResults && (
               <button
+                type="button"
                 onClick={() => {
                   clearDiscovery();
                   setSiteMapData(null);
                   setSelectedNodes([]);
                 }}
-                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg"
+                className="btn btn-ghost"
               >
-                Start Over
+                Start over
               </button>
             )}
             {showForm && (
               <button
+                type="button"
                 onClick={handleStartDiscovery}
                 disabled={useCustomUrl ? !customUrl.trim() : !rootUrl.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="btn btn-primary"
+                style={
+                  (useCustomUrl ? !customUrl.trim() : !rootUrl.trim())
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : undefined
+                }
               >
-                <Search className="w-4 h-4" />
-                Start Discovery
+                <Search size={13} />
+                <span>Start discovery</span>
               </button>
             )}
             {showProgress && (
               <>
                 <button
+                  type="button"
                   onClick={() => setShowStopConfirm(true)}
-                  className="px-4 py-2 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
+                  className="btn btn-outline"
+                  style={{ color: 'var(--clay)', borderColor: 'var(--clay-edge)' }}
                 >
-                  <StopCircle className="w-4 h-4" />
-                  Stop Discovery
+                  <StopCircle size={13} />
+                  <span>Stop discovery</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handleMinimize}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  className="btn btn-primary"
                 >
-                  <Minimize2 className="w-4 h-4" />
-                  Minimize
+                  <Minimize2 size={13} />
+                  <span>Minimize</span>
                 </button>
               </>
             )}
             {showError && (
               <button
+                type="button"
                 onClick={() => {
                   clearDiscovery();
                   setSiteMapData(null);
                 }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                className="btn btn-primary"
               >
-                <Search className="w-4 h-4" />
-                Try Again
+                <Search size={13} />
+                <span>Try again</span>
               </button>
             )}
             {showResults && (
               <button
+                type="button"
                 onClick={handleConfirmSelection}
                 disabled={selectedNodes.length === 0}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="btn btn-success"
+                style={selectedNodes.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                <CheckCircle className="w-4 h-4" />
-                Add {selectedNodes.length} Pages
+                <CheckCircle2 size={14} />
+                <span>Add {selectedNodes.length} pages</span>
               </button>
             )}
           </div>

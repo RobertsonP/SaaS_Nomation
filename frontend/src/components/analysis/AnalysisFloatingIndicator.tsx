@@ -1,23 +1,16 @@
-import { Loader2, CheckCircle, AlertCircle, Maximize2, X } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Maximize2, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAnalysisContext } from '../../contexts/AnalysisContext';
 
-/**
- * Mounted inside the router (AuthLogoutListener) so it persists across route changes
- * and has access to useNavigate.
- * Visibility is driven entirely by AnalysisContext — no props needed.
- */
 export function AnalysisFloatingIndicator() {
   const { activeProjectId, projectName, isMinimized, progress, restoreAnalysis, clearAnalysis } = useAnalysisContext();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Show when an analysis exists AND the user has minimized the modal.
   if (!activeProjectId || !isMinimized) return null;
 
   const onRestore = () => {
     restoreAnalysis();
-    // Modal lives inside ProjectDetailsPage — bring user back if they're elsewhere.
     if (!location.pathname.startsWith(`/projects/${activeProjectId}`)) {
       navigate(`/projects/${activeProjectId}`);
     }
@@ -27,54 +20,89 @@ export function AnalysisFloatingIndicator() {
   const { isComplete, hasError, currentPhaseLabel, overallPercent, currentUrlIndex, totalUrls, elementsFound } = progress;
   const isRunning = !isComplete && !hasError;
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <div className={`
-        rounded-lg shadow-lg border overflow-hidden
-        ${isComplete
-          ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700'
-          : hasError
-          ? 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700'
-          : 'bg-purple-50 dark:bg-purple-900/40 border-purple-200 dark:border-purple-700'
-        }
-      `}>
-        {/* Main content */}
-        <div className="flex items-center gap-3 px-4 py-3">
-          {/* Status Icon */}
-          {isRunning && (
-            <Loader2 className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-spin flex-shrink-0" />
-          )}
-          {isComplete && (
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-          )}
-          {hasError && (
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-          )}
+  let accentBg = 'var(--info-soft)';
+  let accentEdge = 'var(--info-edge)';
+  let accentFg = 'var(--info)';
+  if (isComplete) {
+    accentBg = 'var(--moss-soft)';
+    accentEdge = 'var(--moss-edge)';
+    accentFg = 'var(--moss)';
+  } else if (hasError) {
+    accentBg = 'var(--clay-soft)';
+    accentEdge = 'var(--clay-edge)';
+    accentFg = 'var(--clay)';
+  }
 
-          {/* Status Text */}
-          <div className="flex flex-col flex-1 min-w-0">
-            <span className={`text-sm font-medium ${
-              isComplete
-                ? 'text-green-800 dark:text-green-200'
-                : hasError
-                ? 'text-red-800 dark:text-red-200'
-                : 'text-purple-800 dark:text-purple-200'
-            }`}>
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 50,
+        maxWidth: 360,
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: `1px solid ${accentEdge}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-2)',
+          position: 'relative',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 3,
+            background: accentFg,
+          }}
+        />
+
+        <div className="row" style={{ alignItems: 'center', gap: 10, padding: '10px 14px 10px 16px' }}>
+          <span
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              background: accentBg,
+              border: `1px solid ${accentEdge}`,
+              color: accentFg,
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            {isRunning && <Loader2 size={14} className="animate-spin" />}
+            {isComplete && <CheckCircle2 size={14} />}
+            {hasError && <AlertCircle size={14} />}
+          </span>
+
+          <div className="col" style={{ flex: 1, minWidth: 0, gap: 1 }}>
+            <span
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: 'var(--ink)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {isRunning && `Scanning: ${projectName}`}
-              {isComplete && 'Analysis Complete'}
-              {hasError && 'Analysis Failed'}
+              {isComplete && 'Analysis complete'}
+              {hasError && 'Analysis failed'}
             </span>
-            <span className={`text-xs ${
-              isComplete
-                ? 'text-green-600 dark:text-green-300'
-                : hasError
-                ? 'text-red-600 dark:text-red-300'
-                : 'text-purple-600 dark:text-purple-300'
-            }`}>
+            <span className="dim" style={{ fontSize: 11 }}>
               {isRunning && (
                 <>
                   {totalUrls > 0 ? `Page ${Math.min(currentUrlIndex, totalUrls)}/${totalUrls}` : currentPhaseLabel}
-                  {elementsFound > 0 && ` | ${elementsFound} elements`}
+                  {elementsFound > 0 && ` · ${elementsFound} elements`}
                 </>
               )}
               {isComplete && 'Click to view results'}
@@ -82,44 +110,45 @@ export function AnalysisFloatingIndicator() {
             </span>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="row" style={{ gap: 2, flexShrink: 0 }}>
             <button
+              type="button"
               onClick={onRestore}
-              className={`p-1.5 rounded hover:bg-opacity-20 ${
-                isComplete
-                  ? 'hover:bg-green-600 text-green-700 dark:text-green-300'
-                  : hasError
-                  ? 'hover:bg-red-600 text-red-700 dark:text-red-300'
-                  : 'hover:bg-purple-600 text-purple-700 dark:text-purple-300'
-              }`}
+              className="icon-btn"
               title="View full details"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 size={13} />
             </button>
             {(isComplete || hasError) && (
               <button
+                type="button"
                 onClick={onDismiss}
-                className={`p-1.5 rounded hover:bg-opacity-20 ${
-                  isComplete
-                    ? 'hover:bg-green-600 text-green-700 dark:text-green-300'
-                    : 'hover:bg-red-600 text-red-700 dark:text-red-300'
-                }`}
+                className="icon-btn"
                 title="Dismiss"
               >
-                <X className="w-4 h-4" />
+                <X size={13} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Progress Bar - only when running */}
         {isRunning && (
-          <div className="px-4 pb-2">
-            <div className="h-1.5 bg-purple-200 dark:bg-purple-800 rounded-full overflow-hidden">
+          <div style={{ padding: '0 16px 10px' }}>
+            <div
+              style={{
+                height: 4,
+                background: 'var(--surface-2)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
               <div
-                className="h-full bg-purple-500 dark:bg-purple-400 transition-all duration-300 ease-out"
-                style={{ width: `${overallPercent}%` }}
+                style={{
+                  height: '100%',
+                  width: `${overallPercent}%`,
+                  background: accentFg,
+                  transition: 'width .3s ease',
+                }}
               />
             </div>
           </div>
