@@ -8,7 +8,8 @@ import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
-import { Zap, Plus } from 'lucide-react'
+import { Eye, FlaskConical, Loader2, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Pill } from '../../components/ui/Pill'
 
 const logger = createLogger('TestsPage')
 
@@ -180,29 +181,35 @@ export function TestsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading tests...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to="/projects" className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
-            ← Back to Projects
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <Link
+            to={`/projects/${projectId}`}
+            className="dim"
+            style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
+          >
+            ← Back to project
           </Link>
+          <h1>Tests</h1>
+          <div className="sub">
+            {project?.name}
+            {project?.description ? ` · ${project.description}` : ''}
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{project?.name}</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">{project?.description}</p>
-      </div>
-
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Tests</h2>
-        <div className="flex space-x-3">
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
           {AI_TEST_GEN_ENABLED && (
             <button
+              type="button"
               onClick={async () => {
                 if (!projectId) return;
                 setIsGeneratingAI(true);
@@ -219,79 +226,65 @@ export function TestsPage() {
                 }
               }}
               disabled={isGeneratingAI}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                isGeneratingAI
-                  ? 'bg-amber-300 dark:bg-amber-800 text-amber-100 cursor-not-allowed'
-                  : 'bg-amber-500 text-white hover:bg-amber-600'
-              }`}
+              className="btn btn-outline"
+              style={{ color: 'var(--amber)', borderColor: 'var(--amber-edge)' }}
             >
-              {isGeneratingAI ? 'Generating...' : 'AI Generate Tests'}
+              {isGeneratingAI ? 'Generating…' : 'AI Generate Tests'}
             </button>
           )}
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Create Test
+          <button className="btn btn-primary" onClick={() => setShowCreateForm(true)}>
+            <Plus size={13} />
+            <span>Create Test</span>
           </button>
         </div>
       </div>
 
       {showCreateForm && (
-        <div className="bg-white rounded-lg shadow border p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Create New Test</h3>
-          <form onSubmit={handleCreateTest}>
-            <div className="grid grid-cols-1 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Test Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTest.name}
-                  onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter test name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newTest.description}
-                  onChange={(e) => setNewTest({ ...newTest, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter test description"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Starting URL
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={newTest.startingUrl}
-                  onChange={(e) => setNewTest({ ...newTest, startingUrl: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://example.com"
-                />
-              </div>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head">
+            <span className="card-title">Create New Test</span>
+          </div>
+          <form onSubmit={handleCreateTest} className="card-pad col" style={{ gap: 12 }}>
+            <div className="field">
+              <label>Test Name</label>
+              <input
+                type="text"
+                required
+                value={newTest.name}
+                onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
+                placeholder="e.g. Checkout — credit card"
+              />
             </div>
-            <div className="flex space-x-4">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Create Test
+            <div className="field">
+              <label>Description</label>
+              <textarea
+                value={newTest.description}
+                onChange={(e) => setNewTest({ ...newTest, description: e.target.value })}
+                placeholder="Short description of what this test verifies"
+                rows={3}
+              />
+            </div>
+            <div className="field">
+              <label>Starting URL</label>
+              <input
+                type="url"
+                required
+                value={newTest.startingUrl}
+                onChange={(e) => setNewTest({ ...newTest, startingUrl: e.target.value })}
+                placeholder="https://example.com"
+                className="mono"
+              />
+              <span className="hint">The page Playwright navigates to before running the steps.</span>
+            </div>
+            <div className="row" style={{ gap: 6, paddingTop: 4 }}>
+              <button type="submit" className="btn btn-primary">
+                <Plus size={13} />
+                <span>Create Test</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300"
+                className="btn btn-ghost"
               >
                 Cancel
               </button>
@@ -300,96 +293,124 @@ export function TestsPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
+      <div className="card">
         {tests.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="bg-gray-50 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Zap className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+          <div className="empty">
+            <div className="empty-icon">
+              <FlaskConical size={20} />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tests yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
-              Create your first test to start automated testing for this project.
-            </p>
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Test
+            <h3>No tests yet</h3>
+            <p>Create your first test to start automating verification for this project.</p>
+            <button className="btn btn-primary" onClick={() => setShowCreateForm(true)}>
+              <Plus size={13} />
+              <span>Create Test</span>
             </button>
           </div>
         ) : (
-          <div className="divide-y dark:divide-gray-700">
-            {tests.map((test) => (
-              <div key={test.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{test.name}</h3>
+          <div>
+            {tests.map((test) => {
+              const running = isExecuting && currentlyRunningTestId === test.id;
+              return (
+                <div
+                  key={test.id}
+                  className="row"
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--hair)',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--ink)',
+                          letterSpacing: '-0.005em',
+                        }}
+                      >
+                        {test.name}
+                      </span>
+                      <Pill kind={test.status === 'active' ? 'ok' : 'mute'}>{test.status}</Pill>
+                    </div>
                     {test.description && (
-                      <p className="text-gray-600 dark:text-gray-400 mt-1">{test.description}</p>
+                      <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                        {test.description}
+                      </div>
                     )}
-                    <div className="flex items-center mt-2 space-x-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        test.status === 'active' 
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {test.status}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {test.steps.length} steps
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        Created {new Date(test.createdAt).toLocaleDateString()}
-                      </span>
+                    <div
+                      className="row"
+                      style={{ gap: 12, marginTop: 4, fontSize: 11, color: 'var(--ink-4)' }}
+                    >
+                      <span className="tabular">{test.steps.length} step{test.steps.length === 1 ? '' : 's'}</span>
+                      <span>·</span>
+                      <span>Created {new Date(test.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="row" style={{ gap: 4, flexShrink: 0 }}>
                     <Link
                       to={`/projects/${projectId}/tests/${test.id}/edit`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      className="btn btn-ghost btn-sm"
+                      title="Edit test"
                     >
-                      Edit
+                      <Pencil size={13} />
+                      <span>Edit</span>
                     </Link>
                     <button
+                      type="button"
                       onClick={() => handleOpenRunPicker(test.id, test.name)}
-                      disabled={test.steps.length === 0 || (isExecuting && currentlyRunningTestId === test.id)}
-                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                      disabled={test.steps.length === 0 || running}
+                      className="btn btn-outline btn-sm"
+                      title={
                         test.steps.length === 0
-                          ? 'text-gray-400 cursor-not-allowed'
-                          : (isExecuting && currentlyRunningTestId === test.id)
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'text-green-600 hover:text-green-800 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
-                      }`}
-                      title="Run with live progress (choose headed or headless)"
+                          ? 'No steps yet — open the Test Builder to add some'
+                          : 'Run with live progress (choose headed or headless)'
+                      }
+                      style={
+                        test.steps.length === 0
+                          ? { opacity: 0.5, cursor: 'not-allowed' }
+                          : undefined
+                      }
                     >
-                      {(isExecuting && currentlyRunningTestId === test.id) ? (
-                        <span className="flex items-center">
-                          <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          {executionState?.status === 'waiting' ? `#${executionState.position}` : 'Running'}
-                        </span>
-                      ) : 'Run'}
+                      {running ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>
+                            {executionState?.status === 'waiting'
+                              ? `#${executionState.position}`
+                              : 'Running'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={13} />
+                          <span>Run</span>
+                        </>
+                      )}
                     </button>
                     <Link
                       to={`/tests/${test.id}/results`}
-                      className="text-sm font-medium text-purple-600 hover:text-purple-800 dark:text-purple-400 px-2 py-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                      className="btn btn-ghost btn-sm"
+                      title="View execution history"
                     >
-                      View Results
+                      <Eye size={13} />
+                      <span>Results</span>
                     </Link>
                     <button
+                      type="button"
                       onClick={() => handleDeleteTest(test.id, test.name)}
-                      className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: 'var(--clay)' }}
                       title="Delete test"
                     >
-                      Delete
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

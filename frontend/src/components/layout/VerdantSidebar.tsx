@@ -56,19 +56,25 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
 
   const isActive = (to: string, exact = false) => {
     const [path, query] = to.split('?');
-    const targetTab = query ? new URLSearchParams(query).get('tab') : null;
-    const currentTab = new URLSearchParams(location.search).get('tab');
+    const targetParams = new URLSearchParams(query || '');
+    const currentParams = new URLSearchParams(location.search);
 
     // Path must match (exact or as a prefix).
-    const pathMatch = exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/');
+    const pathMatch = exact
+      ? location.pathname === path
+      : location.pathname === path || location.pathname.startsWith(path + '/');
     if (!pathMatch) return false;
 
-    // If the link points to a specific tab, active only when current URL is on the same tab.
-    if (targetTab) return currentTab === targetTab;
-
-    // The link has no tab — active when no tab query is set (default Overview view) and path is exact.
-    if (currentTab) return false;
-    return true;
+    // When the link has any query params, every key from the link must match the current URL.
+    // When the link has none, the current URL must also be plain (no query) to count as active —
+    // otherwise tabbed siblings (?tab=urls, ?tab=settings) would all light up the parent link.
+    if ([...targetParams.keys()].length > 0) {
+      for (const [k, v] of targetParams.entries()) {
+        if (currentParams.get(k) !== v) return false;
+      }
+      return true;
+    }
+    return [...currentParams.keys()].length === 0;
   };
 
   const activeProjectId = useMemo(() => {
@@ -268,6 +274,7 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
                     icon={<FlaskConical size={ICON_SIZE} />}
                     label="Tests"
                     count={p._count?.tests ?? 0}
+                    exact
                   />
                   <NavLink
                     indent
@@ -275,14 +282,17 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
                     icon={<Layers size={ICON_SIZE} />}
                     label="Suites"
                     count={p._count?.testSuites ?? 0}
+                    exact
                   />
-                  {/* Runs is not a separate route yet — point to the Tests page where users
-                      currently access run history per test. Phase 4 may add a dedicated page. */}
+                  {/* Runs is not a separate route yet — link with ?view=runs so the active
+                      state is unique. The Tests page ignores the query for now. Phase 4+
+                      can carve out a real runs page when there's a global runs endpoint. */}
                   <NavLink
                     indent
-                    to={`${projectRoot}/tests`}
+                    to={`${projectRoot}/tests?view=runs`}
                     icon={<Activity size={ICON_SIZE} />}
                     label="Runs"
+                    exact
                   />
                   <NavLink
                     indent

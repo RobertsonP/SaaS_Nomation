@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { FlaskConical, Play, Plus, Trash2 } from 'lucide-react'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { Pill } from '../../components/ui/Pill'
 import { createLogger } from '../../lib/logger'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 
@@ -196,160 +198,214 @@ export function SuiteDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading test suite...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
   if (!testSuite) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-4xl mb-4">❌</div>
-          <div className="text-lg">Test suite not found</div>
-          <Link 
-            to={`/projects/${projectId}/suites`}
-            className="text-blue-600 hover:text-blue-800 mt-4 inline-block"
-          >
-            ← Back to Test Suites
-          </Link>
+      <div className="content">
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">!</div>
+            <h3>Test suite not found</h3>
+            <p>The suite you tried to open doesn't exist or you don't have access.</p>
+            <Link to={`/projects/${projectId}/suites`} className="btn btn-outline">
+              ← Back to Test Suites
+            </Link>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link 
-            to={`/projects/${projectId}/suites`} 
-            className="text-blue-600 hover:text-blue-800"
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <Link
+            to={`/projects/${projectId}/suites`}
+            className="dim"
+            style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
           >
             ← Back to Test Suites
           </Link>
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>{testSuite.name}</h1>
+            <Pill kind={testSuite.status === 'active' ? 'ok' : 'mute'}>{testSuite.status}</Pill>
+          </div>
+          {testSuite.description && <div className="sub">{testSuite.description}</div>}
+          <div
+            className="row"
+            style={{ gap: 12, marginTop: 4, fontSize: 11.5, color: 'var(--ink-4)' }}
+          >
+            <span className="tabular">
+              {testSuite.tests.length} test{testSuite.tests.length === 1 ? '' : 's'}
+            </span>
+            <span>·</span>
+            <span>Created {new Date(testSuite.createdAt).toLocaleDateString()}</span>
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{testSuite.name}</h1>
-            {testSuite.description && (
-              <p className="text-gray-600 dark:text-gray-400 mt-2">{testSuite.description}</p>
-            )}
-            <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
-              <span>📋 {testSuite.tests.length} tests</span>
-              <span>📅 Created {new Date(testSuite.createdAt).toLocaleDateString()}</span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                testSuite.status === 'active' 
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {testSuite.status}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRunSuite}
-              disabled={testSuite.tests.length === 0}
-              className="text-sm font-medium bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Run All Tests
-            </button>
-          </div>
+        <div className="row" style={{ gap: 6 }}>
+          <button
+            type="button"
+            onClick={handleRunSuite}
+            disabled={testSuite.tests.length === 0}
+            className="btn btn-primary"
+            style={
+              testSuite.tests.length === 0 ? { opacity: 0.5, cursor: 'not-allowed' } : undefined
+            }
+          >
+            <Play size={13} />
+            <span>Run All Tests</span>
+          </button>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="row" style={{ gap: 6, marginBottom: 16 }}>
         <button
+          type="button"
           onClick={() => setShowAddTestModal(true)}
           disabled={getUnassignedTests().length === 0}
-          className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="btn btn-outline btn-sm"
+          style={
+            getUnassignedTests().length === 0
+              ? { opacity: 0.5, cursor: 'not-allowed' }
+              : undefined
+          }
         >
-          + Add Existing Tests
+          <Plus size={13} />
+          <span>Add Existing Tests</span>
         </button>
         <button
+          type="button"
           onClick={() => setShowCreateTestModal(true)}
-          className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+          className="btn btn-outline btn-sm"
         >
-          Create New Test
+          <Plus size={13} />
+          <span>Create New Test</span>
         </button>
       </div>
 
-      {/* Tests in Suite */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tests in Suite ({testSuite.tests.length})</h2>
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Tests in suite ({testSuite.tests.length})</span>
         </div>
-
         {testSuite.tests.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="text-4xl mb-4">📝</div>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No tests in this suite yet</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
-              Add existing tests or create new ones to build your test suite.
-            </p>
-            <div className="flex items-center justify-center gap-3">
+          <div className="empty">
+            <div className="empty-icon">
+              <FlaskConical size={20} />
+            </div>
+            <h3>No tests in this suite yet</h3>
+            <p>Add existing tests or create new ones to build out your suite.</p>
+            <div className="row" style={{ gap: 6, justifyContent: 'center' }}>
               <button
+                type="button"
                 onClick={() => setShowAddTestModal(true)}
                 disabled={getUnassignedTests().length === 0}
-                className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn btn-outline"
+                style={
+                  getUnassignedTests().length === 0
+                    ? { opacity: 0.5, cursor: 'not-allowed' }
+                    : undefined
+                }
               >
-                + Add Existing Tests
+                <Plus size={13} />
+                <span>Add Existing</span>
               </button>
               <button
+                type="button"
                 onClick={() => setShowCreateTestModal(true)}
-                className="text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                className="btn btn-primary"
               >
-                Create New Test
+                <Plus size={13} />
+                <span>Create New</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="divide-y dark:divide-gray-700">
+          <div>
             {testSuite.tests.map((suiteTest, index) => {
-              // Handle both nested structure from backend and direct test object
               const test = isTestSuiteTest(suiteTest) ? suiteTest.test : suiteTest
               return (
-                <div key={test.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">#{index + 1}</span>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">{test.name}</h3>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          test.status === 'active'
-                            ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                        }`}>
-                          {test.status}
+                <div
+                  key={test.id}
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--hair)',
+                  }}
+                >
+                  <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                        <span className="mono dim" style={{ fontSize: 11 }}>
+                          #{index + 1}
                         </span>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--ink)',
+                          }}
+                        >
+                          {test.name}
+                        </span>
+                        <Pill kind={test.status === 'active' ? 'ok' : 'mute'}>{test.status}</Pill>
                       </div>
                       {test.description && (
-                        <p className="text-gray-600 dark:text-gray-400 mb-2">{test.description}</p>
+                        <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                          {test.description}
+                        </div>
                       )}
-                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span>{test.steps?.length || 0} steps</span>
+                      <div
+                        className="row"
+                        style={{ gap: 12, marginTop: 4, fontSize: 11, color: 'var(--ink-4)' }}
+                      >
+                        <span className="tabular">
+                          {test.steps?.length || 0} step{(test.steps?.length || 0) === 1 ? '' : 's'}
+                        </span>
+                        <span>·</span>
                         <span>Created {new Date(test.createdAt).toLocaleDateString()}</span>
                         {test.startingUrl && (
-                          <span className="truncate max-w-xs">{test.startingUrl}</span>
+                          <>
+                            <span>·</span>
+                            <span
+                              className="mono"
+                              style={{
+                                fontSize: 10.5,
+                                color: 'var(--slate)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: 280,
+                              }}
+                              title={test.startingUrl}
+                            >
+                              {test.startingUrl}
+                            </span>
+                          </>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="row" style={{ gap: 4, flexShrink: 0 }}>
                       <Link
                         to={`/projects/${projectId}/tests/${test.id}/edit`}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        className="btn btn-ghost btn-sm"
                       >
                         Edit
                       </Link>
                       <button
+                        type="button"
                         onClick={() => handleRemoveTest(test.id)}
-                        className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--clay)' }}
+                        title="Remove from suite"
                       >
-                        Remove
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
