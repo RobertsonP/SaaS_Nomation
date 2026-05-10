@@ -182,10 +182,20 @@ export function SuiteResultsPage() {
               ← Back to Test Suites
             </Link>
           )}
+          {selectedExecution && (
+            <div className="row" style={{ marginBottom: 4, gap: 8 }}>
+              <Pill kind={getStatusKind(selectedExecution.status)} dot={false}>
+                {selectedExecution.status}
+              </Pill>
+              <span className="dim mono" style={{ fontSize: 11 }}>
+                run_{selectedExecution.id.slice(0, 8)}
+              </span>
+            </div>
+          )}
           <h1>{testSuite?.name || 'Suite results'}</h1>
           {testSuite?.project?.name && (
             <div className="sub">
-              Project: {testSuite.project.name}
+              {testSuite.project.name}
               {testSuite.description ? ` · ${testSuite.description}` : ''}
             </div>
           )}

@@ -182,11 +182,6 @@ export function TestResultsPage() {
     }
   }
 
-  const formatDuration = (duration?: number) => {
-    if (!duration) return 'N/A'
-    return `${(duration / 1000).toFixed(1)}s`
-  }
-
   if (loading) {
     return (
       <div className="content">
@@ -196,6 +191,21 @@ export function TestResultsPage() {
       </div>
     )
   }
+
+  // Page-head must match pages.jsx:232–245 — status pill + run ID + h1 + sub
+  // and action buttons (Download log / Re-run / Open in builder) on the right.
+  const sel = selectedExecution;
+  const startedAt = sel?.startedAt ? new Date(sel.startedAt) : null;
+  const startedLabel = startedAt
+    ? (() => {
+        const diff = Date.now() - startedAt.getTime();
+        if (diff < 60_000) return 'started just now';
+        if (diff < 3_600_000) return `started ${Math.floor(diff / 60_000)}m ago`;
+        if (diff < 86_400_000) return `started ${Math.floor(diff / 3_600_000)}h ago`;
+        return `started ${startedAt.toLocaleDateString()}`;
+      })()
+    : '';
+  const ranForLabel = sel?.duration ? `ran for ${formatDuration(sel.duration)}` : '';
 
   return (
     <div className="content">
@@ -210,10 +220,60 @@ export function TestResultsPage() {
               ← Back to Tests
             </Link>
           )}
+          {sel && (
+            <div className="row" style={{ marginBottom: 4, gap: 8 }}>
+              <Pill kind={getStatusKind(sel.status)} dot={false}>
+                {sel.status}
+              </Pill>
+              <span className="dim mono" style={{ fontSize: 11 }}>
+                run_{sel.id.slice(0, 8)}
+              </span>
+            </div>
+          )}
           <h1>{test?.name || 'Test results'}</h1>
-          {test?.project?.name && <div className="sub">Project: {test.project.name}</div>}
+          <div className="sub">
+            {test?.project?.name && <span>{test.project.name}</span>}
+            {startedLabel && (
+              <>
+                {test?.project?.name && <span> · </span>}
+                <span>{startedLabel}</span>
+              </>
+            )}
+            {ranForLabel && (
+              <>
+                <span> · </span>
+                <span>{ranForLabel}</span>
+              </>
+            )}
+          </div>
         </div>
         <div className="row" style={{ gap: 6 }}>
+          {sel && sel.status !== 'running' && (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => handleDownloadReport(sel.id)}
+              disabled={isDownloading}
+              style={isDownloading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              title="Download PDF report"
+            >
+              <Download size={13} />
+              <span>Download</span>
+            </button>
+          )}
+          {sel && sel.status !== 'running' && (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => handleEmailReport(sel.id)}
+              disabled={isEmailing}
+              style={isEmailing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              title="Email report"
+            >
+              <Mail size={13} />
+              <span>Email</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handleRunTest}
@@ -235,36 +295,40 @@ export function TestResultsPage() {
             ) : (
               <>
                 <Play size={13} />
-                <span>Run Test</span>
+                <span>Re-run</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      <div
-        className="split-2"
-        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}
-      >
-        {/* Execution History */}
-        <div className="card">
-          <div className="card-head">
-            <span className="card-title">Execution History</span>
-            <span className="dim tabular" style={{ fontSize: 11 }}>
-              {executions.length}
-            </span>
-          </div>
-          <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-            {executions.length === 0 ? (
-              <div className="empty" style={{ padding: '24px 16px' }}>
-                <div className="empty-icon">
-                  <Play size={18} />
-                </div>
-                <h3>No executions yet</h3>
-                <p>Click "Run Test" to start the first run.</p>
-              </div>
-            ) : (
-              executions.map((execution) => {
+      {/* Body */}
+      {selectedExecution ? (
+        <div className="col" style={{ gap: 12 }}>
+          <TestExecutionReport
+            execution={selectedExecution}
+            testName={test?.name || 'Unknown Test'}
+          />
+          {selectedExecution.videoPath && (
+            <ExecutionVideoPlayer
+              executionId={selectedExecution.id}
+              testName={test?.name || 'Unknown'}
+              videoPath={selectedExecution.videoPath}
+              thumbnailPath={selectedExecution.videoThumbnail}
+              seekToTimestamp={seekTimestamp}
+            />
+          )}
+
+          {/* Execution history — selectable list of past runs */}
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">Execution history</span>
+              <span className="dim tabular" style={{ fontSize: 11 }}>
+                {executions.length}
+              </span>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+              {executions.map((execution) => {
                 const isSelected = selectedExecution?.id === execution.id;
                 return (
                   <button
@@ -280,102 +344,49 @@ export function TestResultsPage() {
                       cursor: 'pointer',
                     }}
                   >
-                    <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <Pill kind={getStatusKind(execution.status)} dot={false}>
-                          {execution.status}
-                        </Pill>
-                        <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-                          {new Date(execution.startedAt).toLocaleString()}
-                        </div>
-                        <div className="dim mono" style={{ fontSize: 10.5 }}>
-                          Duration: {formatDuration(execution.duration)}
-                        </div>
-                      </div>
-                      {execution.status !== 'running' && (
-                        <div className="row" style={{ gap: 2, flexShrink: 0 }}>
-                          <span
-                            className="icon-btn"
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadReport(execution.id);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.stopPropagation();
-                                handleDownloadReport(execution.id);
-                              }
-                            }}
-                            title="Download PDF report"
-                            style={isDownloading ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-                          >
-                            <Download size={13} />
-                          </span>
-                          <span
-                            className="icon-btn"
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEmailReport(execution.id);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.stopPropagation();
-                                handleEmailReport(execution.id);
-                              }
-                            }}
-                            title="Email report"
-                            style={isEmailing ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
-                          >
-                            <Mail size={13} />
-                          </span>
-                        </div>
-                      )}
+                    <div
+                      className="row"
+                      style={{ gap: 10, alignItems: 'center' }}
+                    >
+                      <Pill kind={getStatusKind(execution.status)} dot={false}>
+                        {execution.status}
+                      </Pill>
+                      <span className="dim mono" style={{ fontSize: 10.5, width: 80 }}>
+                        run_{execution.id.slice(0, 8)}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 12, color: 'var(--ink)' }}>
+                        {new Date(execution.startedAt).toLocaleString()}
+                      </span>
+                      <span className="mono dim" style={{ fontSize: 10.5 }}>
+                        {formatDuration(execution.duration)}
+                      </span>
                     </div>
                   </button>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
         </div>
-
-        {/* Test Execution Report */}
-        <div className="col" style={{ gap: 12 }}>
-          {selectedExecution ? (
-            <>
-              {selectedExecution.videoPath && (
-                <ExecutionVideoPlayer
-                  executionId={selectedExecution.id}
-                  testName={test?.name || 'Unknown'}
-                  videoPath={selectedExecution.videoPath}
-                  thumbnailPath={selectedExecution.videoThumbnail}
-                  seekToTimestamp={seekTimestamp}
-                />
-              )}
-              <TestExecutionReport
-                execution={selectedExecution}
-                testName={test?.name || 'Unknown Test'}
-              />
-            </>
-          ) : (
-            <div className="card">
-              <div className="card-head">
-                <span className="card-title">Select an execution</span>
-              </div>
-              <div className="empty">
-                <div className="empty-icon">
-                  <Play size={20} />
-                </div>
-                <h3>No execution selected</h3>
-                <p>Pick a run from the history on the left to see its step-by-step report.</p>
-              </div>
+      ) : (
+        <div className="card">
+          <div className="empty" style={{ padding: '40px 16px' }}>
+            <div className="empty-icon">
+              <Play size={20} />
             </div>
-          )}
+            <h3>No executions yet</h3>
+            <p>Click "Re-run" to start the first run.</p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
+}
+
+function formatDuration(ms?: number | null): string {
+  if (!ms || ms < 0) return '—';
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
 }
