@@ -621,16 +621,18 @@ export function ElementLibraryPanel({
         })}
       </div>
 
-      {/* Element list — table for project mode, linear cards for builder mode */}
+      {/* Element list — table for project mode, responsive card grid for
+          builder mode (auto-fills across the now-wider library pane). */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
           minHeight: 0,
-          padding: isProjectMode ? 0 : 8,
-          display: isProjectMode ? 'block' : 'flex',
-          flexDirection: 'column',
-          gap: isProjectMode ? 0 : 6,
+          padding: isProjectMode ? 0 : 12,
+          display: isProjectMode ? 'block' : 'grid',
+          gridTemplateColumns: isProjectMode ? undefined : 'repeat(auto-fill, minmax(240px, 1fr))',
+          alignContent: isProjectMode ? undefined : 'start',
+          gap: isProjectMode ? 0 : 8,
           background: 'var(--paper)',
         }}
       >
@@ -640,7 +642,15 @@ export function ElementLibraryPanel({
           );
           if (flatElements.length === 0) {
             return (
-              <p className="dim" style={{ fontSize: 12.5, textAlign: 'center', padding: '32px 12px' }}>
+              <p
+                className="dim"
+                style={{
+                  fontSize: 12.5,
+                  textAlign: 'center',
+                  padding: '32px 12px',
+                  gridColumn: '1 / -1',
+                }}
+              >
                 {elements.length === 0
                   ? 'No elements yet — analyze a page or use the live picker'
                   : 'No elements match your search'}
@@ -753,7 +763,7 @@ export function ElementLibraryPanel({
 
             if (hasTableData) {
               return (
-                <div key={element.id}>
+                <div key={element.id} style={{ gridColumn: '1 / -1' }}>
                   <TablePreviewCard
                     element={element}
                     onSelectElement={onSelectElement}
@@ -764,7 +774,7 @@ export function ElementLibraryPanel({
             }
             if (hasDropdownData) {
               return (
-                <div key={element.id}>
+                <div key={element.id} style={{ gridColumn: '1 / -1' }}>
                   <DropdownPreviewCard
                     element={element}
                     onSelectElement={onSelectElement}
@@ -792,6 +802,7 @@ export function ElementLibraryPanel({
               textAlign: 'center',
               borderTop: '1px solid var(--hair)',
               marginTop: 8,
+              gridColumn: isProjectMode ? undefined : '1 / -1',
             }}
           >
             <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
