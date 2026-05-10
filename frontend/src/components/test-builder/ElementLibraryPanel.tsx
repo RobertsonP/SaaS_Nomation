@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
   FileX,
   Loader2,
   MousePointerClick,
@@ -118,6 +116,7 @@ export function ElementLibraryPanel({
   onAddStep,
   isLoading,
   selectedElementType,
+  onElementTypeChange,
   setShowLivePicker,
   onAnalyzePages,
   onAnalyzeSelected,
@@ -350,15 +349,13 @@ export function ElementLibraryPanel({
     return list;
   }, [pageIndex, filteredElements, sharedSelectors]);
 
-  // Auto-select first REAL page when data loads or selection becomes invalid.
-  // Don't auto-select the Shared bucket — that's a frontend filter that's only
-  // useful once a user explicitly opts into it.
-  useEffect(() => {
-    if (pageList.length === 0) return;
-    if (selectedPageUrl && pageList.some(p => p.url === selectedPageUrl)) return;
-    const firstReal = pageList.find(p => p.url !== SHARED_KEY) ?? pageList[0];
-    setSelectedPageUrl(firstReal.url);
-  }, [pageList, selectedPageUrl]);
+  // Page-sidebar removed — rely on a flat list of all elements (filtered
+  // server-side by elementType only). The selectedPageUrl state remains so
+  // the fetch query stays compatible, but it's never set, so the server
+  // returns elements across all pages.
+  void pageList;
+  void selectedPageUrl;
+  void setSelectedPageUrl;
 
   // Elements for the selected page, grouped by type.
   // - SHARED_KEY: chrome elements deduped by selector across all pages.
@@ -575,238 +572,160 @@ export function ElementLibraryPanel({
         </div>
       </div>
 
-      {/* Two-panel layout */}
-      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
-        {/* Left panel: Page list */}
-        <div
-          style={{
-            width: '30%',
-            borderRight: '1px solid var(--hair)',
-            overflowY: 'auto',
-            background: 'var(--bone)',
-          }}
-        >
-          <div style={{ padding: 8 }}>
-            {pageList.map(page => {
-              const isPseudo = page.url === UNATTRIBUTED_KEY || page.url === SHARED_KEY;
-              const active = selectedPageUrl === page.url;
-              return (
-                <button
-                  key={page.url}
-                  type="button"
-                  onClick={() => setSelectedPageUrl(page.url)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    fontSize: 12.5,
-                    marginBottom: 3,
-                    border: `1px solid ${active ? 'var(--moss-edge)' : 'transparent'}`,
-                    background: active ? 'var(--moss-soft)' : 'transparent',
-                    color: active ? 'var(--ink)' : 'var(--ink-2)',
-                    cursor: 'pointer',
-                    transition: 'background .12s ease',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!active) e.currentTarget.style.background = 'var(--surface-2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  {active && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 6,
-                        bottom: 6,
-                        width: 2,
-                        background: 'var(--moss)',
-                      }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      fontWeight: active ? 600 : 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {page.title}
-                  </div>
-                  {!isPseudo && (
-                    <div
-                      className="dim mono"
-                      style={{
-                        fontSize: 10.5,
-                        marginTop: 2,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {getPathFromUrl(page.url)}
-                    </div>
-                  )}
-                  <div className="dim tabular" style={{ fontSize: 10.5, marginTop: 1 }}>
-                    {page.count} element{page.count === 1 ? '' : 's'}
-                  </div>
-                </button>
-              );
-            })}
-            {pageList.length === 0 && (
-              <p className="dim" style={{ fontSize: 12, padding: 12, textAlign: 'center' }}>
-                No pages analyzed yet
-              </p>
-            )}
-          </div>
-        </div>
+      {/* Filter pills — match prototype's pages.jsx:19–21 */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '0 8px 8px',
+          display: 'flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          borderBottom: '1px solid var(--hair)',
+          background: 'var(--surface)',
+        }}
+      >
+        {(['all', 'button', 'input', 'link'] as const).map((f) => {
+          const active = (selectedElementType ?? 'all') === f;
+          return (
+            <button
+              key={f}
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{
+                fontSize: 10.5,
+                padding: '2px 8px',
+                background: active ? 'var(--surface-2)' : 'transparent',
+                color: active ? 'var(--ink)' : 'var(--ink-3)',
+                fontWeight: active ? 600 : 500,
+              }}
+              onClick={() => onElementTypeChange?.(f)}
+            >
+              {f}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Right panel: Elements grouped by type */}
-        <div style={{ width: '70%', overflowY: 'auto', background: 'var(--paper)' }}>
-          <div style={{ padding: 12 }}>
-            {selectedPageUrl && elementsByType.length > 0 ? (
-              elementsByType.map(([type, typeElements]) => {
-                const collapsed = collapsedTypes.has(type);
-                return (
-                  <div key={type} style={{ marginBottom: 12 }}>
-                    <button
-                      type="button"
-                      onClick={() => toggleTypeCollapse(type)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        background: 'var(--surface-2)',
-                        border: '1px solid var(--hair)',
-                        cursor: 'pointer',
-                        transition: 'background .12s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--surface)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'var(--surface-2)';
-                      }}
-                    >
-                      <span className="row" style={{ gap: 6, alignItems: 'center' }}>
-                        <span style={{ color: 'var(--ink-3)', display: 'grid', placeItems: 'center' }}>
-                          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                        </span>
-                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
-                          {TYPE_LABELS[type] ?? type}
-                        </span>
-                        <span
-                          className="tabular dim"
-                          style={{
-                            fontSize: 10.5,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--hair)',
-                            padding: '1px 6px',
-                            borderRadius: 999,
-                          }}
-                        >
-                          {typeElements.length}
-                        </span>
-                      </span>
-                    </button>
-
-                    {!collapsed && (
-                      <div className="col" style={{ gap: 6, marginTop: 6 }}>
-                        {typeElements.map(element => {
-                          const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
-                          const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
-
-                          if (hasTableData) {
-                            return (
-                              <div key={element.id}>
-                                <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                              </div>
-                            );
-                          }
-                          if (hasDropdownData) {
-                            return (
-                              <div key={element.id}>
-                                <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                              </div>
-                            );
-                          }
-                          return (
-                            <ElementPreviewCard
-                              key={element.id}
-                              element={element}
-                              onSelectElement={onSelectElement}
-                              showQuality
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
+      {/* Single linear element list */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          minHeight: 0,
+          padding: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          background: 'var(--paper)',
+        }}
+      >
+        {(() => {
+          const flatElements = filteredElements.filter(
+            (el) => !isSharedRegion(el.description),
+          );
+          if (flatElements.length === 0) {
+            return (
               <p className="dim" style={{ fontSize: 12.5, textAlign: 'center', padding: '32px 12px' }}>
-                {selectedPageUrl ? 'No elements found for this page' : 'Select a page to view elements'}
+                {elements.length === 0
+                  ? 'No elements yet — analyze a page or use the live picker'
+                  : 'No elements match your search'}
               </p>
-            )}
+            );
+          }
+          return flatElements.map((element) => {
+            const hasTableData =
+              element.elementType === 'table' &&
+              (element.tableData || (element.attributes as any)?.tableData);
+            const hasDropdownData =
+              element.elementType === 'dropdown' &&
+              (element.dropdownData || (element.attributes as any)?.dropdownData);
 
-            {/* Load More */}
-            {hasMore && (
-              <div
-                style={{
-                  padding: '14px 0',
-                  textAlign: 'center',
-                  borderTop: '1px solid var(--hair)',
-                  marginTop: 12,
-                }}
-              >
-                <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
-                  Showing {paginatedElements.length} of {totalCount} elements
-                </p>
-                <button
-                  type="button"
-                  onClick={handleLoadMore}
-                  disabled={loadMoreLoading}
-                  className="btn btn-outline btn-sm"
-                  style={loadMoreLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                >
-                  {loadMoreLoading ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      <span>Loading…</span>
-                    </>
-                  ) : (
-                    <span>Load more ({Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)</span>
-                  )}
-                </button>
-              </div>
-            )}
+            if (hasTableData) {
+              return (
+                <div key={element.id}>
+                  <TablePreviewCard
+                    element={element}
+                    onSelectElement={onSelectElement}
+                    onAddStep={onAddStep}
+                  />
+                </div>
+              );
+            }
+            if (hasDropdownData) {
+              return (
+                <div key={element.id}>
+                  <DropdownPreviewCard
+                    element={element}
+                    onSelectElement={onSelectElement}
+                    onAddStep={onAddStep}
+                  />
+                </div>
+              );
+            }
+            return (
+              <ElementPreviewCard
+                key={element.id}
+                element={element}
+                onSelectElement={onSelectElement}
+                showQuality
+              />
+            );
+          });
+        })()}
 
-            {/* No Results */}
-            {filteredElements.length === 0 && elements.length > 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 12px' }}>
-                <p className="dim" style={{ marginBottom: 8, fontSize: 12.5 }}>
-                  No elements match your search
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="btn btn-ghost btn-sm"
-                >
-                  Clear search
-                </button>
-              </div>
-            )}
+        {/* Load More */}
+        {hasMore && (
+          <div
+            style={{
+              padding: '14px 0',
+              textAlign: 'center',
+              borderTop: '1px solid var(--hair)',
+              marginTop: 8,
+            }}
+          >
+            <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
+              Showing {paginatedElements.length} of {totalCount} elements
+            </p>
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={loadMoreLoading}
+              className="btn btn-outline btn-sm"
+              style={loadMoreLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+            >
+              {loadMoreLoading ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>Loading…</span>
+                </>
+              ) : (
+                <span>
+                  Load more ({Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)
+                </span>
+              )}
+            </button>
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* Bottom "Pick from page" strip — matches pages.jsx:42–44 */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: 8,
+          borderTop: '1px solid var(--hair)',
+          background: 'var(--paper)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowLivePicker(true)}
+          className="btn btn-outline"
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
+          <MousePointerClick size={13} />
+          <span>Pick from page</span>
+        </button>
       </div>
 
       {/* URL Picker Modal */}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, ChevronDown, Loader2, XCircle } from 'lucide-react';
+import { Pill } from '../ui/Pill';
 import { TestExecutionReport } from './TestExecutionReport';
 
 interface NestedTestExecution {
@@ -210,62 +211,31 @@ export function SuiteExecutionReport({ execution, suiteName }: SuiteExecutionRep
               No test results recorded.
             </p>
           ) : (
-            <div className="col" style={{ gap: 6 }}>
+            <div>
               {tests.map((t) => {
                 const open = expanded.has(t.executionId);
                 const failedTest = t.status === 'failed';
                 return (
-                  <div
-                    key={t.executionId}
-                    style={{
-                      background: 'var(--surface)',
-                      border: `1px solid ${failedTest ? 'var(--clay-edge)' : 'var(--hair)'}`,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                    }}
-                  >
+                  <div key={t.executionId}>
                     <button
                       type="button"
                       onClick={() => toggle(t.executionId)}
                       className="row"
                       style={{
                         width: '100%',
-                        gap: 10,
-                        padding: 10,
+                        gap: 8,
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--hair)',
                         textAlign: 'left',
-                        background: 'transparent',
+                        background: open ? 'var(--surface-2)' : 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         alignItems: 'center',
-                        transition: 'background .12s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--surface-2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '2px 7px',
-                          borderRadius: 999,
-                          background: failedTest ? 'var(--clay-soft)' : 'var(--moss-soft)',
-                          color: failedTest ? 'var(--clay)' : 'var(--moss)',
-                          border: `1px solid ${failedTest ? 'var(--clay-edge)' : 'var(--moss-edge)'}`,
-                          fontSize: 10.5,
-                          fontWeight: 600,
-                          letterSpacing: '0.02em',
-                          textTransform: 'uppercase',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {failedTest ? <XCircle size={11} /> : <CheckCircle2 size={11} />}
-                        {failedTest ? 'Failed' : 'Passed'}
-                      </span>
+                      <Pill kind={failedTest ? 'err' : 'ok'} dot={false}>
+                        {failedTest ? 'fail' : 'pass'}
+                      </Pill>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div
                           style={{
