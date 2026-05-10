@@ -18,6 +18,7 @@ import { ProjectElement } from '../../types/element.types'
 import { TestStep } from '../../types/test.types'
 import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 import { StepList } from './StepList'
+import { Pill } from '../ui/Pill'
 import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
 import {
@@ -1287,99 +1288,89 @@ export function TestBuilderPanel({
               </div>
             )}
 
-            <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
-              <div className="col" style={{ gap: 8 }}>
-                {steps.map((step, index) => {
-                  const result = sequentialExecutionResults.find(r => r.step.id === step.id);
-                  const isCurrentlyExecuting = isExecutingAllSteps && index === currentExecutingStepIndex;
-                  const isCompleted = !!result;
-                  const isSuccess = result?.success;
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
+              {steps.map((step, index) => {
+                const result = sequentialExecutionResults.find(r => r.step.id === step.id);
+                const isCurrentlyExecuting = isExecutingAllSteps && index === currentExecutingStepIndex;
+                const isCompleted = !!result;
+                const isSuccess = result?.success;
 
-                  let bg = 'var(--surface-2)';
-                  let border = 'var(--hair)';
-                  if (isCurrentlyExecuting) {
-                    bg = 'var(--moss-soft)';
-                    border = 'var(--moss)';
-                  } else if (isCompleted) {
-                    bg = isSuccess ? 'var(--moss-soft)' : 'var(--clay-soft)';
-                    border = isSuccess ? 'var(--moss-edge)' : 'var(--clay-edge)';
-                  }
+                const pillKind = isCompleted
+                  ? isSuccess ? 'ok' : 'err'
+                  : isCurrentlyExecuting ? 'info' : 'mute';
+                const pillLabel = isCompleted
+                  ? isSuccess ? 'pass' : 'fail'
+                  : isCurrentlyExecuting ? 'running' : 'pending';
 
-                  return (
+                return (
+                  <div key={step.id}>
                     <div
-                      key={step.id}
+                      className="row"
                       style={{
-                        padding: 10,
-                        borderRadius: 6,
-                        border: `1px solid ${border}`,
-                        background: bg,
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--hair)',
+                        gap: 8,
                       }}
                     >
-                      <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                        <span
-                          className="tabular"
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--ink-3)',
-                            background: 'var(--surface)',
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                            border: '1px solid var(--hair)',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {index + 1}
-                        </span>
-                        <span style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 18 }}>
-                          {isCurrentlyExecuting && <Loader2 size={14} className="animate-spin" style={{ color: 'var(--moss)' }} />}
-                          {isCompleted && isSuccess && <CheckCircle2 size={14} style={{ color: 'var(--moss)' }} />}
-                          {isCompleted && !isSuccess && <XCircle size={14} style={{ color: 'var(--clay)' }} />}
-                          {!isCompleted && !isCurrentlyExecuting && <Clock size={14} style={{ color: 'var(--ink-3)' }} />}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              fontWeight: 500,
-                              color: 'var(--ink)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {step.description}
-                          </div>
-                          <div className="dim mono" style={{ fontSize: 11, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {step.type} • {step.selector}
-                          </div>
-                        </div>
-                      </div>
-
-                      {result && !result.success && (
-                        <div
-                          className="row"
-                          style={{
-                            gap: 6,
-                            alignItems: 'flex-start',
-                            marginTop: 8,
-                            padding: 8,
-                            background: 'var(--clay-soft)',
-                            border: '1px solid var(--clay-edge)',
-                            borderRadius: 4,
-                            fontSize: 11.5,
-                            color: 'var(--clay)',
-                          }}
-                        >
-                          <AlertTriangle size={12} style={{ marginTop: 1, flexShrink: 0 }} />
-                          <span>
-                            <strong>Error:</strong> {result.result?.message || 'Unknown error occurred'}
-                          </span>
-                        </div>
-                      )}
+                      <span
+                        className="mono dim"
+                        style={{ width: 18, fontSize: 10.5, flexShrink: 0 }}
+                      >
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <Pill kind={pillKind} dot={false}>
+                        {pillLabel}
+                      </Pill>
+                      <span
+                        style={{
+                          flex: 1,
+                          fontSize: 12,
+                          color: 'var(--ink)',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={step.description}
+                      >
+                        {step.description}
+                      </span>
+                      <span
+                        className="mono dim"
+                        style={{
+                          fontSize: 10.5,
+                          maxWidth: 220,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                        title={step.selector}
+                      >
+                        {step.selector}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {result && !result.success && (
+                      <div
+                        style={{
+                          marginLeft: 30,
+                          marginRight: 12,
+                          marginBottom: 8,
+                          padding: 8,
+                          background: 'var(--clay-soft)',
+                          border: '1px solid var(--clay-edge)',
+                          borderRadius: 4,
+                          fontSize: 11.5,
+                          color: 'var(--clay)',
+                        }}
+                      >
+                        <strong>Error:</strong> {result.result?.message || 'Unknown error occurred'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="modal-foot">

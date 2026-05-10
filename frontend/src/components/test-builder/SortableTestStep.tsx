@@ -1,23 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import {
-  CheckSquare,
-  ChevronsUpDown,
-  Clock,
-  Eraser,
-  GripVertical,
-  Keyboard,
-  ListChecks,
-  type LucideIcon,
-  MousePointerClick,
-  Move,
-  Pencil,
-  Play,
-  Square,
-  Trash2,
-  Type as TypeIcon,
-  Upload,
-} from 'lucide-react';
+import { GripVertical, MoreHorizontal, Pencil, Play, Trash2 } from 'lucide-react';
+import { Pill, PillKind } from '../ui/Pill';
 import { TestStep } from '../../types/test.types';
 
 interface SortableTestStepProps {
@@ -31,40 +15,22 @@ interface SortableTestStepProps {
   isActiveVideoStep?: boolean;
 }
 
-type Tone = 'moss' | 'slate' | 'amber' | 'clay' | 'info' | 'mute';
-
-const STEP_META: Record<string, { tone: Tone; Icon: LucideIcon }> = {
-  click: { tone: 'info', Icon: MousePointerClick },
-  doubleclick: { tone: 'info', Icon: MousePointerClick },
-  rightclick: { tone: 'info', Icon: MousePointerClick },
-  hover: { tone: 'info', Icon: MousePointerClick },
-  type: { tone: 'moss', Icon: TypeIcon },
-  clear: { tone: 'moss', Icon: Eraser },
-  select: { tone: 'moss', Icon: ChevronsUpDown },
-  check: { tone: 'moss', Icon: CheckSquare },
-  uncheck: { tone: 'moss', Icon: Square },
-  upload: { tone: 'moss', Icon: Upload },
-  scroll: { tone: 'amber', Icon: Move },
-  press: { tone: 'amber', Icon: Keyboard },
-  wait: { tone: 'slate', Icon: Clock },
-  assert: { tone: 'moss', Icon: ListChecks },
-};
-
-function toneToken(tone: Tone): { bg: string; fg: string; edge: string } {
-  switch (tone) {
-    case 'moss':
-      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
-    case 'amber':
-      return { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
-    case 'clay':
-      return { bg: 'var(--clay-soft)', fg: 'var(--clay)', edge: 'var(--clay-edge)' };
-    case 'slate':
-      return { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' };
-    case 'info':
-      return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
-    case 'mute':
+function actionPillKind(type: string): PillKind {
+  switch (type) {
+    case 'assert':
+      return 'ok';
+    case 'navigate':
+    case 'click':
+    case 'doubleclick':
+    case 'rightclick':
+    case 'hover':
+      return 'info';
+    case 'wait':
+      return 'warn';
+    case 'screenshot':
+      return 'mute';
     default:
-      return { bg: 'var(--surface-2)', fg: 'var(--ink-2)', edge: 'var(--hair)' };
+      return 'mute';
   }
 }
 
@@ -85,144 +51,120 @@ export function SortableTestStep({
     transform,
     transition,
     isDragging,
-    isOver,
   } = useSortable({
     id: step.id,
     data: { type: 'step', step },
   });
 
-  const meta = STEP_META[step.type] ?? { tone: 'mute' as Tone, Icon: MousePointerClick };
-  const tone = toneToken(meta.tone);
-
-  const baseStyle: React.CSSProperties = {
+  const cardStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     background: 'var(--surface)',
-    border: `1px solid ${isActiveVideoStep ? 'var(--moss)' : 'var(--hair)'}`,
-    borderRadius: 8,
-    padding: 8,
-    boxShadow: isActiveVideoStep ? '0 0 0 2px var(--moss-soft)' : 'none',
+    border: `1px solid ${isActiveVideoStep ? 'var(--ink-2)' : 'var(--hair)'}`,
+    borderRadius: 6,
+    padding: '8px 12px',
+    boxShadow: isActiveVideoStep ? 'var(--shadow-md)' : 'none',
     opacity: isDragging ? 0.5 : 1,
-    outline: isOver ? '1px dashed var(--moss)' : 'none',
   };
 
   return (
-    <div ref={setNodeRef} style={baseStyle}>
-      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-        <div
+    <div ref={setNodeRef} style={cardStyle}>
+      <div className="row" style={{ gap: 10 }}>
+        {/* Step number */}
+        <span
+          className="mono dim"
+          style={{ width: 18, fontSize: 10.5, flexShrink: 0 }}
+        >
+          {String(index + 1).padStart(2, '0')}
+        </span>
+
+        {/* Drag handle */}
+        <span
           {...attributes}
           {...listeners}
+          className="dim"
           title="Drag to reorder"
           style={{
             cursor: 'grab',
-            display: 'grid',
-            placeItems: 'center',
-            color: 'var(--ink-3)',
-            flexShrink: 0,
-          }}
-        >
-          <GripVertical size={14} />
-        </div>
-
-        <span
-          className="tabular"
-          style={{
-            display: 'inline-grid',
-            placeItems: 'center',
-            minWidth: 22,
-            height: 20,
-            padding: '0 6px',
-            borderRadius: 4,
-            background: 'var(--surface-2)',
-            color: 'var(--ink-2)',
-            fontSize: 11,
-            fontWeight: 600,
-            border: '1px solid var(--hair)',
-            flexShrink: 0,
-          }}
-        >
-          {index + 1}
-        </span>
-
-        <span
-          style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 4,
-            padding: '2px 7px',
-            borderRadius: 999,
-            background: tone.bg,
-            color: tone.fg,
-            border: `1px solid ${tone.edge}`,
-            fontSize: 10.5,
-            fontWeight: 600,
-            letterSpacing: '0.02em',
-            textTransform: 'uppercase',
             flexShrink: 0,
           }}
         >
-          <meta.Icon size={11} />
-          {step.type}
+          <GripVertical size={13} />
         </span>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
+        {/* Action pill — lowercase, plain word */}
+        <Pill kind={actionPillKind(step.type)} dot={false}>
+          {step.type}
+        </Pill>
+
+        {/* Selector / target */}
+        <span
+          className="mono"
+          style={{
+            fontSize: 11.5,
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'var(--ink-2)',
+          }}
+          title={step.selector}
+        >
+          {step.selector}
+        </span>
+
+        {/* Optional value */}
+        {step.value && (
+          <span
+            className="mono"
             style={{
-              fontSize: 12.5,
-              color: 'var(--ink)',
+              fontSize: 11.5,
+              color: 'var(--moss)',
+              maxWidth: 140,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
+            title={step.value}
+          >
+            {step.value}
+          </span>
+        )}
+
+        {/* Description */}
+        {step.description && step.description !== step.selector && (
+          <span
+            className="dim"
+            style={{
+              fontSize: 11.5,
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+            title={step.description}
           >
             {step.description}
-          </div>
-          <div
-            className="row"
-            style={{ gap: 6, fontSize: 11, color: 'var(--ink-3)', marginTop: 1 }}
-          >
-            <code
-              className="mono"
-              style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                color: 'var(--slate)',
-              }}
-            >
-              {step.selector}
-            </code>
-            {step.value && (
-              <>
-                <span style={{ color: 'var(--ink-4)' }}>→</span>
-                <span
-                  style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: 'var(--ink-2)',
-                    fontWeight: 500,
-                  }}
-                >
-                  {step.value}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
+          </span>
+        )}
 
+        {/* Actions */}
         <div className="row" style={{ gap: 2, flexShrink: 0 }}>
           {onLiveExecute && projectId && (
             <button
               type="button"
+              className="btn btn-ghost btn-icon"
               onClick={() => onLiveExecute(step)}
               disabled={isExecuting}
-              className="icon-btn"
-              title={isExecuting ? 'Executing step…' : 'Run this step'}
-              style={isExecuting ? { color: 'var(--amber)' } : undefined}
+              title={isExecuting ? 'Executing…' : 'Run this step'}
             >
               {isExecuting ? (
-                <div
+                <span
                   className="animate-spin"
                   style={{
                     width: 12,
@@ -230,6 +172,7 @@ export function SortableTestStep({
                     borderRadius: 999,
                     border: '1.5px solid currentColor',
                     borderTopColor: 'transparent',
+                    display: 'inline-block',
                   }}
                 />
               ) : (
@@ -239,24 +182,26 @@ export function SortableTestStep({
           )}
           <button
             type="button"
+            className="btn btn-ghost btn-icon"
             onClick={onEdit}
-            className="icon-btn"
             title="Edit step"
           >
             <Pencil size={12} />
           </button>
           <button
             type="button"
+            className="btn btn-ghost btn-icon"
             onClick={onRemove}
-            className="icon-btn"
             title="Delete step"
             style={{ color: 'var(--clay)' }}
           >
             <Trash2 size={12} />
           </button>
+          <span className="dim" style={{ display: 'none' }}>
+            <MoreHorizontal size={12} />
+          </span>
         </div>
       </div>
     </div>
   );
 }
-
