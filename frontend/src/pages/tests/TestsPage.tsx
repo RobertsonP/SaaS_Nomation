@@ -3,13 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import { testsAPI, projectsAPI } from '../../lib/api'
 import { TestExecutionModal } from '../../components/execution/TestExecutionModal'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
-import { LiveElementPicker } from '../../components/element-picker/LiveElementPicker'
 import { executionAPI } from '../../lib/api'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
-import { Eye, FlaskConical, Loader2, MousePointerClick, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Eye, FlaskConical, Loader2, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { Pill } from '../../components/ui/Pill'
 
 const logger = createLogger('TestsPage')
@@ -67,7 +66,6 @@ export function TestsPage() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   // Live Element Picker — accessible from this page so users can pick
   // elements without going through the Test Builder first.
-  const [showLivePicker, setShowLivePicker] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -236,15 +234,6 @@ export function TestsPage() {
               {isGeneratingAI ? 'Generating…' : 'AI Generate Tests'}
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={() => setShowLivePicker(true)}
-            title="Open the Live Element Picker to capture elements from a real page"
-          >
-            <MousePointerClick size={13} />
-            <span>Pick elements</span>
-          </button>
           <button className="btn btn-primary" onClick={() => setShowCreateForm(true)}>
             <Plus size={13} />
             <span>Create Test</span>
@@ -429,25 +418,6 @@ export function TestsPage() {
         onPick={handlePickRunMode}
       />
 
-      {/* Live Element Picker — opened from the "Pick elements" header button. */}
-      {projectId && (
-        <LiveElementPicker
-          isOpen={showLivePicker}
-          projectId={projectId}
-          onClose={() => setShowLivePicker(false)}
-          onElementsSelected={(elements) => {
-            showSuccess(
-              'Elements Selected',
-              `${elements.length} element(s) added to library`,
-            );
-            setShowLivePicker(false);
-          }}
-          onSelectElement={(selector, description) => {
-            logger.debug('Selected Element', { selector, description });
-            showSuccess('Element saved', `"${description}" added to library`);
-          }}
-        />
-      )}
     </div>
   )
 }

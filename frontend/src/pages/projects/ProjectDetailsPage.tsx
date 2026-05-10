@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { projectsAPI, authFlowsAPI, analyzeProjectPages } from '../../lib/api';
 import { ElementLibraryPanel } from '../../components/test-builder/ElementLibraryPanel';
+import { ElementInspectDrawer } from '../../components/elements/ElementInspectDrawer';
 import { AnalysisProgressModal } from '../../components/analysis/AnalysisProgressModal';
 import { SimplifiedAuthSetup } from '../../components/auth/SimplifiedAuthSetup';
 import { SiteMapGraph, useSiteMapData, DiscoveryModal } from '../../components/sitemap';
@@ -184,6 +185,7 @@ export function ProjectDetailsPage() {
   // Auth setup state
   const [showAuthSetup, setShowAuthSetup] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [inspectingElement, setInspectingElement] = useState<ProjectElement | null>(null);
   const [editingAuthFlow, setEditingAuthFlow] = useState<{id: string; data: any} | null>(null);
 
   // Site Map state
@@ -892,8 +894,9 @@ export function ProjectDetailsPage() {
         {activeTab === 'elements' && (
           <ElementLibraryPanel
             key={elementsKey}
+            mode="project-details"
             projectId={projectId}
-            onSelectElement={(element) => logger.debug('Element selected', element)}
+            onSelectElement={setInspectingElement}
             selectedElementType={selectedElementType}
             selectedUrl={selectedUrl}
             onElementTypeChange={setSelectedElementType}
@@ -903,28 +906,6 @@ export function ProjectDetailsPage() {
             compact={false}
             isLoading={false}
             setShowLivePicker={setShowLivePicker}
-            onAnalyzePages={handleAnalyzeProject}
-            onAnalyzeSelected={async (urlIds) => {
-              // Update selectedUrls state and trigger analysis
-              setSelectedUrls(urlIds);
-              // Show progress modal and wait for WebSocket connection
-              setShowAnalysisModal(true);
-              setAnalyzing(true);
-              await new Promise(resolve => setTimeout(resolve, 500));
-              try {
-                await analyzeProjectPages(projectId!, urlIds);
-                setTimeout(() => {
-                  loadProject();
-                  setElementsKey(prev => prev + 1);
-                  setSelectedUrls([]);
-                }, 2000);
-              } catch (error: any) {
-                logger.error('Analysis error', error);
-              } finally {
-                setAnalyzing(false);
-              }
-            }}
-            onClearElements={handleClearElements}
             projectUrls={project.urls}
             isAnalyzing={analyzing}
           />
@@ -1043,6 +1024,12 @@ export function ProjectDetailsPage() {
           initialData={editingAuthFlow?.data}
         />
       )}
+
+      {/* Element Inspector Drawer (project Elements tab row click) */}
+      <ElementInspectDrawer
+        element={inspectingElement}
+        onClose={() => setInspectingElement(null)}
+      />
 
       {/* Discovery Modal */}
       <DiscoveryModal

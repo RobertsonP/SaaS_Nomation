@@ -12,8 +12,10 @@ import { ProjectElement } from '../../types/element.types';
 import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
 import { DropdownPreviewCard } from '../elements/DropdownPreviewCard';
+import { ElPreview } from '../elements/ElPreview';
 import { CellStepData } from '../elements/CellSelectorPopover';
 import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
+import { Pill } from '../ui/Pill';
 import { projectsAPI } from '../../lib/api';
 
 interface ProjectUrl {
@@ -44,6 +46,14 @@ interface ElementLibraryPanelProps {
   onClearElements?: () => void;
   projectUrls?: ProjectUrl[];
   isAnalyzing?: boolean;
+  /**
+   * Layout mode:
+   * - `test-builder` (default): linear card list with search + filter pills,
+   *   bottom "Pick from page" button. Live picker / Analyze / Clear visible.
+   * - `project-details`: <table className="table"> with row click → drawer.
+   *   Live picker / Analyze / Clear-all hidden (lives elsewhere on the page).
+   */
+  mode?: 'project-details' | 'test-builder';
 }
 
 const UNATTRIBUTED_KEY = '__unattributed__';
@@ -123,7 +133,9 @@ export function ElementLibraryPanel({
   onClearElements,
   projectUrls = [],
   isAnalyzing = false,
+  mode = 'test-builder',
 }: ElementLibraryPanelProps) {
+  const isProjectMode = mode === 'project-details';
   const [showUrlPicker, setShowUrlPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
@@ -496,7 +508,7 @@ export function ElementLibraryPanel({
             </span>
           </div>
           <div className="row" style={{ gap: 4 }}>
-            {(onAnalyzePages || onAnalyzeSelected) && (
+            {!isProjectMode && (onAnalyzePages || onAnalyzeSelected) && (
               <button
                 type="button"
                 onClick={handleAnalyzeClick}
@@ -508,23 +520,26 @@ export function ElementLibraryPanel({
                 <span>{isAnalyzing ? 'Analyzing…' : 'Analyze'}</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setShowLivePicker(true)}
-              className="btn btn-primary btn-sm"
-            >
-              <MousePointerClick size={12} />
-              <span>Live picker</span>
-            </button>
-            {onClearElements && elements.length > 0 && (
+            {!isProjectMode && (
+              <button
+                type="button"
+                onClick={() => setShowLivePicker(true)}
+                className="btn btn-primary btn-sm"
+              >
+                <MousePointerClick size={12} />
+                <span>Live picker</span>
+              </button>
+            )}
+            {!isProjectMode && onClearElements && elements.length > 0 && (
               <button
                 type="button"
                 onClick={onClearElements}
-                className="icon-btn"
-                title="Clear all elements"
-                style={{ color: 'var(--clay)' }}
+                className="btn btn-outline btn-sm"
+                title="Remove every saved element"
+                style={{ color: 'var(--clay)', borderColor: 'var(--clay-edge)' }}
               >
-                <Trash2 size={13} />
+                <Trash2 size={12} />
+                <span>Clear elements</span>
               </button>
             )}
           </div>
@@ -606,16 +621,16 @@ export function ElementLibraryPanel({
         })}
       </div>
 
-      {/* Single linear element list */}
+      {/* Element list — table for project mode, linear cards for builder mode */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
           minHeight: 0,
-          padding: '8px',
-          display: 'flex',
+          padding: isProjectMode ? 0 : 8,
+          display: isProjectMode ? 'block' : 'flex',
           flexDirection: 'column',
-          gap: 6,
+          gap: isProjectMode ? 0 : 6,
           background: 'var(--paper)',
         }}
       >
@@ -632,6 +647,102 @@ export function ElementLibraryPanel({
               </p>
             );
           }
+
+          if (isProjectMode) {
+            // Project Details Elements tab — table layout matching projects.jsx:367–395
+            return (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 100 }}>Preview</th>
+                    <th>Label</th>
+                    <th>Selector</th>
+                    <th>Type</th>
+                    <th>Page</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flatElements.map((element) => {
+                    const attrs = element.attributes as any;
+                    const confidence = attrs?.confidence ? String(attrs.confidence) : undefined;
+                    const sourceUrl = element.sourceUrl?.url;
+                    const path = sourceUrl
+                      ? (() => {
+                          try {
+                            return new URL(sourceUrl).pathname || '/';
+                          } catch {
+                            return sourceUrl;
+                          }
+                        })()
+                      : '—';
+                    const confKind: 'ok' | 'warn' | 'err' | 'mute' =
+                      confidence === 'high' || confidence === 'ok'
+                        ? 'ok'
+                        : confidence === 'med' || confidence === 'medium' || confidence === 'warn'
+                        ? 'warn'
+                        : confidence === 'low' || confidence === 'err'
+                        ? 'err'
+                        : 'mute';
+
+                    return (
+                      <tr
+                        key={element.id}
+                        onClick={() => onSelectElement(element)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td>
+                          <div style={{ width: 90 }}>
+                            <ElPreview type={element.elementType} label={element.description} />
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{element.description}</td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              maxWidth: 240,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={element.selector}
+                          >
+                            {element.selector}
+                          </span>
+                        </td>
+                        <td className="dim">{element.elementType}</td>
+                        <td className="mono dim" style={{ fontSize: 11 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              maxWidth: 200,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={sourceUrl}
+                          >
+                            {path}
+                          </span>
+                        </td>
+                        <td>
+                          {confidence ? (
+                            <Pill kind={confKind} dot={false}>
+                              {confidence}
+                            </Pill>
+                          ) : (
+                            <span className="dim">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          }
+
           return flatElements.map((element) => {
             const hasTableData =
               element.elementType === 'table' &&
@@ -708,25 +819,27 @@ export function ElementLibraryPanel({
         )}
       </div>
 
-      {/* Bottom "Pick from page" strip — matches pages.jsx:42–44 */}
-      <div
-        style={{
-          flexShrink: 0,
-          padding: 8,
-          borderTop: '1px solid var(--hair)',
-          background: 'var(--paper)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setShowLivePicker(true)}
-          className="btn btn-outline"
-          style={{ width: '100%', justifyContent: 'center' }}
+      {/* Bottom "Pick from page" strip — matches pages.jsx:42–44 — builder only */}
+      {!isProjectMode && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: 8,
+            borderTop: '1px solid var(--hair)',
+            background: 'var(--paper)',
+          }}
         >
-          <MousePointerClick size={13} />
-          <span>Pick from page</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setShowLivePicker(true)}
+            className="btn btn-outline"
+            style={{ width: '100%', justifyContent: 'center' }}
+          >
+            <MousePointerClick size={13} />
+            <span>Pick from page</span>
+          </button>
+        </div>
+      )}
 
       {/* URL Picker Modal */}
       <AnalyzeUrlsModal
