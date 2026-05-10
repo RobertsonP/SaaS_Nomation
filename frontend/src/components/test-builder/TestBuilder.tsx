@@ -83,6 +83,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             compact={false}
             isLoading={false}
             setShowLivePicker={setShowLivePicker}
+            selectedElementId={selectedElement?.id}
           />
         </div>
 

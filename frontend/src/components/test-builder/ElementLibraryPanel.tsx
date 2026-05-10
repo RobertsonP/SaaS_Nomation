@@ -55,6 +55,10 @@ interface ElementLibraryPanelProps {
    *   Live picker / Analyze / Clear-all hidden (lives elsewhere on the page).
    */
   mode?: 'project-details' | 'test-builder';
+  /** Id of the element currently selected by the parent (e.g. Test Builder's
+   * `selectedElement`). Used to render a clear "selected" state and scroll
+   * the matching card into view on click. */
+  selectedElementId?: string;
 }
 
 const UNATTRIBUTED_KEY = '__unattributed__';
@@ -135,6 +139,7 @@ export function ElementLibraryPanel({
   projectUrls = [],
   isAnalyzing = false,
   mode = 'test-builder',
+  selectedElementId,
 }: ElementLibraryPanelProps) {
   const isProjectMode = mode === 'project-details';
   const [showUrlPicker, setShowUrlPicker] = useState(false);
@@ -959,6 +964,7 @@ export function ElementLibraryPanel({
                 element={element}
                 onSelectElement={onSelectElement}
                 showQuality
+                selected={selectedElementId === element.id}
               />
             );
           });

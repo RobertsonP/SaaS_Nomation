@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Eye, GripVertical } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { ElPreview } from './ElPreview';
@@ -12,6 +12,10 @@ interface ElementPreviewCardProps {
   onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
   showQuality?: boolean;
   compact?: boolean;
+  /** When true, the card is rendered as "selected" (clear visual state) and
+   * scrolls itself to the top of its scroll container so the user notices
+   * the selection and can pick the action from the right panel. */
+  selected?: boolean;
 }
 
 function getPathFromUrl(url: string): string {
@@ -35,14 +39,25 @@ export function ElementPreviewCard({
   onSelectElement,
   isLiveMode,
   onPerformAction,
+  selected = false,
 }: ElementPreviewCardProps) {
   const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const sourceUrl = element.sourceUrl?.url;
   const attributes = element.attributes as any;
   const confidence = attributes?.confidence || attributes?.score
     ? String(attributes?.confidence || attributes?.score)
     : undefined;
+
+  // Scroll the card to the top of its scroll parent when it becomes
+  // selected — gives clear feedback that the click registered.
+  useEffect(() => {
+    if (selected && cardRef.current) {
+      cardRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [selected]);
 
   const handleCopySelector = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,19 +88,36 @@ export function ElementPreviewCard({
     if (map[action]) onPerformAction(map[action]);
   };
 
+  // Background + border respond to selected first, then hover.
+  const cardBackground = selected
+    ? 'var(--moss-soft)'
+    : hovered
+    ? 'var(--surface-2)'
+    : 'var(--surface)';
+  const cardBorder = selected ? 'var(--moss)' : hovered ? 'var(--ink-3)' : 'var(--hair)';
+  const cardShadow = selected ? 'var(--shadow-md)' : 'none';
+
   return (
     <div
+      ref={cardRef}
       role="button"
       tabIndex={0}
+      aria-pressed={selected}
       onClick={() => onSelectElement(element)}
       onKeyDown={handleKeyDown}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       draggable
       className="card"
       style={{
         padding: 8,
         display: 'grid',
         gap: 6,
-        cursor: 'grab',
+        cursor: 'pointer',
+        background: cardBackground,
+        borderColor: cardBorder,
+        boxShadow: cardShadow,
+        transition: 'background .12s ease, border-color .12s ease, box-shadow .15s ease',
       }}
     >
       {/* Row 1: visual preview — real screenshot first, then CSS-rendered
@@ -143,7 +175,16 @@ export function ElementPreviewCard({
 
       {/* Row 2: drag · label/selector · confidence */}
       <div className="row" style={{ gap: 6 }}>
-        <span className="dim" style={{ display: 'inline-flex', flexShrink: 0 }}>
+        <span
+          className="dim"
+          title="Drag to reorder (or click anywhere on the card to select)"
+          style={{
+            display: 'inline-flex',
+            flexShrink: 0,
+            cursor: 'grab',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <GripVertical size={12} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
