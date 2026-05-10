@@ -2,14 +2,25 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   AlertTriangle,
   Bug,
+  Camera,
   CheckCircle2,
+  Chrome,
   Clock,
+  Eye,
+  EyeOff,
+  Gauge,
   Loader2,
+  Monitor,
   Play,
   PlayCircle,
+  Repeat,
   Save,
+  Smartphone,
   StepForward,
+  Tablet,
+  Timer,
   Trash2,
+  Video,
   X,
   XCircle,
 } from 'lucide-react'
@@ -501,6 +512,10 @@ export function TestBuilderPanel({
     setSequentialExecutionResults([])
     setShowSequentialExecutionModal(true)
 
+    // Local var so the finally block can clean up regardless of state-closure timing.
+    // The setBrowserSessionToken state update doesn't reach the finally closure.
+    let localSessionToken: string | null = null
+
     try {
       logger.info(`Starting sequential execution of ${steps.length} steps`)
 
@@ -520,6 +535,7 @@ export function TestBuilderPanel({
       logger.debug('Creating shared browser session...')
       const sessionResponse = await browserAPI.createSession(projectId, undefined, url)
       const sessionToken = sessionResponse.sessionToken
+      localSessionToken = sessionToken
       setBrowserSessionToken(sessionToken)
       logger.info(`Browser session created: ${sessionToken}`)
 
@@ -603,22 +619,24 @@ export function TestBuilderPanel({
       logger.error('Sequential execution failed', error)
       showError('Execution Failed', `Sequential execution failed: ${error.message || 'Unknown error'}`)
     } finally {
-      // Clean up browser session
-      if (browserSessionToken) {
+      // Clean up browser session — read from the local var because the state
+      // closure captured `browserSessionToken` from the render where this
+      // callback was created (often null), so checking state would skip cleanup.
+      if (localSessionToken) {
         try {
-          logger.debug(`Closing browser session: ${browserSessionToken}`)
-          await browserAPI.closeSession(browserSessionToken)
+          logger.debug(`Closing browser session: ${localSessionToken}`)
+          await browserAPI.closeSession(localSessionToken)
           setBrowserSessionToken(null)
         } catch (cleanupError) {
           logger.warn('Failed to close browser session', cleanupError)
         }
       }
-      
+
       setIsExecutingAllSteps(false)
       setCurrentExecutingStepIndex(-1)
       setCurrentExecutingStep(null)
     }
-  }, [steps, projectId]);
+  }, [steps, projectId, startingUrl, showError, showSuccess, showWarning]);
 
   // Normal mode: delegates to existing handleExecuteAllSteps logic
   const startNormalExecution = () => {
@@ -1211,96 +1229,16 @@ export function TestBuilderPanel({
         />
       )}
 
-      {/* Execution Mode Selection Modal */}
+      {/* Execution Mode Selection Modal — full featured picker */}
       {showExecutionModeModal && (
-        <div className="modal-backdrop" onClick={() => setShowExecutionModeModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div className="modal-title">Choose execution mode</div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setShowExecutionModeModal(false)}
-                aria-label="Close"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="modal-body col" style={{ gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => { setShowExecutionModeModal(false); startNormalExecution(); }}
-                style={{
-                  textAlign: 'left',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--hair)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  transition: 'border-color .15s ease, background .15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--moss)';
-                  e.currentTarget.style.background = 'var(--moss-soft)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--hair)';
-                  e.currentTarget.style.background = 'var(--surface)';
-                }}
-              >
-                <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <Play size={14} style={{ color: 'var(--moss)' }} />
-                  <span style={{ fontFamily: 'Inter Tight', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-                    Normal mode
-                  </span>
-                </div>
-                <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                  Runs all steps automatically in a real browser. Watch the browser as it executes.
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowExecutionModeModal(false); startDebugExecution(); }}
-                style={{
-                  textAlign: 'left',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--hair)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  transition: 'border-color .15s ease, background .15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--amber)';
-                  e.currentTarget.style.background = 'var(--amber-soft)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--hair)';
-                  e.currentTarget.style.background = 'var(--surface)';
-                }}
-              >
-                <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <Bug size={14} style={{ color: 'var(--amber)' }} />
-                  <span style={{ fontFamily: 'Inter Tight', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-                    Debug mode
-                  </span>
-                </div>
-                <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                  Step-by-step execution. Click "Next step" to advance. Inspect results after each step.
-                </div>
-              </button>
-            </div>
-            <div className="modal-foot">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setShowExecutionModeModal(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <TestBuilderRunModal
+          onCancel={() => setShowExecutionModeModal(false)}
+          onPick={(mode) => {
+            setShowExecutionModeModal(false);
+            if (mode === 'debug') startDebugExecution();
+            else startNormalExecution();
+          }}
+        />
       )}
 
       {/* Sequential Execution Progress Modal */}
@@ -1538,4 +1476,524 @@ export function TestBuilderPanel({
       )}
     </div>
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full-featured run modal for the test builder. Mirrors RunModePickerModal's
+// shape (same browser/viewport/capture/timing options) and adds a third "Debug"
+// run mode for step-by-step execution. Options not yet wired carry a "soon" pill
+// so the user sees what's planned vs functional today.
+// ─────────────────────────────────────────────────────────────────────────────
+type RunChoice = 'normal-headed' | 'normal-headless' | 'debug';
+
+function TestBuilderRunModal({
+  onCancel,
+  onPick,
+}: {
+  onCancel: () => void;
+  onPick: (mode: RunChoice) => void;
+}) {
+  const [mode, setMode] = useState<RunChoice>('normal-headed');
+  const [browser, setBrowser] = useState<'chromium' | 'firefox' | 'webkit'>('chromium');
+  const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [recordVideo, setRecordVideo] = useState(true);
+  const [screenshotsOnFailure, setScreenshotsOnFailure] = useState(true);
+  const [slowMotionMs, setSlowMotionMs] = useState(0);
+  const [stepTimeoutSec, setStepTimeoutSec] = useState(30);
+  const [retries, setRetries] = useState(0);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  const handleStart = () => onPick(mode);
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal modal-lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head">
+          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: 'var(--moss-soft)',
+                color: 'var(--moss)',
+                border: '1px solid var(--moss-edge)',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Play size={16} />
+            </span>
+            <div>
+              <div className="modal-title">Run test</div>
+              <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                Choose how this test should run and tweak execution options.
+              </div>
+            </div>
+          </div>
+          <button type="button" className="icon-btn" onClick={onCancel} aria-label="Close">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="modal-body col" style={{ gap: 18, overflowY: 'auto' }}>
+          {/* Run mode */}
+          <RunSection label="Run mode" required>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <RunChoiceCard
+                active={mode === 'normal-headed'}
+                onClick={() => setMode('normal-headed')}
+                Icon={Eye}
+                title="Headed"
+                tone="info"
+                description="Real Chromium window opens. Watch the test execute live."
+              />
+              <RunChoiceCard
+                active={mode === 'normal-headless'}
+                onClick={() => setMode('normal-headless')}
+                Icon={EyeOff}
+                title="Headless"
+                tone="moss"
+                description="No browser window. Faster on busy machines. Same recording."
+              />
+              <RunChoiceCard
+                active={mode === 'debug'}
+                onClick={() => setMode('debug')}
+                Icon={Bug}
+                title="Debug"
+                tone="amber"
+                description="Step-by-step. Click Next after each step. Inspect results."
+              />
+            </div>
+          </RunSection>
+
+          <RunSection label="Browser engine">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <RunSmallChoice
+                active={browser === 'chromium'}
+                onClick={() => setBrowser('chromium')}
+                Icon={Chrome}
+                title="Chromium"
+              />
+              <RunSmallChoice
+                active={browser === 'firefox'}
+                onClick={() => setBrowser('firefox')}
+                Icon={Chrome}
+                title="Firefox"
+                soon
+              />
+              <RunSmallChoice
+                active={browser === 'webkit'}
+                onClick={() => setBrowser('webkit')}
+                Icon={Chrome}
+                title="WebKit"
+                soon
+              />
+            </div>
+          </RunSection>
+
+          <RunSection label="Viewport preset">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <RunSmallChoice
+                active={viewport === 'desktop'}
+                onClick={() => setViewport('desktop')}
+                Icon={Monitor}
+                title="Desktop"
+                subtitle="1280 × 720"
+              />
+              <RunSmallChoice
+                active={viewport === 'tablet'}
+                onClick={() => setViewport('tablet')}
+                Icon={Tablet}
+                title="Tablet"
+                subtitle="820 × 1180"
+                soon
+              />
+              <RunSmallChoice
+                active={viewport === 'mobile'}
+                onClick={() => setViewport('mobile')}
+                Icon={Smartphone}
+                title="Mobile"
+                subtitle="390 × 844"
+                soon
+              />
+            </div>
+          </RunSection>
+
+          <RunSection label="Capture">
+            <div className="col" style={{ gap: 8 }}>
+              <RunToggleRow
+                Icon={Video}
+                title="Record video"
+                description="Save a recording of the run."
+                checked={recordVideo}
+                onChange={setRecordVideo}
+              />
+              <RunToggleRow
+                Icon={Camera}
+                title="Screenshot on failure"
+                description="Capture a screenshot the moment a step fails."
+                checked={screenshotsOnFailure}
+                onChange={setScreenshotsOnFailure}
+              />
+            </div>
+          </RunSection>
+
+          <RunSection label="Timing & retries">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <RunNumberField
+                Icon={Timer}
+                label="Step timeout"
+                suffix="s"
+                value={stepTimeoutSec}
+                onChange={setStepTimeoutSec}
+                min={5}
+                max={300}
+                step={5}
+                soon
+              />
+              <RunNumberField
+                Icon={Gauge}
+                label="Slow-mo"
+                suffix="ms"
+                value={slowMotionMs}
+                onChange={setSlowMotionMs}
+                min={0}
+                max={2000}
+                step={50}
+                soon
+              />
+              <RunNumberField
+                Icon={Repeat}
+                label="Retries on fail"
+                suffix=""
+                value={retries}
+                onChange={setRetries}
+                min={0}
+                max={5}
+                step={1}
+                soon
+              />
+            </div>
+          </RunSection>
+
+          <div
+            className="row"
+            style={{
+              gap: 8,
+              alignItems: 'flex-start',
+              padding: 10,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--hair)',
+              borderRadius: 6,
+              fontSize: 11.5,
+              color: 'var(--ink-3)',
+            }}
+          >
+            <Loader2 size={12} style={{ marginTop: 2, flexShrink: 0 }} />
+            <span>
+              Options marked <strong style={{ color: 'var(--ink-2)' }}>soon</strong> are visible
+              now and will be wired in an upcoming release. Run mode and capture toggles work today.
+            </span>
+          </div>
+        </div>
+
+        <div className="modal-foot">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleStart}>
+            <Play size={13} />
+            <span>Start run</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RunSection({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <div
+        className="dim"
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {label}
+        {required && <span style={{ color: 'var(--clay)', marginLeft: 4 }}>*</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function RunChoiceCard({
+  active,
+  onClick,
+  Icon,
+  title,
+  description,
+  tone,
+}: {
+  active: boolean;
+  onClick: () => void;
+  Icon: typeof Eye;
+  title: string;
+  description: string;
+  tone: 'info' | 'moss' | 'amber';
+}) {
+  const toneFg = tone === 'info' ? 'var(--info)' : tone === 'moss' ? 'var(--moss)' : 'var(--amber)';
+  const toneBg = tone === 'info' ? 'var(--info-soft)' : tone === 'moss' ? 'var(--moss-soft)' : 'var(--amber-soft)';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        textAlign: 'left',
+        background: active ? toneBg : 'var(--surface)',
+        borderWidth: 2,
+        borderStyle: 'solid',
+        borderColor: active ? toneFg : 'var(--hair)',
+        borderRadius: 8,
+        padding: 12,
+        cursor: 'pointer',
+        transition: 'border-color .15s ease, background .15s ease, box-shadow .15s ease',
+        position: 'relative',
+        boxShadow: active ? `0 0 0 3px ${toneBg}` : 'none',
+      }}
+    >
+      {active && (
+        <span
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 16,
+            height: 16,
+            borderRadius: 999,
+            background: toneFg,
+            color: '#fff',
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: 9,
+            fontWeight: 700,
+          }}
+          aria-hidden="true"
+        >
+          ✓
+        </span>
+      )}
+      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
+        <Icon size={13} style={{ color: toneFg }} />
+        <span
+          style={{
+            fontFamily: 'Inter Tight',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--ink)',
+          }}
+        >
+          {title}
+        </span>
+      </div>
+      <div className="dim" style={{ fontSize: 11, lineHeight: 1.5, paddingRight: 18 }}>
+        {description}
+      </div>
+    </button>
+  );
+}
+
+function RunSmallChoice({
+  active,
+  onClick,
+  Icon,
+  title,
+  subtitle,
+  soon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  Icon: typeof Monitor;
+  title: string;
+  subtitle?: string;
+  soon?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={soon ? undefined : onClick}
+      disabled={soon}
+      aria-pressed={active}
+      style={{
+        textAlign: 'left',
+        background: active ? 'var(--moss-soft)' : 'var(--surface)',
+        borderWidth: active ? 2 : 1,
+        borderStyle: 'solid',
+        borderColor: active ? 'var(--moss)' : 'var(--hair)',
+        borderRadius: 6,
+        padding: 10,
+        cursor: soon ? 'not-allowed' : 'pointer',
+        opacity: soon ? 0.6 : 1,
+        transition: 'border-color .12s ease, background .12s ease',
+      }}
+    >
+      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 2 }}>
+        <Icon size={12} style={{ color: active ? 'var(--moss)' : 'var(--ink-2)' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{title}</span>
+        {soon && <RunSoonPill />}
+      </div>
+      {subtitle && (
+        <div className="mono dim" style={{ fontSize: 10.5 }}>
+          {subtitle}
+        </div>
+      )}
+    </button>
+  );
+}
+
+function RunToggleRow({
+  Icon,
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  Icon: typeof Video;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label
+      className="row"
+      style={{
+        gap: 10,
+        alignItems: 'flex-start',
+        padding: 10,
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 6,
+        cursor: 'pointer',
+      }}
+    >
+      <Icon size={13} style={{ color: 'var(--ink-2)', marginTop: 2, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{title}</div>
+        <p className="dim" style={{ margin: '2px 0 0', fontSize: 11.5, lineHeight: 1.5 }}>
+          {description}
+        </p>
+      </div>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 16, height: 16, accentColor: 'var(--moss)', flexShrink: 0, marginTop: 2 }}
+      />
+    </label>
+  );
+}
+
+function RunNumberField({
+  Icon,
+  label,
+  suffix,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  soon,
+}: {
+  Icon: typeof Timer;
+  label: string;
+  suffix: string;
+  value: number;
+  onChange: (next: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  soon?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 6,
+        padding: 10,
+        opacity: soon ? 0.7 : 1,
+      }}
+    >
+      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
+        <Icon size={12} style={{ color: 'var(--ink-2)' }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>{label}</span>
+        {soon && <RunSoonPill />}
+      </div>
+      <div className="row" style={{ gap: 4, alignItems: 'baseline' }}>
+        <input
+          type="number"
+          className="field tabular"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          min={min}
+          max={max}
+          step={step}
+          style={{ flex: 1, fontSize: 12.5 }}
+        />
+        {suffix && (
+          <span className="dim" style={{ fontSize: 11 }}>
+            {suffix}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RunSoonPill() {
+  return (
+    <span
+      style={{
+        marginLeft: 'auto',
+        padding: '1px 6px',
+        borderRadius: 999,
+        background: 'var(--amber-soft)',
+        color: 'var(--amber)',
+        border: '1px solid var(--amber-edge)',
+        fontSize: 9,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+      }}
+    >
+      soon
+    </span>
+  );
 }

@@ -229,7 +229,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .profile-email { font-size: 10.5px; color: var(--ink-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Main + topbar */
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
 .topbar {
   height: 44px;
   background: var(--paper);

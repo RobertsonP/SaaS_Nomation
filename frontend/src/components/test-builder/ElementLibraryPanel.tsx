@@ -576,7 +576,7 @@ export function ElementLibraryPanel({
       </div>
 
       {/* Two-panel layout */}
-      <div className="row" style={{ flex: 1, overflow: 'hidden', gap: 0, alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
         {/* Left panel: Page list */}
         <div
           style={{

@@ -305,32 +305,46 @@ function ChoiceCard({
 }) {
   const toneFg = tone === 'info' ? 'var(--info)' : 'var(--moss)';
   const toneBg = tone === 'info' ? 'var(--info-soft)' : 'var(--moss-soft)';
-  const toneEdge = tone === 'info' ? 'var(--info-edge)' : 'var(--moss-edge)';
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       style={{
         textAlign: 'left',
         background: active ? toneBg : 'var(--surface)',
-        border: `1px solid ${active ? toneFg : 'var(--hair)'}`,
+        borderWidth: 2,
+        borderStyle: 'solid',
+        borderColor: active ? toneFg : 'var(--hair)',
         borderRadius: 8,
         padding: 14,
         cursor: 'pointer',
-        transition: 'border-color .15s ease, background .15s ease',
+        transition: 'border-color .15s ease, background .15s ease, box-shadow .15s ease',
         position: 'relative',
-      }}
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = toneFg;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = 'var(--hair)';
-        }
+        boxShadow: active ? `0 0 0 3px ${toneBg}` : 'none',
       }}
     >
+      {active && (
+        <span
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: toneFg,
+            color: '#fff',
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: 10,
+            fontWeight: 700,
+          }}
+          aria-hidden="true"
+        >
+          ✓
+        </span>
+      )}
       <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
         <Icon size={14} style={{ color: toneFg }} />
         <span
@@ -344,7 +358,7 @@ function ChoiceCard({
           {title}
         </span>
       </div>
-      <div className="dim" style={{ fontSize: 11.5, lineHeight: 1.55 }}>
+      <div className="dim" style={{ fontSize: 11.5, lineHeight: 1.55, paddingRight: 22 }}>
         {description}
       </div>
     </button>

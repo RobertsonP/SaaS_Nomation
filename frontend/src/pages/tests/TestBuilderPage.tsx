@@ -272,7 +272,8 @@ export function TestBuilderPage() {
       {configurationComplete && (
         <div
           style={{
-            height: 'calc(100vh - 44px)',
+            flex: 1,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--bone)',

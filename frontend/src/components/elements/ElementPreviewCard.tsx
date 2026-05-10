@@ -218,7 +218,9 @@ export function ElementPreviewCard({
         </p>
       </div>
 
-      {/* Visual preview */}
+      {/* Visual preview — prefer real screenshot, fall back to verdant
+          el-preview-* mini chip per element type, then CSS preview as a
+          last resort. The mini chip matches the design prototype. */}
       {element.screenshot ? (
         <div style={{ padding: '8px 12px 0' }}>
           <div
@@ -238,32 +240,61 @@ export function ElementPreviewCard({
             />
           </div>
         </div>
-      ) : element.attributes?.cssInfo ? (
-        <div style={{ padding: '8px 12px 0' }}>
-          <div
-            style={{
-              borderRadius: 4,
-              padding: 6,
-              maxHeight: 128,
-              overflow: 'hidden',
-              border: '1px solid var(--hair)',
-              backgroundColor: (() => {
-                const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
-                  || (element.attributes as any)?.cssInfo?.backgroundColor;
-                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : 'var(--surface-2)';
-              })(),
-            }}
-          >
-            <CSSPreviewRenderer
-              element={element}
-              mode="compact"
-              showQuality={false}
-              interactive={false}
-              className="mx-auto"
-            />
-          </div>
-        </div>
-      ) : null}
+      ) : (() => {
+        const t = element.elementType;
+        if (t === 'button' || t === 'link' || t === 'input' || t === 'form') {
+          const text =
+            (attributes?.text as string | undefined)?.trim() ||
+            element.description?.split(' ').slice(0, 3).join(' ') ||
+            (t === 'input' ? '' : 'Action');
+          return (
+            <div style={{ padding: '8px 12px 0' }}>
+              <div className="el-preview">
+                {t === 'button' ? (
+                  <span className="el-preview-btn">
+                    {text.length > 22 ? text.slice(0, 22) + '…' : text}
+                  </span>
+                ) : t === 'link' ? (
+                  <span className="el-preview-link">
+                    {text.length > 28 ? text.slice(0, 28) + '…' : text}
+                  </span>
+                ) : (
+                  <span className="el-preview-input" />
+                )}
+              </div>
+            </div>
+          );
+        }
+        if (element.attributes?.cssInfo) {
+          return (
+            <div style={{ padding: '8px 12px 0' }}>
+              <div
+                style={{
+                  borderRadius: 4,
+                  padding: 6,
+                  maxHeight: 128,
+                  overflow: 'hidden',
+                  border: '1px solid var(--hair)',
+                  backgroundColor: (() => {
+                    const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
+                      || (element.attributes as any)?.cssInfo?.backgroundColor;
+                    return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : 'var(--surface-2)';
+                  })(),
+                }}
+              >
+                <CSSPreviewRenderer
+                  element={element}
+                  mode="compact"
+                  showQuality={false}
+                  interactive={false}
+                  className="mx-auto"
+                />
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Selector + Copy */}
       <div className="row" style={{ padding: '8px 12px 0', alignItems: 'flex-start', gap: 6 }}>

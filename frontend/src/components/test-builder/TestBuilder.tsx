@@ -60,7 +60,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
         height: '100%',
       }}
     >
-      <div className="row" style={{ flex: 1, overflow: 'hidden', gap: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
         <div
           style={{
             width: '60%',
