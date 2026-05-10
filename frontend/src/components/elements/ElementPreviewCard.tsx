@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, Eye, GripVertical } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { ElPreview } from './ElPreview';
@@ -43,7 +43,6 @@ export function ElementPreviewCard({
 }: ElementPreviewCardProps) {
   const [copied, setCopied] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const sourceUrl = element.sourceUrl?.url;
   const attributes = element.attributes as any;
@@ -51,12 +50,14 @@ export function ElementPreviewCard({
     ? String(attributes?.confidence || attributes?.score)
     : undefined;
 
-  // Scroll the card to the top of its scroll parent when it becomes
-  // selected — gives clear feedback that the click registered.
+  // Scroll the whole page to the top when an element becomes selected —
+  // gives clear feedback that the click registered and brings the test
+  // builder's action picker (in the right pane) into view. We deliberately
+  // do NOT scroll the element library's inner scroll container; that would
+  // hide the just-clicked card.
   useEffect(() => {
-    if (selected && cardRef.current) {
-      cardRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    }
+    if (!selected) return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [selected]);
 
   const handleCopySelector = async (e: React.MouseEvent) => {
@@ -99,7 +100,6 @@ export function ElementPreviewCard({
 
   return (
     <div
-      ref={cardRef}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
