@@ -183,7 +183,11 @@
       "Bash(awk NR>=85 && NR<=140 *)",
       "PowerShell(Get-NetTCPConnection *)",
       "PowerShell(Stop-Process *)",
-      "PowerShell(Get-CimInstance *)"
+      "PowerShell(Get-CimInstance *)",
+      "Bash(head -1480 /c/SaaS_Nomation/frontend/src/components/test-builder/TestBuilderPanel.tsx)",
+      "Read(//tmp/**)",
+      "Bash(git -C /c/SaaS_Nomation add -A)",
+      "Bash(git -C /c/SaaS_Nomation commit -m ' *)"
     ],
     "deny": []
   },

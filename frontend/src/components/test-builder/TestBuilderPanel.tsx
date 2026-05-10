@@ -2,25 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   AlertTriangle,
   Bug,
-  Camera,
   CheckCircle2,
-  Chrome,
   Clock,
-  Eye,
-  EyeOff,
-  Gauge,
   Loader2,
-  Monitor,
   Play,
   PlayCircle,
-  Repeat,
   Save,
-  Smartphone,
   StepForward,
-  Tablet,
-  Timer,
   Trash2,
-  Video,
   X,
   XCircle,
 } from 'lucide-react'
@@ -1479,10 +1468,10 @@ export function TestBuilderPanel({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Full-featured run modal for the test builder. Mirrors RunModePickerModal's
-// shape (same browser/viewport/capture/timing options) and adds a third "Debug"
-// run mode for step-by-step execution. Options not yet wired carry a "soon" pill
-// so the user sees what's planned vs functional today.
+// Flat run modal for the test builder. Mirrors `modals.jsx:132–153` (RunModal)
+// — field-row dropdowns + plain switch rows. Adds two extra switches (Run headed
+// and Debug) so the existing functional behaviour is preserved within the design's
+// switch-row pattern.
 // ─────────────────────────────────────────────────────────────────────────────
 type RunChoice = 'normal-headed' | 'normal-headless' | 'debug';
 
@@ -1493,14 +1482,15 @@ function TestBuilderRunModal({
   onCancel: () => void;
   onPick: (mode: RunChoice) => void;
 }) {
-  const [mode, setMode] = useState<RunChoice>('normal-headed');
-  const [browser, setBrowser] = useState<'chromium' | 'firefox' | 'webkit'>('chromium');
-  const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-  const [recordVideo, setRecordVideo] = useState(true);
-  const [screenshotsOnFailure, setScreenshotsOnFailure] = useState(true);
-  const [slowMotionMs, setSlowMotionMs] = useState(0);
-  const [stepTimeoutSec, setStepTimeoutSec] = useState(30);
-  const [retries, setRetries] = useState(0);
+  const [headed, setHeaded] = useState(false);
+  const [debug, setDebug] = useState(false);
+  const [browser, setBrowser] = useState('chromium');
+  const [viewport, setViewport] = useState('desktop');
+  const [concurrency, setConcurrency] = useState('1');
+  const [retries, setRetries] = useState('0');
+  const [captureVideo, setCaptureVideo] = useState(true);
+  const [captureNetwork, setCaptureNetwork] = useState(true);
+  const [bisect, setBisect] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1510,204 +1500,107 @@ function TestBuilderRunModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  const handleStart = () => onPick(mode);
+  void browser; void viewport; void concurrency; void retries; void captureNetwork; void bisect; void captureVideo;
+
+  const handleStart = () => {
+    if (debug) onPick('debug');
+    else if (headed) onPick('normal-headed');
+    else onPick('normal-headless');
+  };
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div
-        className="modal modal-lg"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
-      >
+      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <span
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                background: 'var(--moss-soft)',
-                color: 'var(--moss)',
-                border: '1px solid var(--moss-edge)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Play size={16} />
-            </span>
-            <div>
-              <div className="modal-title">Run test</div>
-              <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
-                Choose how this test should run and tweak execution options.
-              </div>
-            </div>
-          </div>
-          <button type="button" className="icon-btn" onClick={onCancel} aria-label="Close">
+          <h3>Run test</h3>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={onCancel}
+            aria-label="Close"
+          >
             <X size={14} />
           </button>
         </div>
 
-        <div className="modal-body col" style={{ gap: 18, overflowY: 'auto' }}>
-          {/* Run mode */}
-          <RunSection label="Run mode" required>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <RunChoiceCard
-                active={mode === 'normal-headed'}
-                onClick={() => setMode('normal-headed')}
-                Icon={Eye}
-                title="Headed"
-                tone="info"
-                description="Real Chromium window opens. Watch the test execute live."
-              />
-              <RunChoiceCard
-                active={mode === 'normal-headless'}
-                onClick={() => setMode('normal-headless')}
-                Icon={EyeOff}
-                title="Headless"
-                tone="moss"
-                description="No browser window. Faster on busy machines. Same recording."
-              />
-              <RunChoiceCard
-                active={mode === 'debug'}
-                onClick={() => setMode('debug')}
-                Icon={Bug}
-                title="Debug"
-                tone="amber"
-                description="Step-by-step. Click Next after each step. Inspect results."
-              />
+        <div className="modal-body col" style={{ gap: 14 }}>
+          <div className="field-row">
+            <div className="field">
+              <label>Browser</label>
+              <select value={browser} onChange={(e) => setBrowser(e.target.value)}>
+                <option value="chromium">Chromium</option>
+                <option value="firefox" disabled>Firefox (soon)</option>
+                <option value="webkit" disabled>WebKit (soon)</option>
+              </select>
             </div>
-          </RunSection>
-
-          <RunSection label="Browser engine">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              <RunSmallChoice
-                active={browser === 'chromium'}
-                onClick={() => setBrowser('chromium')}
-                Icon={Chrome}
-                title="Chromium"
-              />
-              <RunSmallChoice
-                active={browser === 'firefox'}
-                onClick={() => setBrowser('firefox')}
-                Icon={Chrome}
-                title="Firefox"
-                soon
-              />
-              <RunSmallChoice
-                active={browser === 'webkit'}
-                onClick={() => setBrowser('webkit')}
-                Icon={Chrome}
-                title="WebKit"
-                soon
-              />
+            <div className="field">
+              <label>
+                Viewport <TbSoonPill />
+              </label>
+              <select value={viewport} onChange={(e) => setViewport(e.target.value)} disabled>
+                <option value="desktop">Desktop · 1280×720</option>
+                <option value="tablet">Tablet · 1024×768</option>
+                <option value="mobile">Mobile · 390×844</option>
+              </select>
             </div>
-          </RunSection>
-
-          <RunSection label="Viewport preset">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              <RunSmallChoice
-                active={viewport === 'desktop'}
-                onClick={() => setViewport('desktop')}
-                Icon={Monitor}
-                title="Desktop"
-                subtitle="1280 × 720"
-              />
-              <RunSmallChoice
-                active={viewport === 'tablet'}
-                onClick={() => setViewport('tablet')}
-                Icon={Tablet}
-                title="Tablet"
-                subtitle="820 × 1180"
-                soon
-              />
-              <RunSmallChoice
-                active={viewport === 'mobile'}
-                onClick={() => setViewport('mobile')}
-                Icon={Smartphone}
-                title="Mobile"
-                subtitle="390 × 844"
-                soon
-              />
-            </div>
-          </RunSection>
-
-          <RunSection label="Capture">
-            <div className="col" style={{ gap: 8 }}>
-              <RunToggleRow
-                Icon={Video}
-                title="Record video"
-                description="Save a recording of the run."
-                checked={recordVideo}
-                onChange={setRecordVideo}
-              />
-              <RunToggleRow
-                Icon={Camera}
-                title="Screenshot on failure"
-                description="Capture a screenshot the moment a step fails."
-                checked={screenshotsOnFailure}
-                onChange={setScreenshotsOnFailure}
-              />
-            </div>
-          </RunSection>
-
-          <RunSection label="Timing & retries">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              <RunNumberField
-                Icon={Timer}
-                label="Step timeout"
-                suffix="s"
-                value={stepTimeoutSec}
-                onChange={setStepTimeoutSec}
-                min={5}
-                max={300}
-                step={5}
-                soon
-              />
-              <RunNumberField
-                Icon={Gauge}
-                label="Slow-mo"
-                suffix="ms"
-                value={slowMotionMs}
-                onChange={setSlowMotionMs}
-                min={0}
-                max={2000}
-                step={50}
-                soon
-              />
-              <RunNumberField
-                Icon={Repeat}
-                label="Retries on fail"
-                suffix=""
-                value={retries}
-                onChange={setRetries}
-                min={0}
-                max={5}
-                step={1}
-                soon
-              />
-            </div>
-          </RunSection>
-
-          <div
-            className="row"
-            style={{
-              gap: 8,
-              alignItems: 'flex-start',
-              padding: 10,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--hair)',
-              borderRadius: 6,
-              fontSize: 11.5,
-              color: 'var(--ink-3)',
-            }}
-          >
-            <Loader2 size={12} style={{ marginTop: 2, flexShrink: 0 }} />
-            <span>
-              Options marked <strong style={{ color: 'var(--ink-2)' }}>soon</strong> are visible
-              now and will be wired in an upcoming release. Run mode and capture toggles work today.
-            </span>
           </div>
+
+          <div className="field-row">
+            <div className="field">
+              <label>
+                Concurrency <TbSoonPill />
+              </label>
+              <select value={concurrency} onChange={(e) => setConcurrency(e.target.value)} disabled>
+                <option value="1">1</option>
+                <option value="2">2 parallel</option>
+                <option value="4">4 parallel</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>
+                Retries <TbSoonPill />
+              </label>
+              <select value={retries} onChange={(e) => setRetries(e.target.value)} disabled>
+                <option value="0">None</option>
+                <option value="1">1 on failure</option>
+                <option value="2">2 on failure</option>
+              </select>
+            </div>
+          </div>
+
+          <TbSwitchRow
+            label="Run headed (visible browser)"
+            on={headed}
+            onChange={(v) => {
+              setHeaded(v);
+              if (v) setDebug(false);
+            }}
+          />
+          <TbSwitchRow
+            label="Debug — pause after each step"
+            on={debug}
+            onChange={(v) => {
+              setDebug(v);
+              if (v) setHeaded(true); // debug requires headed
+            }}
+          />
+          <TbSwitchRow
+            label="Capture video"
+            on={captureVideo}
+            onChange={setCaptureVideo}
+          />
+          <TbSwitchRow
+            label="Capture network log"
+            on={captureNetwork}
+            onChange={setCaptureNetwork}
+            soon
+          />
+          <TbSwitchRow
+            label="Bisect mode (find first failing commit)"
+            on={bisect}
+            onChange={setBisect}
+            soon
+          />
         </div>
 
         <div className="modal-foot">
@@ -1724,273 +1617,58 @@ function TestBuilderRunModal({
   );
 }
 
-function RunSection({
+function TbSwitchRow({
   label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="col" style={{ gap: 6 }}>
-      <div
-        className="dim"
-        style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {label}
-        {required && <span style={{ color: 'var(--clay)', marginLeft: 4 }}>*</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function RunChoiceCard({
-  active,
-  onClick,
-  Icon,
-  title,
-  description,
-  tone,
-}: {
-  active: boolean;
-  onClick: () => void;
-  Icon: typeof Eye;
-  title: string;
-  description: string;
-  tone: 'info' | 'moss' | 'amber';
-}) {
-  const toneFg = tone === 'info' ? 'var(--info)' : tone === 'moss' ? 'var(--moss)' : 'var(--amber)';
-  const toneBg = tone === 'info' ? 'var(--info-soft)' : tone === 'moss' ? 'var(--moss-soft)' : 'var(--amber-soft)';
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      style={{
-        textAlign: 'left',
-        background: active ? toneBg : 'var(--surface)',
-        borderWidth: 2,
-        borderStyle: 'solid',
-        borderColor: active ? toneFg : 'var(--hair)',
-        borderRadius: 8,
-        padding: 12,
-        cursor: 'pointer',
-        transition: 'border-color .15s ease, background .15s ease, box-shadow .15s ease',
-        position: 'relative',
-        boxShadow: active ? `0 0 0 3px ${toneBg}` : 'none',
-      }}
-    >
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 16,
-            height: 16,
-            borderRadius: 999,
-            background: toneFg,
-            color: '#fff',
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 9,
-            fontWeight: 700,
-          }}
-          aria-hidden="true"
-        >
-          ✓
-        </span>
-      )}
-      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
-        <Icon size={13} style={{ color: toneFg }} />
-        <span
-          style={{
-            fontFamily: 'Inter Tight',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--ink)',
-          }}
-        >
-          {title}
-        </span>
-      </div>
-      <div className="dim" style={{ fontSize: 11, lineHeight: 1.5, paddingRight: 18 }}>
-        {description}
-      </div>
-    </button>
-  );
-}
-
-function RunSmallChoice({
-  active,
-  onClick,
-  Icon,
-  title,
-  subtitle,
+  on,
+  onChange,
   soon,
 }: {
-  active: boolean;
-  onClick: () => void;
-  Icon: typeof Monitor;
-  title: string;
-  subtitle?: string;
-  soon?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={soon ? undefined : onClick}
-      disabled={soon}
-      aria-pressed={active}
-      style={{
-        textAlign: 'left',
-        background: active ? 'var(--moss-soft)' : 'var(--surface)',
-        borderWidth: active ? 2 : 1,
-        borderStyle: 'solid',
-        borderColor: active ? 'var(--moss)' : 'var(--hair)',
-        borderRadius: 6,
-        padding: 10,
-        cursor: soon ? 'not-allowed' : 'pointer',
-        opacity: soon ? 0.6 : 1,
-        transition: 'border-color .12s ease, background .12s ease',
-      }}
-    >
-      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 2 }}>
-        <Icon size={12} style={{ color: active ? 'var(--moss)' : 'var(--ink-2)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{title}</span>
-        {soon && <RunSoonPill />}
-      </div>
-      {subtitle && (
-        <div className="mono dim" style={{ fontSize: 10.5 }}>
-          {subtitle}
-        </div>
-      )}
-    </button>
-  );
-}
-
-function RunToggleRow({
-  Icon,
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  Icon: typeof Video;
-  title: string;
-  description: string;
-  checked: boolean;
+  label: string;
+  on: boolean;
   onChange: (next: boolean) => void;
+  soon?: boolean;
 }) {
   return (
     <label
       className="row"
       style={{
         gap: 10,
-        alignItems: 'flex-start',
-        padding: 10,
-        background: 'var(--surface)',
-        border: '1px solid var(--hair)',
-        borderRadius: 6,
-        cursor: 'pointer',
+        cursor: soon ? 'not-allowed' : 'pointer',
+        opacity: soon ? 0.6 : 1,
       }}
     >
-      <Icon size={13} style={{ color: 'var(--ink-2)', marginTop: 2, flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{title}</div>
-        <p className="dim" style={{ margin: '2px 0 0', fontSize: 11.5, lineHeight: 1.5 }}>
-          {description}
-        </p>
-      </div>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 16, height: 16, accentColor: 'var(--moss)', flexShrink: 0, marginTop: 2 }}
+      <button
+        type="button"
+        className={`switch ${on ? 'on' : ''}`}
+        onClick={() => !soon && onChange(!on)}
+        aria-pressed={on}
+        disabled={soon}
+        style={{ border: 0, padding: 0 }}
       />
+      <span style={{ fontSize: 12, color: 'var(--ink)' }}>{label}</span>
+      {soon && <TbSoonPill />}
     </label>
   );
 }
 
-function RunNumberField({
-  Icon,
-  label,
-  suffix,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  soon,
-}: {
-  Icon: typeof Timer;
-  label: string;
-  suffix: string;
-  value: number;
-  onChange: (next: number) => void;
-  min: number;
-  max: number;
-  step: number;
-  soon?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--hair)',
-        borderRadius: 6,
-        padding: 10,
-        opacity: soon ? 0.7 : 1,
-      }}
-    >
-      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
-        <Icon size={12} style={{ color: 'var(--ink-2)' }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>{label}</span>
-        {soon && <RunSoonPill />}
-      </div>
-      <div className="row" style={{ gap: 4, alignItems: 'baseline' }}>
-        <input
-          type="number"
-          className="field tabular"
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          min={min}
-          max={max}
-          step={step}
-          style={{ flex: 1, fontSize: 12.5 }}
-        />
-        {suffix && (
-          <span className="dim" style={{ fontSize: 11 }}>
-            {suffix}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RunSoonPill() {
+function TbSoonPill() {
   return (
     <span
       style={{
-        marginLeft: 'auto',
-        padding: '1px 6px',
+        marginLeft: 6,
+        padding: '0 6px',
+        height: 14,
+        display: 'inline-flex',
+        alignItems: 'center',
         borderRadius: 999,
         background: 'var(--amber-soft)',
         color: 'var(--amber)',
         border: '1px solid var(--amber-edge)',
         fontSize: 9,
         fontWeight: 600,
-        textTransform: 'uppercase',
         letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        verticalAlign: 'middle',
       }}
     >
       soon
