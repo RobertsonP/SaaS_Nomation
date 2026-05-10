@@ -60,16 +60,12 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
         height: '100%',
       }}
     >
-      {/* Element library on the left takes the bulk of the width (it's the
-          primary work area — user browses and picks from it). Test-steps
-          panel becomes a fixed-width sidebar on the right. */}
       <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
         <div
           style={{
-            flex: 1,
-            minWidth: 0,
+            width: '60%',
             borderRight: '1px solid var(--hair)',
-            background: 'var(--paper)',
+            background: 'var(--bone)',
             overflow: 'hidden',
           }}
         >
@@ -90,14 +86,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
           />
         </div>
 
-        <div
-          style={{
-            width: 380,
-            flexShrink: 0,
-            overflow: 'hidden',
-            background: 'var(--paper)',
-          }}
-        >
+        <div style={{ width: '40%', overflow: 'hidden' }}>
           <TestBuilderPanel
             selectedElement={selectedElement || undefined}
             onClearSelection={() => setSelectedElement(null)}

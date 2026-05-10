@@ -621,18 +621,16 @@ export function ElementLibraryPanel({
         })}
       </div>
 
-      {/* Element list — table for project mode, responsive card grid for
-          builder mode (auto-fills across the now-wider library pane). */}
+      {/* Element list — table for project mode, single-column flex for builder mode */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
           minHeight: 0,
-          padding: isProjectMode ? 0 : 12,
-          display: isProjectMode ? 'block' : 'grid',
-          gridTemplateColumns: isProjectMode ? undefined : 'repeat(auto-fill, minmax(240px, 1fr))',
-          alignContent: isProjectMode ? undefined : 'start',
-          gap: isProjectMode ? 0 : 8,
+          padding: isProjectMode ? 0 : 8,
+          display: isProjectMode ? 'block' : 'flex',
+          flexDirection: 'column',
+          gap: isProjectMode ? 0 : 6,
           background: 'var(--paper)',
         }}
       >
@@ -648,7 +646,6 @@ export function ElementLibraryPanel({
                   fontSize: 12.5,
                   textAlign: 'center',
                   padding: '32px 12px',
-                  gridColumn: '1 / -1',
                 }}
               >
                 {elements.length === 0
@@ -763,7 +760,7 @@ export function ElementLibraryPanel({
 
             if (hasTableData) {
               return (
-                <div key={element.id} style={{ gridColumn: '1 / -1' }}>
+                <div key={element.id}>
                   <TablePreviewCard
                     element={element}
                     onSelectElement={onSelectElement}
@@ -774,7 +771,7 @@ export function ElementLibraryPanel({
             }
             if (hasDropdownData) {
               return (
-                <div key={element.id} style={{ gridColumn: '1 / -1' }}>
+                <div key={element.id}>
                   <DropdownPreviewCard
                     element={element}
                     onSelectElement={onSelectElement}
@@ -802,7 +799,6 @@ export function ElementLibraryPanel({
               textAlign: 'center',
               borderTop: '1px solid var(--hair)',
               marginTop: 8,
-              gridColumn: isProjectMode ? undefined : '1 / -1',
             }}
           >
             <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
