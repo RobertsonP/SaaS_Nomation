@@ -22,6 +22,7 @@ import { SuiteDetailsPage } from './pages/tests/SuiteDetailsPage'
 import { TestBuilderPage } from './pages/tests/TestBuilderPage'
 import { TestResultsPage } from './pages/tests/TestResultsPage'
 import { SuiteResultsPage } from './pages/tests/SuiteResultsPage'
+import { RunsPage } from './pages/tests/RunsPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { AuthSetupPage } from './pages/auth/AuthSetupPage'
@@ -117,6 +118,10 @@ const router = createBrowserRouter([
       {
         path: "projects/:projectId/tests",
         element: <TestsPage />
+      },
+      {
+        path: "projects/:projectId/runs",
+        element: <RunsPage />
       },
       {
         path: "projects/:projectId/tests/new",

@@ -284,12 +284,9 @@ export function VerdantSidebar({ collapsed, setCollapsed }: VerdantSidebarProps)
                     count={p._count?.testSuites ?? 0}
                     exact
                   />
-                  {/* Runs is not a separate route yet — link with ?view=runs so the active
-                      state is unique. The Tests page ignores the query for now. Phase 4+
-                      can carve out a real runs page when there's a global runs endpoint. */}
                   <NavLink
                     indent
-                    to={`${projectRoot}/tests?view=runs`}
+                    to={`${projectRoot}/runs`}
                     icon={<Activity size={ICON_SIZE} />}
                     label="Runs"
                     exact
