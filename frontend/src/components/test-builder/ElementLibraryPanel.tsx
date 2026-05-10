@@ -13,6 +13,7 @@ import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
 import { DropdownPreviewCard } from '../elements/DropdownPreviewCard';
 import { ElPreview } from '../elements/ElPreview';
+import { CSSPreviewRenderer } from '../elements/CSSPreviewRenderer';
 import { CellStepData } from '../elements/CellSelectorPopover';
 import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
 import { Pill } from '../ui/Pill';
@@ -700,7 +701,60 @@ export function ElementLibraryPanel({
                       >
                         <td>
                           <div style={{ width: 110 }}>
-                            <ElPreview type={element.elementType} label={element.description} compact />
+                            {element.screenshot ? (
+                              <div
+                                style={{
+                                  background: 'var(--bone)',
+                                  border: '1px solid var(--hair)',
+                                  borderRadius: 4,
+                                  overflow: 'hidden',
+                                  height: 52,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                }}
+                              >
+                                <img
+                                  src={element.screenshot}
+                                  alt={element.description}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    objectPosition: 'top',
+                                  }}
+                                  loading="lazy"
+                                />
+                              </div>
+                            ) : attrs?.cssInfo ? (
+                              <div
+                                style={{
+                                  background: (() => {
+                                    const bg =
+                                      attrs?.resolvedColors?.backgroundColor ||
+                                      attrs?.cssInfo?.backgroundColor;
+                                    return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)'
+                                      ? bg
+                                      : 'var(--surface)';
+                                  })(),
+                                  border: '1px solid var(--hair)',
+                                  borderRadius: 4,
+                                  padding: '6px 8px',
+                                  height: 52,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <CSSPreviewRenderer
+                                  element={element}
+                                  mode="compact"
+                                  showQuality={false}
+                                  interactive={false}
+                                />
+                              </div>
+                            ) : (
+                              <ElPreview type={element.elementType} label={element.description} compact />
+                            )}
                           </div>
                         </td>
                         <td style={{ fontWeight: 500 }}>{element.description}</td>
