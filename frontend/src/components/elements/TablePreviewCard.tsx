@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, ExternalLink, Table as TableIcon } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { TableExplorerModal } from './TableExplorerModal';
 import { CellStepData } from './CellSelectorPopover';
@@ -27,7 +28,7 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
       setCopiedSelector(selector);
       setTimeout(() => setCopiedSelector(null), 1500);
     } catch {
-      // Clipboard API may not be available
+      // Clipboard unavailable
     }
   };
 
@@ -48,106 +49,215 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
     }
   };
 
-  // Check if table has full selector data for explorer
   const hasExplorerData = tableData.cellSelectors && tableData.cellSelectors.length > 0;
 
   return (
-    <div className="space-y-2">
-      {/* Card */}
+    <div>
       <div
         role="button"
         tabIndex={0}
         onClick={() => onSelectElement(element)}
         onKeyDown={handleKeyDown}
-        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden
-          hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-[0.98] transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--hair)',
+          borderRadius: 8,
+          overflow: 'hidden',
+          cursor: 'pointer',
+          transition: 'border-color .12s ease, box-shadow .12s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'var(--moss)';
+          e.currentTarget.style.boxShadow = 'var(--shadow-1)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'var(--hair)';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
       >
         {/* Header */}
-        <div className="px-3 py-2 bg-teal-50 dark:bg-teal-900/30 border-b border-teal-200 dark:border-teal-800 flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
-            <rect x="2" y="2" width="12" height="12" rx="1" />
-            <line x1="2" y1="6" x2="14" y2="6" />
-            <line x1="2" y1="10" x2="14" y2="10" />
-            <line x1="6" y1="2" x2="6" y2="14" />
-            <line x1="10" y1="2" x2="10" y2="14" />
-          </svg>
-          <span className="text-sm font-medium text-teal-800 dark:text-teal-200 truncate">
+        <div
+          className="row"
+          style={{
+            padding: '8px 12px',
+            background: 'var(--moss-soft)',
+            borderBottom: '1px solid var(--moss-edge)',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <TableIcon size={14} style={{ color: 'var(--moss)', flexShrink: 0 }} />
+          <span
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: 'var(--ink)',
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {element.description || 'Data Table'}
           </span>
-          <span className="px-1.5 py-0.5 text-xs bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-300 rounded flex-shrink-0">
+          <span
+            className="tabular"
+            style={{
+              padding: '1px 7px',
+              borderRadius: 999,
+              background: 'var(--surface)',
+              border: '1px solid var(--moss-edge)',
+              color: 'var(--moss)',
+              fontSize: 10.5,
+              fontWeight: 600,
+              flexShrink: 0,
+            }}
+          >
             {rowCount} row{rowCount !== 1 ? 's' : ''}
           </span>
           {hasExplorerData && (
             <button
+              type="button"
               onClick={handleToggleExplorer}
-              className="ml-auto px-2 py-0.5 text-xs rounded font-medium bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-700 transition-colors"
+              className="btn btn-outline btn-sm"
+              style={{
+                color: 'var(--moss)',
+                borderColor: 'var(--moss-edge)',
+                background: 'var(--surface)',
+              }}
             >
-              Open Explorer
+              <ExternalLink size={11} />
+              <span>Open explorer</span>
             </button>
           )}
         </div>
 
-        {/* Table Selector */}
+        {/* Table selector */}
         {tableSelector && (
-          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">Table:</span>
+          <div
+            className="row"
+            style={{
+              padding: '6px 12px',
+              background: 'var(--surface-2)',
+              borderBottom: '1px solid var(--hair)',
+              gap: 8,
+              alignItems: 'center',
+            }}
+          >
+            <span className="dim" style={{ fontSize: 11, flexShrink: 0 }}>
+              Table:
+            </span>
             <code
-              className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 truncate"
+              className="mono"
               onClick={(e) => handleCopy(e, tableSelector)}
               title="Click to copy"
+              style={{
+                fontSize: 11,
+                color: 'var(--slate)',
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                padding: '2px 6px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
             >
               {copiedSelector === tableSelector ? 'Copied!' : tableSelector}
             </code>
           </div>
         )}
 
-        {/* Mini Table Preview (always shown — full explorer lives in a modal) */}
+        {/* Mini table preview */}
         {headers && headers.length > 0 && (
-          <div className="overflow-x-auto" onClick={(e) => e.stopPropagation()}>
-            <table className="w-full text-xs">
+          <div style={{ overflowX: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="bg-gray-100 dark:bg-gray-700">
-                  <th className="px-2 py-1 text-left text-gray-500 dark:text-gray-400 font-medium w-8">#</th>
+                <tr style={{ background: 'var(--surface-2)' }}>
+                  <th
+                    style={{
+                      padding: '5px 8px',
+                      textAlign: 'left',
+                      color: 'var(--ink-3)',
+                      fontWeight: 600,
+                      width: 32,
+                      borderBottom: '1px solid var(--hair)',
+                    }}
+                  >
+                    #
+                  </th>
                   {headers.slice(0, 5).map((header: string, i: number) => (
-                    <th key={i} className="px-2 py-1 text-left text-gray-700 dark:text-gray-300 font-medium truncate max-w-[120px]">
+                    <th
+                      key={i}
+                      style={{
+                        padding: '5px 8px',
+                        textAlign: 'left',
+                        color: 'var(--ink)',
+                        fontWeight: 600,
+                        maxWidth: 120,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        borderBottom: '1px solid var(--hair)',
+                      }}
+                    >
                       {header || `Col ${i + 1}`}
                     </th>
                   ))}
                   {headers.length > 5 && (
-                    <th className="px-2 py-1 text-gray-400 dark:text-gray-500">+{headers.length - 5}</th>
+                    <th
+                      style={{
+                        padding: '5px 8px',
+                        color: 'var(--ink-3)',
+                        borderBottom: '1px solid var(--hair)',
+                      }}
+                    >
+                      +{headers.length - 5}
+                    </th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {displayRows.map((row: string[], rowIdx: number) => (
-                  <tr key={rowIdx} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750">
-                    <td className="px-2 py-1 text-gray-400 dark:text-gray-500">
+                  <tr key={rowIdx} style={{ borderTop: '1px solid var(--hair)' }}>
+                    <td style={{ padding: '5px 8px', color: 'var(--ink-3)' }}>
                       {rowSelectors?.[rowIdx] ? (
                         <button
+                          type="button"
                           onClick={(e) => handleCopy(e, rowSelectors[rowIdx])}
-                          className="hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
                           title={`Copy: ${rowSelectors[rowIdx]}`}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            color: copiedSelector === rowSelectors[rowIdx] ? 'var(--moss)' : 'inherit',
+                          }}
                         >
-                          {copiedSelector === rowSelectors[rowIdx] ? (
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
-                              <path d="M4 8L7 11L12 5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          ) : (
-                            <span>{rowIdx + 1}</span>
-                          )}
+                          {copiedSelector === rowSelectors[rowIdx] ? <Check size={11} /> : rowIdx + 1}
                         </button>
                       ) : (
                         rowIdx + 1
                       )}
                     </td>
                     {row.slice(0, 5).map((cell: string, cellIdx: number) => (
-                      <td key={cellIdx} className="px-2 py-1 text-gray-600 dark:text-gray-400 truncate max-w-[120px]">
+                      <td
+                        key={cellIdx}
+                        style={{
+                          padding: '5px 8px',
+                          color: 'var(--ink-2)',
+                          maxWidth: 120,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {cell || '-'}
                       </td>
                     ))}
                     {row.length > 5 && (
-                      <td className="px-2 py-1 text-gray-400">...</td>
+                      <td style={{ padding: '5px 8px', color: 'var(--ink-3)' }}>…</td>
                     )}
                   </tr>
                 ))}
@@ -156,18 +266,35 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
           </div>
         )}
 
-        {/* Expand/Collapse (mini preview row count) */}
         {sampleData && sampleData.length > 3 && (
           <button
+            type="button"
             onClick={handleToggleExpand}
-            className="w-full px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 border-t border-gray-100 dark:border-gray-700"
+            style={{
+              width: '100%',
+              padding: '6px 12px',
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              background: 'var(--surface-2)',
+              border: 'none',
+              borderTop: '1px solid var(--hair)',
+              cursor: 'pointer',
+              transition: 'background .12s ease, color .12s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--surface)';
+              e.currentTarget.style.color = 'var(--ink)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--surface-2)';
+              e.currentTarget.style.color = 'var(--ink-3)';
+            }}
           >
             {expanded ? 'Show less' : `Show ${Math.min(sampleData.length, 10) - 3} more rows`}
           </button>
         )}
       </div>
 
-      {/* Table Explorer (modal — keeps the wide table from blowing out the page layout) */}
       {hasExplorerData && (
         <TableExplorerModal
           open={showExplorer}

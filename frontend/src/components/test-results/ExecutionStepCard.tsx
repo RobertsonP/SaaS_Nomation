@@ -1,5 +1,22 @@
-// Per-step result card. Visual style mirrors SortableTestStep so a result
-// view feels like a "ghost" of the editable test in the builder.
+import {
+  CheckCircle2,
+  CheckSquare,
+  ChevronsUpDown,
+  Clock,
+  Eraser,
+  Keyboard,
+  ListChecks,
+  type LucideIcon,
+  MousePointerClick,
+  Move,
+  Navigation,
+  PauseCircle,
+  Square,
+  Type as TypeIcon,
+  Upload,
+  XCircle,
+} from 'lucide-react';
+
 interface ExecutionStepResult {
   step: string;
   description?: string;
@@ -18,55 +35,40 @@ interface ExecutionStepCardProps {
   failureScreenshot?: string;
 }
 
-function getStepTypeColor(type: string): string {
-  switch (type) {
-    case 'click':
-    case 'doubleclick':
-    case 'rightclick':
-      return 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300';
-    case 'hover':
-      return 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
-    case 'type':
-    case 'clear':
-      return 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300';
-    case 'select':
-    case 'check':
-    case 'uncheck':
-      return 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300';
-    case 'upload':
-      return 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300';
-    case 'scroll':
-    case 'press':
-      return 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300';
-    case 'wait':
-      return 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300';
-    case 'assert':
-      return 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300';
-    case 'navigation':
-      return 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300';
-    default:
-      return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-  }
-}
+type Tone = 'moss' | 'slate' | 'amber' | 'clay' | 'info' | 'mute';
 
-function getStepTypeIcon(type: string): string {
-  switch (type) {
-    case 'click': return '👆';
-    case 'doubleclick': return '👆👆';
-    case 'rightclick': return '👆';
-    case 'hover': return '🫸';
-    case 'type': return '⌨️';
-    case 'clear': return '🧹';
-    case 'select': return '📋';
-    case 'check': return '☑️';
-    case 'uncheck': return '◻️';
-    case 'upload': return '📁';
-    case 'scroll': return '↕️';
-    case 'press': return '⌨️';
-    case 'wait': return '⏳';
-    case 'assert': return '✓';
-    case 'navigation': return '🧭';
-    default: return '📝';
+const STEP_META: Record<string, { tone: Tone; Icon: LucideIcon }> = {
+  click: { tone: 'info', Icon: MousePointerClick },
+  doubleclick: { tone: 'info', Icon: MousePointerClick },
+  rightclick: { tone: 'info', Icon: MousePointerClick },
+  hover: { tone: 'info', Icon: MousePointerClick },
+  type: { tone: 'moss', Icon: TypeIcon },
+  clear: { tone: 'moss', Icon: Eraser },
+  select: { tone: 'moss', Icon: ChevronsUpDown },
+  check: { tone: 'moss', Icon: CheckSquare },
+  uncheck: { tone: 'moss', Icon: Square },
+  upload: { tone: 'moss', Icon: Upload },
+  scroll: { tone: 'amber', Icon: Move },
+  press: { tone: 'amber', Icon: Keyboard },
+  wait: { tone: 'slate', Icon: Clock },
+  assert: { tone: 'moss', Icon: ListChecks },
+  navigation: { tone: 'slate', Icon: Navigation },
+};
+
+function toneTokens(tone: Tone): { bg: string; fg: string; edge: string } {
+  switch (tone) {
+    case 'moss':
+      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+    case 'amber':
+      return { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
+    case 'clay':
+      return { bg: 'var(--clay-soft)', fg: 'var(--clay)', edge: 'var(--clay-edge)' };
+    case 'slate':
+      return { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' };
+    case 'info':
+      return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
+    default:
+      return { bg: 'var(--surface-2)', fg: 'var(--ink-2)', edge: 'var(--hair)' };
   }
 }
 
@@ -81,40 +83,116 @@ export function ExecutionStepCard({ index, result, failureScreenshot }: Executio
   const skipped = result.status === 'skipped';
   const duration = formatDuration(result.result?.duration);
 
+  const meta = STEP_META[result.step] ?? { tone: 'mute' as Tone, Icon: MousePointerClick };
+  const stepTone = toneTokens(meta.tone);
+
+  const cardBorder = failed
+    ? 'var(--clay)'
+    : skipped
+    ? 'var(--hair)'
+    : 'var(--hair)';
+  const cardShadow = failed ? '0 0 0 2px var(--clay-soft)' : 'none';
+
   return (
     <div
-      className={`border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm transition-colors ${
-        failed
-          ? 'border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-900/50'
-          : skipped
-            ? 'border-gray-200 dark:border-gray-700 opacity-70'
-            : 'border-gray-200 dark:border-gray-700'
-      }`}
+      style={{
+        background: 'var(--surface)',
+        border: `1px solid ${cardBorder}`,
+        borderRadius: 8,
+        padding: 8,
+        boxShadow: cardShadow,
+        opacity: skipped ? 0.7 : 1,
+      }}
     >
-      <div className="flex items-center gap-2">
-        {/* Step Number */}
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex-shrink-0">
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        {/* Step number */}
+        <span
+          className="tabular"
+          style={{
+            display: 'inline-grid',
+            placeItems: 'center',
+            minWidth: 22,
+            height: 20,
+            padding: '0 6px',
+            borderRadius: 4,
+            background: 'var(--surface-2)',
+            color: 'var(--ink-2)',
+            fontSize: 11,
+            fontWeight: 600,
+            border: '1px solid var(--hair)',
+            flexShrink: 0,
+          }}
+        >
           {index + 1}
         </span>
 
-        {/* Step Type Badge */}
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${getStepTypeColor(result.step)}`}>
-          <span className="mr-1">{getStepTypeIcon(result.step)}</span>
-          {result.step.toUpperCase()}
+        {/* Step type pill */}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '2px 7px',
+            borderRadius: 999,
+            background: stepTone.bg,
+            color: stepTone.fg,
+            border: `1px solid ${stepTone.edge}`,
+            fontSize: 10.5,
+            fontWeight: 600,
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            flexShrink: 0,
+          }}
+        >
+          <meta.Icon size={11} />
+          {result.step}
         </span>
 
         {/* Description + selector */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-gray-900 dark:text-white truncate">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: 'var(--ink)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {result.description || `${result.step} step`}
           </div>
           {(result.selector || result.value) && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {result.selector && <code className="font-mono truncate">{result.selector}</code>}
+            <div
+              className="row"
+              style={{ gap: 6, fontSize: 11, color: 'var(--ink-3)', marginTop: 1 }}
+            >
+              {result.selector && (
+                <code
+                  className="mono"
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: 'var(--slate)',
+                  }}
+                >
+                  {result.selector}
+                </code>
+              )}
               {result.value && (
                 <>
-                  <span>→</span>
-                  <span className="truncate font-medium">{result.value}</span>
+                  <span style={{ color: 'var(--ink-4)' }}>→</span>
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--ink-2)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {result.value}
+                  </span>
                 </>
               )}
             </div>
@@ -122,40 +200,134 @@ export function ExecutionStepCard({ index, result, failureScreenshot }: Executio
         </div>
 
         {/* Status + duration */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="row" style={{ gap: 6, flexShrink: 0 }}>
           {duration && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{duration}</span>
+            <span className="mono tabular dim" style={{ fontSize: 10.5 }}>
+              {duration}
+            </span>
           )}
           {failed ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
-              ✕ FAILED
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: 'var(--clay-soft)',
+                color: 'var(--clay)',
+                border: '1px solid var(--clay-edge)',
+                fontSize: 10.5,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <XCircle size={11} />
+              Failed
             </span>
           ) : skipped ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-              ⏸ SKIPPED
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: 'var(--surface-2)',
+                color: 'var(--ink-3)',
+                border: '1px solid var(--hair)',
+                fontSize: 10.5,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <PauseCircle size={11} />
+              Skipped
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-              ✓ PASSED
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: 'var(--moss-soft)',
+                color: 'var(--moss)',
+                border: '1px solid var(--moss-edge)',
+                fontSize: 10.5,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <CheckCircle2 size={11} />
+              Passed
             </span>
           )}
         </div>
       </div>
 
-      {/* Error message (failed steps only) */}
+      {/* Error details */}
       {failed && result.error && (
-        <div className="mt-2 ml-12 p-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-          <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Error</div>
-          <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono">
+        <div
+          style={{
+            marginTop: 8,
+            marginLeft: 48,
+            padding: 8,
+            borderRadius: 6,
+            background: 'var(--clay-soft)',
+            border: '1px solid var(--clay-edge)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: 'var(--clay)',
+              marginBottom: 4,
+            }}
+          >
+            Error
+          </div>
+          <pre
+            className="mono"
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: 'var(--clay)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
             {result.error}
           </pre>
           {failureScreenshot && (
-            <div className="mt-2">
-              <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Screenshot at failure</div>
+            <div style={{ marginTop: 8 }}>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--clay)',
+                  marginBottom: 4,
+                }}
+              >
+                Screenshot at failure
+              </div>
               <img
                 src={failureScreenshot}
                 alt="Failure"
-                className="max-w-full rounded border border-red-300 dark:border-red-700"
+                style={{
+                  maxWidth: '100%',
+                  borderRadius: 4,
+                  border: '1px solid var(--clay-edge)',
+                }}
               />
             </div>
           )}
@@ -164,7 +336,15 @@ export function ExecutionStepCard({ index, result, failureScreenshot }: Executio
 
       {/* Retry annotation */}
       {result.attempts && result.attempts > 1 && (
-        <div className="mt-1 ml-12 text-xs text-amber-600 dark:text-amber-400">
+        <div
+          style={{
+            marginTop: 4,
+            marginLeft: 48,
+            fontSize: 11,
+            color: 'var(--amber)',
+            fontWeight: 500,
+          }}
+        >
           Recovered after {result.attempts} attempts
         </div>
       )}

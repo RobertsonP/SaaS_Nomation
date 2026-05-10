@@ -1,51 +1,105 @@
-import { Lock, CheckCircle, AlertCircle, Globe, Minus } from 'lucide-react';
+import { Lock, CheckCircle2, AlertCircle, Globe, Minus } from 'lucide-react';
 
 export function SiteMapLegend() {
-  const items = [
+  const items: Array<{
+    Icon: typeof Lock;
+    label: string;
+    bg: string;
+    edge: string;
+    fg: string;
+    dashed?: boolean;
+  }> = [
     {
-      icon: <CheckCircle className="w-3.5 h-3.5 text-green-600" />,
+      Icon: CheckCircle2,
       label: 'Verified',
-      description: 'Page analyzed and verified',
-      color: 'border-green-500 bg-green-50',
+      bg: 'var(--moss-soft)',
+      edge: 'var(--moss-edge)',
+      fg: 'var(--moss)',
     },
     {
-      icon: <AlertCircle className="w-3.5 h-3.5 text-blue-600" />,
+      Icon: AlertCircle,
       label: 'Analyzed',
-      description: 'Page analyzed, not verified',
-      color: 'border-blue-500 bg-blue-50',
+      bg: 'var(--info-soft)',
+      edge: 'var(--info-edge)',
+      fg: 'var(--info)',
     },
     {
-      icon: <Lock className="w-3.5 h-3.5 text-orange-600" />,
-      label: 'Auth Required',
-      description: 'Requires authentication',
-      color: 'border-orange-500 bg-orange-50',
+      Icon: Lock,
+      label: 'Auth required',
+      bg: 'var(--amber-soft)',
+      edge: 'var(--amber-edge)',
+      fg: 'var(--amber)',
     },
     {
-      icon: <Globe className="w-3.5 h-3.5 text-gray-400" />,
+      Icon: Globe,
       label: 'Discovered',
-      description: 'Auto-discovered, pending analysis',
-      color: 'border-gray-400 bg-gray-50 border-dashed',
+      bg: 'var(--surface-2)',
+      edge: 'var(--hair)',
+      fg: 'var(--ink-3)',
+      dashed: true,
     },
   ];
 
   return (
-    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow px-3 py-2 text-xs">
-      <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Legend</div>
-      <div className="space-y-1.5">
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 8,
+        boxShadow: 'var(--shadow-1)',
+        padding: '8px 12px',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'Inter Tight',
+          fontSize: 11,
+          fontWeight: 600,
+          color: 'var(--ink)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          marginBottom: 6,
+        }}
+      >
+        Legend
+      </div>
+      <div className="col" style={{ gap: 5 }}>
         {items.map((item) => (
-          <div key={item.label} className="flex items-center gap-2">
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.color}`}>
-              {item.icon}
-            </div>
-            <span className="text-gray-600 dark:text-gray-400">{item.label}</span>
+          <div key={item.label} className="row" style={{ alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                border: `1.5px ${item.dashed ? 'dashed' : 'solid'} ${item.edge}`,
+                background: item.bg,
+                color: item.fg,
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <item.Icon size={11} />
+            </span>
+            <span style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>{item.label}</span>
           </div>
         ))}
       </div>
-      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-          <Minus className="w-4 h-4" />
-          <span>Link between pages</span>
-        </div>
+      <div
+        className="row"
+        style={{
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: '1px solid var(--hair)',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 11,
+          color: 'var(--ink-3)',
+        }}
+      >
+        <Minus size={13} />
+        <span>Link between pages</span>
       </div>
     </div>
   );

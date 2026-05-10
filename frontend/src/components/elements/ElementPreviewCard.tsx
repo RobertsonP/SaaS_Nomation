@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { CSSPreviewRenderer } from './CSSPreviewRenderer';
 
@@ -20,6 +21,101 @@ function getPathFromUrl(url: string): string {
   }
 }
 
+type Tone = { bg: string; fg: string; edge: string };
+
+function elementTypeTone(type: string): Tone {
+  switch (type) {
+    case 'button':
+      return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
+    case 'input':
+    case 'form':
+      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+    case 'link':
+    case 'navigation':
+      return { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' };
+    case 'table':
+    case 'heading':
+      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+    case 'image':
+      return { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
+    default:
+      return { bg: 'var(--surface-2)', fg: 'var(--ink-2)', edge: 'var(--hair)' };
+  }
+}
+
+function discoveryStateMeta(state?: string): { label: string; tone: Tone } | null {
+  if (!state || state === 'static') return null;
+  const map: Record<string, { label: string; tone: Tone }> = {
+    after_login: {
+      label: 'After login',
+      tone: { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' },
+    },
+    login_page: {
+      label: 'Login',
+      tone: { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' },
+    },
+    after_interaction: {
+      label: 'Interactive',
+      tone: { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' },
+    },
+    modal: {
+      label: 'Modal',
+      tone: { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' },
+    },
+    hover: {
+      label: 'Hover',
+      tone: { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' },
+    },
+    tab: {
+      label: 'Tab',
+      tone: { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' },
+    },
+    popup: {
+      label: 'Popup',
+      tone: { bg: 'var(--clay-soft)', fg: 'var(--clay)', edge: 'var(--clay-edge)' },
+    },
+  };
+  return map[state] ?? null;
+}
+
+function locatorTypeMeta(selector: string): { type: string; tone: Tone } | null {
+  const moss: Tone = { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+  const info: Tone = { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
+  const slate: Tone = { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' };
+  const amber: Tone = { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
+  if (selector.startsWith('getByRole(')) return { type: 'Role', tone: moss };
+  if (selector.startsWith('getByText(')) return { type: 'Text', tone: info };
+  if (selector.startsWith('getByLabel(')) return { type: 'Label', tone: slate };
+  if (selector.startsWith('getByTestId(')) return { type: 'TestId', tone: moss };
+  if (selector.startsWith('getByPlaceholder(')) return { type: 'Placeholder', tone: amber };
+  if (selector.startsWith('getByTitle(')) return { type: 'Title', tone: info };
+  return null;
+}
+
+function parseNativeLocator(selector: string): { role?: string; name?: string } | null {
+  const roleMatch = selector.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)/);
+  if (roleMatch) return { role: roleMatch[1], name: roleMatch[2] };
+  const simpleMatch = selector.match(/^getBy(?:Text|Label|TestId|Placeholder|Title)\('([^']+)'\)/);
+  if (simpleMatch) return { name: simpleMatch[1] };
+  return null;
+}
+
+function pillStyle(tone: Tone): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 7px',
+    borderRadius: 999,
+    fontSize: 10.5,
+    fontWeight: 600,
+    letterSpacing: '0.02em',
+    background: tone.bg,
+    color: tone.fg,
+    border: `1px solid ${tone.edge}`,
+  };
+}
+
 export function ElementPreviewCard({
   element,
   onSelectElement,
@@ -35,7 +131,7 @@ export function ElementPreviewCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard API may not be available
+      // Clipboard unavailable
     }
   };
 
@@ -49,83 +145,20 @@ export function ElementPreviewCard({
   const handleLiveAction = (e: React.MouseEvent, action: string) => {
     e.stopPropagation();
     if (!onPerformAction) return;
-
-    const actionMap: Record<string, { type: string; selector: string; value?: string }> = {
+    const map: Record<string, { type: string; selector: string; value?: string }> = {
       click: { type: 'click', selector: element.selector },
       hover: { type: 'hover', selector: element.selector },
       type: { type: 'type', selector: element.selector, value: 'test input' },
     };
-
-    const actionConfig = actionMap[action];
-    if (actionConfig) {
-      onPerformAction(actionConfig);
-    }
-  };
-
-  const getElementTypeColor = (type: string) => {
-    switch (type) {
-      case 'button': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700';
-      case 'input': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700';
-      case 'link': return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700';
-      case 'form': return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700';
-      case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700';
-      case 'table': return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700';
-      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-700';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
-    }
-  };
-
-  const getDiscoveryStateBadge = (discoveryState?: string) => {
-    if (!discoveryState || discoveryState === 'static') return null;
-
-    const stateConfig: Record<string, { color: string; label: string }> = {
-      after_login: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', label: 'After Login' },
-      login_page: { color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', label: 'Login' },
-      after_interaction: { color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', label: 'Interactive' },
-      modal: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', label: 'Modal' },
-      hover: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300', label: 'Hover' },
-      tab: { color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300', label: 'Tab' },
-      popup: { color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', label: 'Popup' },
-    };
-
-    const config = stateConfig[discoveryState];
-    if (!config) return null;
-
-    return (
-      <span className={`px-1.5 py-0.5 text-xs rounded ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  // Classify native Playwright locator type
-  const getLocatorType = (selector: string): { type: string; color: string } | null => {
-    if (selector.startsWith('getByRole(')) return { type: 'Role', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' };
-    if (selector.startsWith('getByText(')) return { type: 'Text', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' };
-    if (selector.startsWith('getByLabel(')) return { type: 'Label', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' };
-    if (selector.startsWith('getByTestId(')) return { type: 'TestId', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
-    if (selector.startsWith('getByPlaceholder(')) return { type: 'Placeholder', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
-    if (selector.startsWith('getByTitle(')) return { type: 'Title', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' };
-    return null;
-  };
-
-  // Parse native locator into readable parts: badge type + human-readable value
-  const parseNativeLocator = (selector: string): { role?: string; name?: string } | null => {
-    // getByRole('button', { name: 'Export Excel' }) → role=button, name=Export Excel
-    const roleMatch = selector.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)/);
-    if (roleMatch) return { role: roleMatch[1], name: roleMatch[2] };
-
-    // getByText('Login') → name=Login
-    const simpleMatch = selector.match(/^getBy(?:Text|Label|TestId|Placeholder|Title)\('([^']+)'\)/);
-    if (simpleMatch) return { name: simpleMatch[1] };
-
-    return null;
+    if (map[action]) onPerformAction(map[action]);
   };
 
   const attributes = element.attributes as any;
   const sourceUrl = element.sourceUrl?.url;
-  const locatorType = getLocatorType(element.selector);
-  const parsedLocator = locatorType ? parseNativeLocator(element.selector) : null;
+  const typeTone = elementTypeTone(element.elementType);
+  const discoveryMeta = discoveryStateMeta(attributes?.discoveryState);
+  const locatorMeta = locatorTypeMeta(element.selector);
+  const parsedLocator = locatorMeta ? parseNativeLocator(element.selector) : null;
 
   return (
     <div
@@ -133,51 +166,91 @@ export function ElementPreviewCard({
       tabIndex={0}
       onClick={() => onSelectElement(element)}
       onKeyDown={handleKeyDown}
-      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden
-        hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-[0.98] transition-all duration-150
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'border-color .12s ease, box-shadow .12s ease, transform .1s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--moss)';
+        e.currentTarget.style.boxShadow = 'var(--shadow-1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--hair)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
     >
       {/* Badges */}
-      <div className="px-3 pt-3 flex items-center gap-1.5 flex-wrap">
-        <span className={`px-2 py-0.5 text-xs rounded border ${getElementTypeColor(element.elementType)}`}>
-          {element.elementType}
-        </span>
-        {attributes?.discoveryState && getDiscoveryStateBadge(attributes.discoveryState)}
+      <div className="row" style={{ padding: '10px 12px 0', gap: 6, flexWrap: 'wrap' }}>
+        <span style={pillStyle(typeTone)}>{element.elementType}</span>
+        {discoveryMeta && <span style={pillStyle(discoveryMeta.tone)}>{discoveryMeta.label}</span>}
         {element.authFlow && (
-          <span className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+          <span
+            style={pillStyle({
+              bg: 'var(--amber-soft)',
+              fg: 'var(--amber)',
+              edge: 'var(--amber-edge)',
+            })}
+          >
             {element.authFlow.name}
           </span>
         )}
       </div>
 
       {/* Description */}
-      <div className="px-3 pt-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-3">
+      <div style={{ padding: '6px 12px 0' }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12.5,
+            fontWeight: 500,
+            color: 'var(--ink)',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
           {element.description}
         </p>
       </div>
 
-      {/* Screenshot or CSS Preview */}
+      {/* Visual preview */}
       {element.screenshot ? (
-        <div className="px-3 pt-2">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded overflow-hidden max-h-40">
+        <div style={{ padding: '8px 12px 0' }}>
+          <div
+            style={{
+              background: 'var(--bone)',
+              border: '1px solid var(--hair)',
+              borderRadius: 4,
+              overflow: 'hidden',
+              maxHeight: 160,
+            }}
+          >
             <img
               src={element.screenshot}
               alt={element.description}
-              className="w-full h-full object-cover object-top"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
               loading="lazy"
             />
           </div>
         </div>
       ) : element.attributes?.cssInfo ? (
-        <div className="px-3 pt-2">
+        <div style={{ padding: '8px 12px 0' }}>
           <div
-            className="rounded p-1.5 max-h-32 overflow-hidden"
             style={{
+              borderRadius: 4,
+              padding: 6,
+              maxHeight: 128,
+              overflow: 'hidden',
+              border: '1px solid var(--hair)',
               backgroundColor: (() => {
                 const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
                   || (element.attributes as any)?.cssInfo?.backgroundColor;
-                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : undefined;
+                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : 'var(--surface-2)';
               })(),
             }}
           >
@@ -193,65 +266,94 @@ export function ElementPreviewCard({
       ) : null}
 
       {/* Selector + Copy */}
-      <div className="px-3 pt-2 flex items-start gap-1.5">
-        {locatorType && (
-          <span className={`flex-shrink-0 px-1.5 py-0.5 text-xs rounded font-medium mt-0.5 ${locatorType.color}`}>
-            {locatorType.type}
+      <div className="row" style={{ padding: '8px 12px 0', alignItems: 'flex-start', gap: 6 }}>
+        {locatorMeta && (
+          <span style={{ ...pillStyle(locatorMeta.tone), flexShrink: 0, marginTop: 1 }}>
+            {locatorMeta.type}
           </span>
         )}
-        <code className="flex-1 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono text-gray-600 dark:text-gray-400 break-all text-wrap">
+        <code
+          className="mono"
+          style={{
+            flex: 1,
+            background: 'var(--surface-2)',
+            border: '1px solid var(--hair)',
+            padding: '3px 6px',
+            borderRadius: 4,
+            fontSize: 11,
+            color: 'var(--slate)',
+            wordBreak: 'break-all',
+            lineHeight: 1.45,
+          }}
+        >
           {parsedLocator
-            ? (parsedLocator.role
-                ? `${parsedLocator.role}${parsedLocator.name ? ` \u203A ${parsedLocator.name}` : ''}`
-                : parsedLocator.name || element.selector)
+            ? parsedLocator.role
+              ? `${parsedLocator.role}${parsedLocator.name ? ` › ${parsedLocator.name}` : ''}`
+              : parsedLocator.name || element.selector
             : element.selector}
         </code>
         <button
+          type="button"
           onClick={handleCopySelector}
-          className="flex-shrink-0 p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="icon-btn"
           title="Copy selector"
+          style={{ flexShrink: 0, color: copied ? 'var(--moss)' : 'var(--ink-3)' }}
         >
-          {copied ? (
-            <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          )}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
 
       {/* Source URL */}
-      {sourceUrl && (
-        <div className="px-3 pt-1.5 pb-3">
-          <span className="text-xs text-gray-400 dark:text-gray-500 truncate block">
+      {sourceUrl ? (
+        <div style={{ padding: '6px 12px 12px' }}>
+          <span
+            className="mono dim"
+            style={{
+              fontSize: 10.5,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block',
+            }}
+          >
             {getPathFromUrl(sourceUrl)}
           </span>
         </div>
+      ) : (
+        <div style={{ paddingBottom: 12 }} />
       )}
-      {!sourceUrl && <div className="pb-3" />}
 
-      {/* Live Mode Actions (only in live mode) */}
+      {/* Live mode actions */}
       {isLiveMode && onPerformAction && (
-        <div className="px-3 pb-3 flex gap-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+        <div
+          className="row"
+          style={{
+            padding: '8px 12px 12px',
+            gap: 4,
+            borderTop: '1px solid var(--hair)',
+            paddingTop: 8,
+          }}
+        >
           <button
+            type="button"
             onClick={(e) => handleLiveAction(e, 'click')}
-            className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+            className="btn btn-success btn-sm"
           >
             Click
           </button>
           <button
+            type="button"
             onClick={(e) => handleLiveAction(e, 'hover')}
-            className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
+            className="btn btn-outline btn-sm"
+            style={{ color: 'var(--amber)', borderColor: 'var(--amber-edge)' }}
           >
             Hover
           </button>
           {element.elementType === 'input' && (
             <button
+              type="button"
               onClick={(e) => handleLiveAction(e, 'type')}
-              className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+              className="btn btn-primary btn-sm"
             >
               Type
             </button>

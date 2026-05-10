@@ -1,4 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Save,
+  Shield,
+  Sparkles,
+  X,
+  XCircle,
+} from 'lucide-react';
 import { authFlowsAPI } from '../../lib/api';
 import { createLogger } from '../../lib/logger';
 
@@ -24,7 +38,7 @@ interface SimplifiedAuthSetupProps {
   projectId: string;
   onComplete: () => void;
   onCancel: () => void;
-  authFlowId?: string; // For editing existing auth flows
+  authFlowId?: string;
   initialData?: {
     name: string;
     loginUrl: string;
@@ -33,50 +47,57 @@ interface SimplifiedAuthSetupProps {
     steps?: any[];
     useAutoDetection?: boolean;
     manualSelectors?: { usernameSelector: string; passwordSelector: string; submitSelector: string } | null;
-  }; // Initial data for editing
+  };
 }
+
+type Step = 'credentials' | 'test' | 'review';
+
+const STEPS: Array<{ id: Step; label: string }> = [
+  { id: 'credentials', label: 'Credentials' },
+  { id: 'test', label: 'Test' },
+  { id: 'review', label: 'Review' },
+];
 
 export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
   projectId,
   onComplete,
   onCancel,
   authFlowId,
-  initialData
+  initialData,
 }) => {
-  const [step, setStep] = useState<'credentials' | 'test' | 'review'>('credentials');
+  const [step, setStep] = useState<Step>('credentials');
   const [, setTemplates] = useState<AuthTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<AuthTemplate | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const isEditMode = Boolean(authFlowId && initialData);
 
   const [credentials, setCredentials] = useState({
     name: initialData?.name || 'Main Authentication',
     loginUrl: initialData?.loginUrl || '',
     username: initialData?.username || '',
-    password: initialData?.password || ''
+    password: initialData?.password || '',
   });
 
-  // Update credentials when initialData changes (for edit mode)
   useEffect(() => {
     if (initialData) {
       setCredentials({
         name: initialData.name || 'Main Authentication',
         loginUrl: initialData.loginUrl || '',
         username: initialData.username || '',
-        password: initialData.password || ''
+        password: initialData.password || '',
       });
     }
   }, [initialData]);
 
   const [useAutoDetection, setUseAutoDetection] = useState(
-    initialData?.useAutoDetection !== undefined ? initialData.useAutoDetection : true
+    initialData?.useAutoDetection !== undefined ? initialData.useAutoDetection : true,
   );
   const [manualSelectors, setManualSelectors] = useState({
     usernameSelector: initialData?.manualSelectors?.usernameSelector || '',
     passwordSelector: initialData?.manualSelectors?.passwordSelector || '',
-    submitSelector: initialData?.manualSelectors?.submitSelector || ''
+    submitSelector: initialData?.manualSelectors?.submitSelector || '',
   });
 
-  // Update useAutoDetection and manualSelectors when initialData changes (for edit mode)
   useEffect(() => {
     if (initialData) {
       setUseAutoDetection(initialData.useAutoDetection !== undefined ? initialData.useAutoDetection : true);
@@ -84,7 +105,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
         setManualSelectors({
           usernameSelector: initialData.manualSelectors.usernameSelector || '',
           passwordSelector: initialData.manualSelectors.passwordSelector || '',
-          submitSelector: initialData.manualSelectors.submitSelector || ''
+          submitSelector: initialData.manualSelectors.submitSelector || '',
         });
       }
     }
@@ -100,36 +121,28 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
 
   const loadTemplates = async () => {
     try {
-      logger.debug('Loading auth templates...');
       const response = await authFlowsAPI.getTemplates();
       const templates = response.data;
-      logger.info(`Loaded ${templates.length} auth templates`);
-
       setTemplates(templates);
       if (templates.length > 0) {
-        setSelectedTemplate(templates[0]); // Select first template by default
-        logger.debug(`Selected default template: ${templates[0].name}`);
+        setSelectedTemplate(templates[0]);
       }
     } catch (error: any) {
       logger.error('Failed to load templates', error);
-      logger.error('Error details', error.response?.data || error.message);
-      
-      // Provide user feedback
       setTestResult({
         success: false,
         message: 'Failed to load authentication templates',
         suggestions: [
           'Check your internet connection',
           'Verify you are logged in',
-          'Try refreshing the page'
-        ]
+          'Try refreshing the page',
+        ],
       });
     }
   };
 
   const handleTestAuthentication = async () => {
     if (!selectedTemplate || !credentials.loginUrl || !credentials.username || !credentials.password) {
-      logger.warn('Missing required fields for authentication test');
       setTestResult({
         success: false,
         message: 'Please fill in all required fields',
@@ -137,48 +150,30 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
           'Enter the login URL (e.g., https://tts.am/login)',
           'Enter your username',
           'Enter your password',
-          'Select an authentication template'
-        ]
+          'Select an authentication template',
+        ],
       });
       return;
     }
 
-    logger.info('Starting authentication test...');
-    logger.debug(`Login URL: ${credentials.loginUrl}`);
-    logger.debug(`Username: ${credentials.username}`);
-    logger.debug(`Password: ${credentials.password.substring(0, 3)}***`);
-    logger.debug(`Template: ${selectedTemplate.name}`);
-    logger.debug(`Steps: ${selectedTemplate.steps.length} steps`);
-
     setTesting(true);
-    setTestResult(null); // Clear previous results
-    
+    setTestResult(null);
+
     try {
       const response = await authFlowsAPI.testAuth({
         loginUrl: credentials.loginUrl,
         username: credentials.username,
         password: credentials.password,
-        steps: selectedTemplate.steps
+        steps: selectedTemplate.steps,
       });
-      
+
       const result = response.data;
-      logger.info('Authentication test completed', result);
-
       setTestResult(result);
-
       if (result.success) {
-        logger.info('Authentication test successful!');
         setStep('review');
-      } else {
-        logger.warn('Authentication test failed:', result.message);
-        logger.debug('Suggestions:', result.suggestions);
       }
     } catch (error: any) {
-      logger.error('Authentication test failed', error);
-      logger.error('Error details', error.response?.data || error.message);
-      
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-      
       setTestResult({
         success: false,
         message: `Authentication test failed: ${errorMessage}`,
@@ -186,8 +181,8 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
           'Check your internet connection',
           'Verify the login URL is correct',
           'Check if the username and password are correct',
-          'Try testing manually on the website first'
-        ]
+          'Try testing manually on the website first',
+        ],
       });
     } finally {
       setTesting(false);
@@ -198,7 +193,7 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
     if (!selectedTemplate) return;
 
     setSaving(true);
-    setTestResult(null); // Clear any previous messages
+    setTestResult(null);
 
     try {
       const authFlowData = {
@@ -207,412 +202,707 @@ export const SimplifiedAuthSetup: React.FC<SimplifiedAuthSetupProps> = ({
         username: credentials.username,
         password: credentials.password,
         steps: selectedTemplate.steps,
-        useAutoDetection: useAutoDetection,
-        manualSelectors: !useAutoDetection ? manualSelectors : null
+        useAutoDetection,
+        manualSelectors: !useAutoDetection ? manualSelectors : null,
       };
 
       if (isEditMode && authFlowId) {
-        // Update existing auth flow
         await authFlowsAPI.update(authFlowId, authFlowData);
-        logger.info('Auth flow updated successfully');
-        logger.debug(`Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
-        if (!useAutoDetection) {
-          logger.debug('Manual selectors:', manualSelectors);
-        }
       } else {
-        // Create new auth flow
         await authFlowsAPI.create(projectId, authFlowData);
-        logger.info('Auth flow created successfully');
-        logger.debug(`Auto detection: ${useAutoDetection ? 'ON' : 'OFF'}`);
-        if (!useAutoDetection) {
-          logger.debug('Manual selectors:', manualSelectors);
-        }
       }
 
-      // Show success message before closing
       setTestResult({
         success: true,
-        message: isEditMode ? 'Authentication flow updated successfully!' : 'Authentication flow created successfully!',
-        suggestions: []
+        message: isEditMode
+          ? 'Authentication flow updated successfully'
+          : 'Authentication flow created successfully',
+        suggestions: [],
       });
 
-      // Close modal after short delay to show success message
-      setTimeout(() => {
-        onComplete();
-      }, 800);
-
+      setTimeout(() => onComplete(), 800);
     } catch (error: any) {
-      logger.error('Failed to save auth flow', error);
-
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-
-      // Show error to user
       setTestResult({
         success: false,
         message: `Failed to ${isEditMode ? 'update' : 'save'} authentication flow: ${errorMessage}`,
         suggestions: [
           'Check your internet connection',
           'Verify all required fields are filled',
-          'Try again in a few moments'
-        ]
+          'Try again in a few moments',
+        ],
       });
     } finally {
       setSaving(false);
     }
   };
 
+  const credentialsValid =
+    credentials.loginUrl.trim() && credentials.username.trim() && credentials.password.trim();
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {isEditMode ? 'Edit Authentication Flow' : 'Simplified Authentication Setup'}
-          </h2>
-          <div className="flex items-center gap-4">
-            {/* Progress steps */}
-            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-            <div className={`px-2 py-1 rounded ${step === 'credentials' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
-              1. Credentials
-            </div>
-            <div className={`px-2 py-1 rounded ${step === 'test' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
-              2. Test
-            </div>
-            <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700'}`}>
-              3. Review
-            </div>
-            </div>
-            {/* Close button */}
-            <button
-              onClick={onCancel}
-              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-              title="Close"
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal modal-lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head">
+          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: 'var(--moss-soft)',
+                color: 'var(--moss)',
+                border: '1px solid var(--moss-edge)',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              <Shield size={16} />
+            </span>
+            <div>
+              <div className="modal-title">
+                {isEditMode ? 'Edit authentication flow' : 'Set up authentication'}
+              </div>
+              <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                Configure a login flow so Nomation can test pages behind authentication.
+              </div>
+            </div>
           </div>
+          <button type="button" className="icon-btn" onClick={onCancel} aria-label="Close">
+            <X size={14} />
+          </button>
         </div>
 
-        {step === 'credentials' && (
-          <div className="space-y-6">
-            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">How it works:</h3>
-              <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
-                <li>✅ We'll automatically detect the best authentication approach</li>
-                <li>✅ Test your credentials safely before saving</li>
-                <li>✅ Get detailed feedback if something goes wrong</li>
-                <li>✅ No complex step configuration needed</li>
-              </ul>
-            </div>
+        {/* Stepper */}
+        <div
+          className="row"
+          style={{
+            padding: '14px 20px',
+            borderBottom: '1px solid var(--hair)',
+            background: 'var(--surface-2)',
+            gap: 8,
+            justifyContent: 'center',
+          }}
+        >
+          {STEPS.map((s, idx) => {
+            const stepIdx = STEPS.findIndex((x) => x.id === step);
+            const isCurrent = step === s.id;
+            const isDone = stepIdx > idx;
+            return (
+              <React.Fragment key={s.id}>
+                <div className="row" style={{ alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 999,
+                      background: isCurrent
+                        ? 'var(--moss)'
+                        : isDone
+                        ? 'var(--moss-soft)'
+                        : 'var(--surface)',
+                      color: isCurrent ? '#fff' : isDone ? 'var(--moss)' : 'var(--ink-3)',
+                      border: `1px solid ${
+                        isCurrent || isDone ? 'var(--moss-edge)' : 'var(--hair)'
+                      }`,
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {isDone ? <CheckCircle2 size={11} /> : idx + 1}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: isCurrent ? 600 : 500,
+                      color: isCurrent ? 'var(--ink)' : 'var(--ink-3)',
+                    }}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+                {idx < STEPS.length - 1 && (
+                  <span
+                    style={{
+                      width: 24,
+                      height: 1,
+                      background: 'var(--hair)',
+                    }}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Authentication Flow Name
+        <div className="modal-body col" style={{ gap: 16, overflowY: 'auto' }}>
+          {step === 'credentials' && (
+            <>
+              <div
+                style={{
+                  background: 'var(--moss-soft)',
+                  border: '1px solid var(--moss-edge)',
+                  borderRadius: 8,
+                  padding: 12,
+                }}
+              >
+                <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                  <Sparkles size={14} style={{ color: 'var(--moss)', marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 6 }}>
+                      How it works
+                    </div>
+                    <ul
+                      className="dim"
+                      style={{
+                        margin: 0,
+                        paddingLeft: 18,
+                        fontSize: 11.5,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      <li>Auto-detects username, password, and submit fields</li>
+                      <li>Tests credentials safely before saving</li>
+                      <li>Detailed feedback if something doesn't work</li>
+                      <li>Falls back to manual CSS selectors if needed</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Authentication flow name
                 </label>
                 <input
                   type="text"
+                  className="field"
                   value={credentials.name}
-                  onChange={(e) => setCredentials({...credentials, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
-                  placeholder="e.g., Admin Login, User Portal"
+                  onChange={(e) => setCredentials({ ...credentials, name: e.target.value })}
+                  placeholder="e.g., Admin login, Customer portal"
                 />
               </div>
 
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Login Page URL <span className="text-red-500">*</span>
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Login page URL <span style={{ color: 'var(--clay)' }}>*</span>
                 </label>
                 <input
                   type="url"
+                  className="field mono"
                   value={credentials.loginUrl}
-                  onChange={(e) => setCredentials({...credentials, loginUrl: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
+                  onChange={(e) => setCredentials({ ...credentials, loginUrl: e.target.value })}
                   placeholder="https://yoursite.com/login"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Username/Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={credentials.username}
-                  onChange={(e) => setCredentials({...credentials, username: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
-                  placeholder="your.username@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={credentials.password}
-                  onChange={(e) => setCredentials({...credentials, password: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md"
-                  placeholder="Your secure password"
-                />
-              </div>
-            </div>
-
-            {/* Auto Detection Mode Toggle */}
-            <div className="border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
-              <div className="flex items-start space-x-3">
-                <input
-                  type="checkbox"
-                  id="useAutoDetection"
-                  checked={useAutoDetection}
-                  onChange={(e) => setUseAutoDetection(e.target.checked)}
-                  className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <div className="flex-1">
-                  <label htmlFor="useAutoDetection" className="font-medium text-blue-900 dark:text-blue-200 cursor-pointer">
-                    Use Automatic Field Detection (Recommended)
-                  </label>
-                  <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
-                    Our smart system will automatically find username, password, and submit button fields using 30+ detection strategies.
-                    Works with most websites including custom implementations, frameworks (React/Vue/Angular), and multi-language sites.
-                  </p>
-                  {!useAutoDetection && (
-                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-600 rounded text-sm text-yellow-900 dark:text-yellow-200">
-                      Manual mode requires you to provide exact CSS selectors. Only use this if automatic detection fails.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Manual Selectors (Only shown when auto detection is OFF) */}
-            {!useAutoDetection && (
-              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Manual Field Selectors</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Provide exact CSS selectors for each field:</p>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Username/Email Field Selector <span className="text-red-500">*</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                <div className="col" style={{ gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                    Username / email <span style={{ color: 'var(--clay)' }}>*</span>
                   </label>
                   <input
                     type="text"
-                    value={manualSelectors.usernameSelector}
-                    onChange={(e) => setManualSelectors({...manualSelectors, usernameSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
-                    placeholder='e.g., input[name="email"], #username'
+                    className="field"
+                    value={credentials.username}
+                    onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                    placeholder="your.username@example.com"
+                    autoComplete="username"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Password Field Selector <span className="text-red-500">*</span>
+                <div className="col" style={{ gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                    Password <span style={{ color: 'var(--clay)' }}>*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={manualSelectors.passwordSelector}
-                    onChange={(e) => setManualSelectors({...manualSelectors, passwordSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
-                    placeholder='e.g., input[type="password"], #pass'
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Submit Button Selector <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={manualSelectors.submitSelector}
-                    onChange={(e) => setManualSelectors({...manualSelectors, submitSelector: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md font-mono text-sm"
-                    placeholder='e.g., button[type="submit"], #loginBtn'
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="field"
+                      value={credentials.password}
+                      onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                      placeholder="Your secure password"
+                      autoComplete="current-password"
+                      style={{ paddingRight: 32 }}
+                    />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: 4,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 24,
+                        height: 24,
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {selectedTemplate && (
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Selected Template: {selectedTemplate.name}</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{selectedTemplate.description}</p>
-                <div className="text-xs text-gray-500">
-                  <strong>Steps:</strong> {selectedTemplate.steps.map(s => s.description).join(' → ')}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col space-y-3">
-              {/* Primary Action: Save Directly */}
-              <button
-                onClick={handleSaveAuthFlow}
-                disabled={!credentials.loginUrl || !credentials.username || !credentials.password || saving}
-                className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+              {/* Auto-detection toggle */}
+              <div
+                style={{
+                  background: useAutoDetection ? 'var(--moss-soft)' : 'var(--surface-2)',
+                  border: `1px solid ${useAutoDetection ? 'var(--moss-edge)' : 'var(--hair)'}`,
+                  borderRadius: 8,
+                  padding: 12,
+                  transition: 'background .15s ease, border-color .15s ease',
+                }}
               >
-                {saving ? 'Saving...' : (isEditMode ? 'Update Auth Flow' : 'Save Auth Flow')}
-              </button>
-
-              {/* Secondary Actions */}
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setStep('test')}
-                  disabled={!credentials.loginUrl || !credentials.username || !credentials.password}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                <label
+                  className="row"
+                  style={{
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    cursor: 'pointer',
+                  }}
                 >
-                  Test First (Optional)
-                </button>
-                <button
-                  onClick={onCancel}
-                  className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 'test' && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Testing Authentication...</h3>
-              <p className="text-gray-600 dark:text-gray-400">We'll verify your credentials work correctly</p>
-            </div>
-
-            {!testResult && !testing && (
-              <div className="text-center">
-                <button
-                  onClick={handleTestAuthentication}
-                  className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700"
-                >
-                  Start Authentication Test
-                </button>
-              </div>
-            )}
-
-            {testing && (
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-gray-400">Testing authentication flow...</p>
-              </div>
-            )}
-
-            {testResult && (
-              <div className={`p-4 rounded-lg ${testResult.success ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'}`}>
-                <div className="flex items-center mb-3">
-                  <span className={`text-2xl mr-3 ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
-                    {testResult.success ? '✅' : '❌'}
-                  </span>
-                  <h4 className={`font-medium ${testResult.success ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
-                    {testResult.success ? 'Authentication Successful!' : 'Authentication Failed'}
-                  </h4>
-                </div>
-
-                <p className={`text-sm mb-3 ${testResult.success ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
-                  {testResult.message}
-                </p>
-
-                {testResult.details && (
-                  <div className="text-sm space-y-2">
-                    <p><strong>Steps completed:</strong> {testResult.details.stepsCompleted}/{testResult.details.totalSteps}</p>
-                    {testResult.details.finalUrl && (
-                      <p><strong>Final URL:</strong> {testResult.details.finalUrl}</p>
+                  <input
+                    type="checkbox"
+                    checked={useAutoDetection}
+                    onChange={(e) => setUseAutoDetection(e.target.checked)}
+                    style={{ marginTop: 2, accentColor: 'var(--moss)', width: 16, height: 16, flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                      Use automatic field detection (recommended)
+                    </div>
+                    <p
+                      className="dim"
+                      style={{ margin: '4px 0 0', fontSize: 11.5, lineHeight: 1.55 }}
+                    >
+                      Smart detection finds username, password, and submit fields using 30+ strategies.
+                      Works with React/Vue/Angular and most custom implementations.
+                    </p>
+                    {!useAutoDetection && (
+                      <div
+                        className="row"
+                        style={{
+                          marginTop: 8,
+                          padding: 8,
+                          background: 'var(--amber-soft)',
+                          border: '1px solid var(--amber-edge)',
+                          borderRadius: 4,
+                          fontSize: 11.5,
+                          color: 'var(--amber)',
+                          gap: 6,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <AlertTriangle size={12} style={{ marginTop: 1, flexShrink: 0 }} />
+                        <span>
+                          Manual mode requires exact CSS selectors. Only use if automatic detection
+                          fails.
+                        </span>
+                      </div>
                     )}
                   </div>
-                )}
+                </label>
+              </div>
 
-                {testResult.suggestions && testResult.suggestions.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm font-medium mb-1">Suggestions:</p>
-                    <ul className="text-sm list-disc list-inside space-y-1">
-                      {testResult.suggestions.map((suggestion: string, idx: number) => (
-                        <li key={idx}>{suggestion}</li>
-                      ))}
-                    </ul>
+              {!useAutoDetection && (
+                <div
+                  style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 8,
+                    padding: 14,
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>
+                    Manual field selectors
                   </div>
-                )}
-              </div>
-            )}
+                  <p className="dim" style={{ margin: '0 0 12px', fontSize: 11.5 }}>
+                    Provide exact CSS selectors for each field.
+                  </p>
 
-            <div className="flex space-x-4">
-              <button
-                onClick={() => setStep('credentials')}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              >
-                ← Back to Credentials
-              </button>
-              
-              {testResult?.success && (
-                <button
-                  onClick={() => setStep('review')}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Continue to Review
-                </button>
+                  <div className="col" style={{ gap: 12 }}>
+                    <div className="col" style={{ gap: 4 }}>
+                      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                        Username / email selector <span style={{ color: 'var(--clay)' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="field mono"
+                        value={manualSelectors.usernameSelector}
+                        onChange={(e) =>
+                          setManualSelectors({ ...manualSelectors, usernameSelector: e.target.value })
+                        }
+                        placeholder='input[name="email"], #username'
+                      />
+                    </div>
+                    <div className="col" style={{ gap: 4 }}>
+                      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                        Password selector <span style={{ color: 'var(--clay)' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="field mono"
+                        value={manualSelectors.passwordSelector}
+                        onChange={(e) =>
+                          setManualSelectors({ ...manualSelectors, passwordSelector: e.target.value })
+                        }
+                        placeholder='input[type="password"], #pass'
+                      />
+                    </div>
+                    <div className="col" style={{ gap: 4 }}>
+                      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                        Submit button selector <span style={{ color: 'var(--clay)' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="field mono"
+                        value={manualSelectors.submitSelector}
+                        onChange={(e) =>
+                          setManualSelectors({ ...manualSelectors, submitSelector: e.target.value })
+                        }
+                        placeholder='button[type="submit"], #loginBtn'
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
-              
+
+              {selectedTemplate && (
+                <div
+                  style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                    Selected template: {selectedTemplate.name}
+                  </div>
+                  <p className="dim" style={{ margin: '4px 0 8px', fontSize: 11.5 }}>
+                    {selectedTemplate.description}
+                  </p>
+                  <div className="dim" style={{ fontSize: 11 }}>
+                    <strong style={{ color: 'var(--ink-2)' }}>Steps:</strong>{' '}
+                    {selectedTemplate.steps.map((s) => s.description).join(' → ')}
+                  </div>
+                </div>
+              )}
+
+              {testResult && testResult.success && (
+                <div
+                  style={{
+                    background: 'var(--moss-soft)',
+                    border: '1px solid var(--moss-edge)',
+                    borderRadius: 6,
+                    padding: 10,
+                  }}
+                >
+                  <div className="row" style={{ gap: 6, alignItems: 'center', color: 'var(--moss)' }}>
+                    <CheckCircle2 size={13} />
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{testResult.message}</span>
+                  </div>
+                </div>
+              )}
               {testResult && !testResult.success && (
-                <button
-                  onClick={handleTestAuthentication}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                <div
+                  style={{
+                    background: 'var(--clay-soft)',
+                    border: '1px solid var(--clay-edge)',
+                    borderRadius: 6,
+                    padding: 10,
+                  }}
                 >
-                  Try Again
+                  <div className="row" style={{ gap: 6, alignItems: 'flex-start', color: 'var(--clay)' }}>
+                    <XCircle size={13} style={{ marginTop: 1, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{testResult.message}</div>
+                      {testResult.suggestions && testResult.suggestions.length > 0 && (
+                        <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, lineHeight: 1.55 }}>
+                          {testResult.suggestions.map((s: string, i: number) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === 'test' && (
+            <div className="col" style={{ gap: 16, alignItems: 'center', textAlign: 'center', padding: 12 }}>
+              <span
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 12,
+                  background: 'var(--info-soft)',
+                  border: '1px solid var(--info-edge)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--info)',
+                }}
+              >
+                {testing ? <Loader2 size={24} className="animate-spin" /> : <Lock size={24} />}
+              </span>
+              <div>
+                <div style={{ fontFamily: 'Inter Tight', fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>
+                  {testing ? 'Testing authentication…' : 'Test authentication flow'}
+                </div>
+                <p className="dim" style={{ margin: '4px 0 0', fontSize: 12.5 }}>
+                  We'll log in with your credentials and report any issues before saving.
+                </p>
+              </div>
+
+              {!testResult && !testing && (
+                <button type="button" onClick={handleTestAuthentication} className="btn btn-primary">
+                  <Lock size={13} />
+                  <span>Start authentication test</span>
                 </button>
               )}
-            </div>
-          </div>
-        )}
 
-        {step === 'review' && testResult?.success && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-green-600 text-4xl mb-4">✅</div>
-              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">Authentication Ready!</h3>
-              <p className="text-gray-600 dark:text-gray-400">Your authentication flow has been tested and is ready to use</p>
+              {testResult && (
+                <div
+                  style={{
+                    width: '100%',
+                    padding: 14,
+                    borderRadius: 8,
+                    background: testResult.success ? 'var(--moss-soft)' : 'var(--clay-soft)',
+                    border: `1px solid ${testResult.success ? 'var(--moss-edge)' : 'var(--clay-edge)'}`,
+                    textAlign: 'left',
+                  }}
+                >
+                  <div
+                    className="row"
+                    style={{
+                      gap: 8,
+                      alignItems: 'flex-start',
+                      color: testResult.success ? 'var(--moss)' : 'var(--clay)',
+                    }}
+                  >
+                    {testResult.success ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'Inter Tight', fontSize: 14, fontWeight: 600 }}>
+                        {testResult.success ? 'Authentication successful' : 'Authentication failed'}
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.5 }}>
+                        {testResult.message}
+                      </p>
+                      {testResult.details && (
+                        <div className="dim tabular" style={{ marginTop: 8, fontSize: 11.5 }}>
+                          Steps completed: {testResult.details.stepsCompleted}/{testResult.details.totalSteps}
+                          {testResult.details.finalUrl && (
+                            <>
+                              {' · Final URL: '}
+                              <code className="mono">{testResult.details.finalUrl}</code>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {testResult.suggestions && testResult.suggestions.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
+                            Suggestions
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, lineHeight: 1.55 }}>
+                            {testResult.suggestions.map((s: string, i: number) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
 
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-gray-900 dark:text-white">Flow Name:</span>
-                <span>{credentials.name}</span>
+          {step === 'review' && testResult?.success && (
+            <div className="col" style={{ gap: 16, alignItems: 'center', textAlign: 'center', padding: 12 }}>
+              <span
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 12,
+                  background: 'var(--moss-soft)',
+                  border: '1px solid var(--moss-edge)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--moss)',
+                }}
+              >
+                <CheckCircle2 size={28} />
+              </span>
+              <div>
+                <div style={{ fontFamily: 'Inter Tight', fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>
+                  Authentication ready
+                </div>
+                <p className="dim" style={{ margin: '4px 0 0', fontSize: 12.5 }}>
+                  Your authentication flow has been tested and is ready to use.
+                </p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">Login URL:</span>
-                <span className="truncate ml-2">{credentials.loginUrl}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">Template:</span>
-                <span>{selectedTemplate?.name}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">Success Rate:</span>
-                <span className="text-green-600">Verified ✓</span>
+
+              <div
+                style={{
+                  width: '100%',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 8,
+                  padding: 14,
+                  textAlign: 'left',
+                }}
+              >
+                <div className="col" style={{ gap: 8 }}>
+                  <ReviewRow label="Flow name" value={credentials.name} />
+                  <ReviewRow label="Login URL" value={credentials.loginUrl} mono />
+                  <ReviewRow label="Template" value={selectedTemplate?.name || '—'} />
+                  <ReviewRow label="Status" value="Verified" tone="moss" />
+                </div>
               </div>
             </div>
+          )}
+        </div>
 
-            <div className="flex space-x-4">
+        <div className="modal-foot" style={{ justifyContent: 'space-between' }}>
+          <div className="row" style={{ gap: 6 }}>
+            {step === 'test' && (
               <button
+                type="button"
+                onClick={() => setStep('credentials')}
+                className="btn btn-ghost"
+              >
+                <ArrowLeft size={13} />
+                <span>Back</span>
+              </button>
+            )}
+            {step === 'review' && (
+              <button
+                type="button"
+                onClick={() => setStep('test')}
+                className="btn btn-ghost"
+              >
+                <ArrowLeft size={13} />
+                <span>Test again</span>
+              </button>
+            )}
+          </div>
+          <div className="row" style={{ gap: 6 }}>
+            <button type="button" onClick={onCancel} className="btn btn-ghost">
+              Cancel
+            </button>
+            {step === 'credentials' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setStep('test')}
+                  disabled={!credentialsValid}
+                  className="btn btn-outline"
+                  style={!credentialsValid ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  <Lock size={13} />
+                  <span>Test first</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAuthFlow}
+                  disabled={!credentialsValid || saving}
+                  className="btn btn-success"
+                  style={!credentialsValid || saving ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                  <span>{saving ? 'Saving…' : isEditMode ? 'Update auth flow' : 'Save auth flow'}</span>
+                </button>
+              </>
+            )}
+            {step === 'test' && testResult?.success && (
+              <button
+                type="button"
+                onClick={() => setStep('review')}
+                className="btn btn-primary"
+              >
+                Continue to review
+              </button>
+            )}
+            {step === 'test' && testResult && !testResult.success && (
+              <button
+                type="button"
+                onClick={handleTestAuthentication}
+                disabled={testing}
+                className="btn btn-primary"
+                style={testing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                {testing ? <Loader2 size={13} className="animate-spin" /> : <Lock size={13} />}
+                <span>{testing ? 'Testing…' : 'Try again'}</span>
+              </button>
+            )}
+            {step === 'review' && (
+              <button
+                type="button"
                 onClick={handleSaveAuthFlow}
                 disabled={saving}
-                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                className="btn btn-success"
+                style={saving ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {saving
-                  ? (isEditMode ? 'Updating...' : 'Saving...')
-                  : (isEditMode ? 'Update Authentication Flow' : 'Save Authentication Flow')
-                }
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                <span>
+                  {saving
+                    ? isEditMode
+                      ? 'Updating…'
+                      : 'Saving…'
+                    : isEditMode
+                    ? 'Update authentication'
+                    : 'Save authentication'}
+                </span>
               </button>
-              <button
-                onClick={() => setStep('test')}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              >
-                ← Test Again
-              </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 };
+
+function ReviewRow({
+  label,
+  value,
+  mono,
+  tone,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: 'moss' | 'clay';
+}) {
+  return (
+    <div className="row" style={{ justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', flexShrink: 0 }}>{label}</span>
+      <span
+        className={mono ? 'mono' : undefined}
+        style={{
+          fontSize: 11.5,
+          color: tone === 'moss' ? 'var(--moss)' : 'var(--ink-2)',
+          fontWeight: tone ? 600 : 400,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          textAlign: 'right',
+        }}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CheckCircle2, ChevronDown, Loader2, XCircle } from 'lucide-react';
 import { TestExecutionReport } from './TestExecutionReport';
 
 interface NestedTestExecution {
@@ -55,24 +56,33 @@ function formatTime(ts?: string | Date | null): string {
   return d.toLocaleString();
 }
 
+function statusTone(status: string): { bg: string; fg: string; edge: string; Icon: typeof CheckCircle2 } {
+  switch (status) {
+    case 'passed':
+      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)', Icon: CheckCircle2 };
+    case 'running':
+      return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)', Icon: Loader2 };
+    case 'failed':
+      return { bg: 'var(--clay-soft)', fg: 'var(--clay)', edge: 'var(--clay-edge)', Icon: XCircle };
+    default:
+      return { bg: 'var(--surface-2)', fg: 'var(--ink-3)', edge: 'var(--hair)', Icon: CheckCircle2 };
+  }
+}
+
 export function SuiteExecutionReport({ execution, suiteName }: SuiteExecutionReportProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const tests = execution.results?.testResults ?? [];
   const total = tests.length;
-  const passed = tests.filter(t => t.status === 'passed').length;
+  const passed = tests.filter((t) => t.status === 'passed').length;
   const failed = total - passed;
   const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
-  const overallPassed = execution.status === 'passed';
-  const headerStatusClasses = overallPassed
-    ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
-    : execution.status === 'running'
-      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-      : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+  const tone = statusTone(execution.status);
+  const StatusIcon = tone.Icon;
 
   const toggle = (id: string) => {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -81,136 +91,305 @@ export function SuiteExecutionReport({ execution, suiteName }: SuiteExecutionRep
   };
 
   return (
-    <div className="space-y-4">
+    <div className="col" style={{ gap: 12 }}>
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{suiteName}</h2>
-            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
-              <span>Started: {formatTime(execution.startedAt)}</span>
-              <span>Duration: {formatDuration(execution.duration)}</span>
-              <span>Run ID: <code className="font-mono">{execution.id.slice(0, 8)}…</code></span>
+      <div className="card">
+        <div className="card-pad">
+          <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontFamily: 'Inter Tight',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
+                  color: 'var(--ink)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {suiteName}
+              </h2>
+              <div className="row dim" style={{ gap: 12, marginTop: 4, fontSize: 11.5, flexWrap: 'wrap' }}>
+                <span>Started: {formatTime(execution.startedAt)}</span>
+                <span>Duration: {formatDuration(execution.duration)}</span>
+                <span>
+                  Run ID: <code className="mono">{execution.id.slice(0, 8)}…</code>
+                </span>
+              </div>
             </div>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 6,
+                background: tone.bg,
+                color: tone.fg,
+                border: `1px solid ${tone.edge}`,
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+                flexShrink: 0,
+              }}
+            >
+              <StatusIcon size={13} className={execution.status === 'running' ? 'animate-spin' : undefined} />
+              {execution.status}
+            </span>
           </div>
-          <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-medium border ${headerStatusClasses}`}>
-            {execution.status.toUpperCase()}
-          </span>
-        </div>
 
-        {/* Summary tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Tests</div>
-            <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{total}</div>
+          {/* Summary tiles */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
+            <SummaryTile label="Total tests" value={total} />
+            <SummaryTile label="Passed" value={passed} tone="moss" />
+            <SummaryTile label="Failed" value={failed} tone="clay" />
+            <SummaryTile
+              label="Pass rate"
+              value={`${passRate}%`}
+              tone={passRate === 100 ? 'moss' : passRate > 0 ? 'amber' : 'clay'}
+            />
           </div>
-          <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
-            <div className="text-xs uppercase tracking-wide text-green-700 dark:text-green-300">Passed</div>
-            <div className="mt-1 text-2xl font-semibold text-green-700 dark:text-green-300">{passed}</div>
-          </div>
-          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
-            <div className="text-xs uppercase tracking-wide text-red-700 dark:text-red-300">Failed</div>
-            <div className="mt-1 text-2xl font-semibold text-red-700 dark:text-red-300">{failed}</div>
-          </div>
-          <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Pass Rate</div>
-            <div className={`mt-1 text-2xl font-semibold ${passRate === 100 ? 'text-green-700 dark:text-green-300' : passRate > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
-              {passRate}%
+
+          {total > 0 && (
+            <div
+              style={{
+                marginTop: 12,
+                width: '100%',
+                height: 6,
+                background: 'var(--surface-2)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                display: 'flex',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${(passed / total) * 100}%`,
+                  background: 'var(--moss)',
+                  transition: 'width .3s ease',
+                }}
+                title={`${passed} passed`}
+              />
+              <div
+                style={{
+                  height: '100%',
+                  width: `${(failed / total) * 100}%`,
+                  background: 'var(--clay)',
+                  transition: 'width .3s ease',
+                }}
+                title={`${failed} failed`}
+              />
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Pass-rate bar */}
-        {total > 0 && (
-          <div className="mt-4 w-full h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex">
-            <div
-              className="h-full bg-green-500 dark:bg-green-400"
-              style={{ width: `${(passed / total) * 100}%` }}
-              title={`${passed} passed`}
-            />
-            <div
-              className="h-full bg-red-500 dark:bg-red-400"
-              style={{ width: `${(failed / total) * 100}%` }}
-              title={`${failed} failed`}
-            />
-          </div>
-        )}
       </div>
 
       {/* Per-test rows */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Tests ({total})</h3>
-        {total === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">No test results recorded.</p>
-        ) : (
-          <div className="space-y-2">
-            {tests.map(t => {
-              const open = expanded.has(t.executionId);
-              const failedTest = t.status === 'failed';
-              return (
-                <div
-                  key={t.executionId}
-                  className={`border rounded-lg ${
-                    failedTest
-                      ? 'border-red-200 dark:border-red-800'
-                      : 'border-gray-200 dark:border-gray-700'
-                  } bg-white dark:bg-gray-800`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggle(t.executionId)}
-                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Tests</span>
+          <span className="dim tabular" style={{ fontSize: 11 }}>
+            {total}
+          </span>
+        </div>
+        <div className="card-pad">
+          {total === 0 ? (
+            <p className="dim" style={{ margin: 0, fontSize: 12.5, fontStyle: 'italic' }}>
+              No test results recorded.
+            </p>
+          ) : (
+            <div className="col" style={{ gap: 6 }}>
+              {tests.map((t) => {
+                const open = expanded.has(t.executionId);
+                const failedTest = t.status === 'failed';
+                return (
+                  <div
+                    key={t.executionId}
+                    style={{
+                      background: 'var(--surface)',
+                      border: `1px solid ${failedTest ? 'var(--clay-edge)' : 'var(--hair)'}`,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                    }}
                   >
-                    <span
-                      className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        failedTest
-                          ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
-                          : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => toggle(t.executionId)}
+                      className="row"
+                      style={{
+                        width: '100%',
+                        gap: 10,
+                        padding: 10,
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        alignItems: 'center',
+                        transition: 'background .12s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--surface-2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
                     >
-                      {failedTest ? '✕ FAILED' : '✓ PASSED'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{t.testName}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {t.stepCount ?? '—'} steps
-                        {t.duration ? ` · ${formatDuration(t.duration)}` : ''}
-                        {t.failedStep ? ` · failed at: ${t.failedStep}` : ''}
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 7px',
+                          borderRadius: 999,
+                          background: failedTest ? 'var(--clay-soft)' : 'var(--moss-soft)',
+                          color: failedTest ? 'var(--clay)' : 'var(--moss)',
+                          border: `1px solid ${failedTest ? 'var(--clay-edge)' : 'var(--moss-edge)'}`,
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {failedTest ? <XCircle size={11} /> : <CheckCircle2 size={11} />}
+                        {failedTest ? 'Failed' : 'Passed'}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            color: 'var(--ink)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {t.testName}
+                        </div>
+                        <div
+                          className="dim tabular"
+                          style={{
+                            fontSize: 11,
+                            marginTop: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {t.stepCount ?? '—'} steps
+                          {t.duration ? ` · ${formatDuration(t.duration)}` : ''}
+                          {t.failedStep ? ` · failed at: ${t.failedStep}` : ''}
+                        </div>
                       </div>
-                    </div>
-                    <svg
-                      className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+                      <ChevronDown
+                        size={14}
+                        style={{
+                          color: 'var(--ink-3)',
+                          flexShrink: 0,
+                          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform .15s ease',
+                        }}
+                      />
+                    </button>
 
-                  {open && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900/30">
-                      {t.execution ? (
-                        <TestExecutionReport
-                          execution={t.execution}
-                          testName={t.testName}
-                          showAttachments={false}
-                        />
-                      ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                          Detailed step results not available for this test.
-                          {t.errorMsg && (
-                            <span className="block mt-1 text-red-600 dark:text-red-300">{t.errorMsg}</span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    {open && (
+                      <div
+                        style={{
+                          borderTop: '1px solid var(--hair)',
+                          padding: 12,
+                          background: 'var(--bone)',
+                        }}
+                      >
+                        {t.execution ? (
+                          <TestExecutionReport
+                            execution={t.execution}
+                            testName={t.testName}
+                            showAttachments={false}
+                          />
+                        ) : (
+                          <p
+                            className="dim"
+                            style={{ margin: 0, fontSize: 12.5, fontStyle: 'italic' }}
+                          >
+                            Detailed step results not available for this test.
+                            {t.errorMsg && (
+                              <span style={{ display: 'block', marginTop: 4, color: 'var(--clay)' }}>
+                                {t.errorMsg}
+                              </span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  tone?: 'moss' | 'clay' | 'amber';
+}) {
+  const toneFg = tone === 'moss' ? 'var(--moss)' : tone === 'clay' ? 'var(--clay)' : tone === 'amber' ? 'var(--amber)' : 'var(--ink)';
+  const toneBg = tone === 'moss' ? 'var(--moss-soft)' : tone === 'clay' ? 'var(--clay-soft)' : tone === 'amber' ? 'var(--amber-soft)' : 'var(--surface-2)';
+  const toneEdge = tone === 'moss' ? 'var(--moss-edge)' : tone === 'clay' ? 'var(--clay-edge)' : tone === 'amber' ? 'var(--amber-edge)' : 'var(--hair)';
+  return (
+    <div
+      style={{
+        background: toneBg,
+        border: `1px solid ${toneEdge}`,
+        borderRadius: 6,
+        padding: '10px 12px',
+      }}
+    >
+      <div
+        className="dim"
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          color: tone ? toneFg : 'var(--ink-3)',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        className="tabular"
+        style={{
+          fontFamily: 'Inter Tight',
+          fontSize: 22,
+          fontWeight: 600,
+          letterSpacing: '-0.02em',
+          color: toneFg,
+          marginTop: 2,
+        }}
+      >
+        {value}
       </div>
     </div>
   );
