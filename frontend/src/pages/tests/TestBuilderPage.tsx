@@ -184,24 +184,54 @@ export function TestBuilderPage() {
     navigate(`/projects/${projectId}/tests`)
   }
 
-  const handleConfigurationSave = (config: {
+  const handleConfigurationSave = async (config: {
     name: string
     description: string
     startingUrl: string
   }) => {
-    // Check if configuration was actually modified
-    const wasModified = testId && (
-      config.name !== test?.name ||
-      config.description !== test?.description ||
-      config.startingUrl !== selectedStartingUrl
-    )
-    
+    // Always update local state first so the builder header reflects the new
+    // values immediately.
     setTestName(config.name)
     setTestDescription(config.description)
     setSelectedStartingUrl(config.startingUrl)
     setConfigurationComplete(true)
     setShowConfigModal(false)
-    // setConfigModified(wasModified || false) // Currently unused
+
+    // For new tests the full save happens later via handleSave when the user
+    // saves the test from the builder panel. For an EXISTING test we must
+    // persist the config change to the backend now — otherwise refreshing
+    // the page reverts the starting URL / name / description.
+    if (!testId || !test) return
+
+    const wasModified =
+      config.name !== test.name ||
+      config.description !== test.description ||
+      config.startingUrl !== test.startingUrl
+    if (!wasModified) return
+
+    try {
+      await testsAPI.update(testId, {
+        name: config.name,
+        description: config.description,
+        startingUrl: config.startingUrl,
+        // Preserve the steps that are currently persisted on the backend.
+        // Unsaved step edits live in TestBuilderPanel/localStorage and are
+        // applied via handleSave when the user clicks Save on the builder.
+        steps: test.steps ?? [],
+      })
+      // Keep the in-memory `test` snapshot consistent with what was just saved
+      // so subsequent comparisons / cancel paths see fresh values.
+      setTest({
+        ...test,
+        name: config.name,
+        description: config.description,
+        startingUrl: config.startingUrl,
+      })
+      showSuccess('Configuration Saved', `Updated test configuration for "${config.name}"`)
+    } catch (error) {
+      logger.error('Failed to save configuration', error)
+      showError('Save Failed', 'Failed to save test configuration. Please try again.')
+    }
   }
 
   const handleConfigurationCancel = () => {

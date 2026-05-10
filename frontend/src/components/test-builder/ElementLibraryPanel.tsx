@@ -49,8 +49,8 @@ interface ElementLibraryPanelProps {
   isAnalyzing?: boolean;
   /**
    * Layout mode:
-   * - `test-builder` (default): linear card list with search + filter pills,
-   *   bottom "Pick from page" button. Live picker / Analyze / Clear visible.
+   * - `test-builder` (default): page-sidebar + linear card list with search +
+   *   filter pills. Live picker / Analyze / Clear-elements visible in the header.
    * - `project-details`: <table className="table"> with row click → drawer.
    *   Live picker / Analyze / Clear-all hidden (lives elsewhere on the page).
    */
@@ -1005,28 +1005,6 @@ export function ElementLibraryPanel({
         )}
         </div>
       </div>
-
-      {/* Bottom "Pick from page" strip — matches pages.jsx:42–44 — builder only */}
-      {!isProjectMode && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: 8,
-            borderTop: '1px solid var(--hair)',
-            background: 'var(--paper)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setShowLivePicker(true)}
-            className="btn btn-outline"
-            style={{ width: '100%', justifyContent: 'center' }}
-          >
-            <MousePointerClick size={13} />
-            <span>Pick from page</span>
-          </button>
-        </div>
-      )}
 
       {/* URL Picker Modal */}
       <AnalyzeUrlsModal
