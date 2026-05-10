@@ -662,7 +662,7 @@ export function ElementLibraryPanel({
               <table className="table">
                 <thead>
                   <tr>
-                    <th style={{ width: 130 }}>Preview</th>
+                    <th style={{ width: 160 }}>Preview</th>
                     <th>Label</th>
                     <th>Selector</th>
                     <th>Type</th>
@@ -700,15 +700,15 @@ export function ElementLibraryPanel({
                         style={{ cursor: 'pointer' }}
                       >
                         <td>
-                          <div style={{ width: 110 }}>
+                          <div style={{ width: 140 }}>
                             {element.screenshot ? (
                               <div
                                 style={{
                                   background: 'var(--bone)',
                                   border: '1px solid var(--hair)',
-                                  borderRadius: 4,
+                                  borderRadius: 6,
                                   overflow: 'hidden',
-                                  height: 52,
+                                  height: 76,
                                   display: 'grid',
                                   placeItems: 'center',
                                 }}
@@ -737,9 +737,9 @@ export function ElementLibraryPanel({
                                       : 'var(--surface)';
                                   })(),
                                   border: '1px solid var(--hair)',
-                                  borderRadius: 4,
-                                  padding: '6px 8px',
-                                  height: 52,
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  height: 76,
                                   display: 'grid',
                                   placeItems: 'center',
                                   overflow: 'hidden',

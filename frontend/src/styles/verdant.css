@@ -811,15 +811,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Compact variant for the project Elements tab table column where horizontal
-   space is tight; keeps the chip readable at ~52px tall. */
+/* Compact variant for the project Elements tab table column. Sized so the
+   user can clearly see what each element looks like without leaving the
+   table — taller than the test-builder card chips proportionally. */
 .el-preview.el-preview-compact {
-  padding: 8px 10px;
-  min-height: 52px;
+  padding: 10px 12px;
+  min-height: 76px;
 }
-.el-preview.el-preview-compact .el-preview-btn { padding: 5px 12px; font-size: 11.5px; }
-.el-preview.el-preview-compact .el-preview-input { height: 24px; }
-.el-preview.el-preview-compact .el-preview-link { font-size: 11.5px; }
+.el-preview.el-preview-compact .el-preview-btn { padding: 6px 14px; font-size: 12.5px; }
+.el-preview.el-preview-compact .el-preview-input { height: 28px; }
+.el-preview.el-preview-compact .el-preview-link { font-size: 12.5px; }
 
 /* Flow diagram */
 .flow-stage { background: var(--surface); border: 1px solid var(--hair); border-radius: 8px; padding: 24px; }
