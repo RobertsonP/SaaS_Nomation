@@ -362,13 +362,16 @@ export function ElementLibraryPanel({
     return list;
   }, [pageIndex, filteredElements, sharedSelectors]);
 
-  // Page-sidebar removed — rely on a flat list of all elements (filtered
-  // server-side by elementType only). The selectedPageUrl state remains so
-  // the fetch query stays compatible, but it's never set, so the server
-  // returns elements across all pages.
-  void pageList;
-  void selectedPageUrl;
-  void setSelectedPageUrl;
+  // Auto-select the first real page when the page index loads (test-builder
+  // mode only — the project Elements tab uses a table and doesn't need a
+  // page filter). Skips the Shared bucket so users land on actual pages.
+  useEffect(() => {
+    if (isProjectMode) return;
+    if (pageList.length === 0) return;
+    if (selectedPageUrl && pageList.some((p) => p.url === selectedPageUrl)) return;
+    const firstReal = pageList.find((p) => p.url !== SHARED_KEY) ?? pageList[0];
+    setSelectedPageUrl(firstReal.url);
+  }, [isProjectMode, pageList, selectedPageUrl]);
 
   // Elements for the selected page, grouped by type.
   // - SHARED_KEY: chrome elements deduped by selector across all pages.
@@ -622,23 +625,139 @@ export function ElementLibraryPanel({
         })}
       </div>
 
-      {/* Element list — table for project mode, single-column flex for builder mode */}
+      {/* Outer area — table for project mode, two-pane (page sidebar +
+          element list) for test-builder mode. */}
       <div
         style={{
           flex: 1,
-          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'row',
           minHeight: 0,
-          padding: isProjectMode ? 0 : 8,
-          display: isProjectMode ? 'block' : 'flex',
-          flexDirection: 'column',
-          gap: isProjectMode ? 0 : 6,
           background: 'var(--paper)',
         }}
       >
+        {!isProjectMode && pageList.length > 0 && (
+          <div
+            style={{
+              width: 180,
+              flexShrink: 0,
+              borderRight: '1px solid var(--hair)',
+              background: 'var(--surface-2)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              className="dim"
+              style={{
+                padding: '10px 12px 6px',
+                fontSize: 10.5,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'var(--ink-4)',
+              }}
+            >
+              Pages
+            </div>
+            {pageList.map((page) => {
+              const isActive = selectedPageUrl === page.url;
+              const isPseudo = page.url === SHARED_KEY || page.url === UNATTRIBUTED_KEY;
+              const path = (() => {
+                if (isPseudo) return null;
+                try {
+                  return new URL(page.url).pathname || '/';
+                } catch {
+                  return page.url;
+                }
+              })();
+              return (
+                <button
+                  key={page.url}
+                  type="button"
+                  onClick={() => setSelectedPageUrl(page.url)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    borderBottom: '1px solid var(--hair)',
+                    background: isActive ? 'var(--moss-soft)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--moss)' : '2px solid transparent',
+                    cursor: 'pointer',
+                    display: 'block',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--ink)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={page.title}
+                  >
+                    {page.title}
+                  </div>
+                  {path && (
+                    <div
+                      className="mono dim"
+                      style={{
+                        fontSize: 10.5,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={page.url}
+                    >
+                      {path}
+                    </div>
+                  )}
+                  <div className="dim" style={{ fontSize: 10.5, marginTop: 2 }}>
+                    {page.count} element{page.count === 1 ? '' : 's'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            minHeight: 0,
+            padding: isProjectMode ? 0 : 8,
+            display: isProjectMode ? 'block' : 'flex',
+            flexDirection: 'column',
+            gap: isProjectMode ? 0 : 6,
+            background: 'var(--paper)',
+          }}
+        >
         {(() => {
-          const flatElements = filteredElements.filter(
-            (el) => !isSharedRegion(el.description),
-          );
+          // Filter elements by selected page (test-builder mode):
+          // - SHARED_KEY: chrome elements deduped by selector across pages
+          // - UNATTRIBUTED_KEY: elements without a sourceUrl
+          // - Real page: server-side filter already scopes; hide chrome here
+          // - Project mode: no page selection, just hide chrome
+          let flatElements: ProjectElement[];
+          if (!isProjectMode && selectedPageUrl === SHARED_KEY) {
+            const seen = new Set<string>();
+            flatElements = [];
+            for (const el of filteredElements) {
+              if (!isSharedRegion(el.description)) continue;
+              if (seen.has(el.selector)) continue;
+              seen.add(el.selector);
+              flatElements.push(el);
+            }
+          } else if (!isProjectMode && selectedPageUrl === UNATTRIBUTED_KEY) {
+            flatElements = filteredElements.filter((el) => !el.sourceUrl);
+          } else {
+            flatElements = filteredElements.filter(
+              (el) => !isSharedRegion(el.description),
+            );
+          }
+
           if (flatElements.length === 0) {
             return (
               <p
@@ -878,6 +997,7 @@ export function ElementLibraryPanel({
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Bottom "Pick from page" strip — matches pages.jsx:42–44 — builder only */}
