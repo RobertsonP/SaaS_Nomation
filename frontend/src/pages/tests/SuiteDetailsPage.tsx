@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { FlaskConical, Play, Plus, Trash2 } from 'lucide-react'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { Pill } from '../../components/ui/Pill'
 import { createLogger } from '../../lib/logger'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
@@ -47,6 +48,7 @@ interface Project {
 export function SuiteDetailsPage() {
   const { projectId, suiteId } = useParams<{ projectId: string; suiteId: string }>()
   const { showSuccess, showError } = useNotification()
+  const { startTracking } = useSuiteExecutionContext()
   const navigate = useNavigate()
   
   const [testSuite, setTestSuite] = useState<TestSuite | null>(null)
@@ -173,7 +175,17 @@ export function SuiteDetailsPage() {
       )
 
       // Backend now returns immediately and runs in background; queue events stream progress.
-      await testSuitesAPI.execute(testSuite.id, { headed: mode === 'headed' })
+      const response = await testSuitesAPI.execute(testSuite.id, { headed: mode === 'headed' })
+      const executionId =
+        response?.data?.executionId ?? response?.data?.id ?? response?.data?.execution?.id;
+      if (executionId) {
+        startTracking({
+          suiteId: testSuite.id,
+          suiteName: testSuite.name,
+          executionId,
+          testsTotal: testSuite.tests.length,
+        });
+      }
 
       navigate(`/suites/${testSuite.id}/results`)
     } catch (error) {

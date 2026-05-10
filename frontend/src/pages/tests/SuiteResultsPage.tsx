@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { io, Socket } from 'socket.io-client'
-import { Layers, Play } from 'lucide-react'
+import { Layers, Loader2, Play } from 'lucide-react'
 import { testSuitesAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
 import { Pill, PillKind } from '../../components/ui/Pill'
 
@@ -33,11 +34,19 @@ interface TestSuite {
 export function SuiteResultsPage() {
   const { suiteId } = useParams<{ suiteId: string }>()
   const { showError, showSuccess } = useNotification()
-  
+  const { active: activeSuiteRun, startTracking, minimize: minimizeSuiteRun } = useSuiteExecutionContext()
+
   const [testSuite, setTestSuite] = useState<TestSuite | null>(null)
   const [executions, setExecutions] = useState<SuiteExecution[]>([])
   const [selectedExecution, setSelectedExecution] = useState<SuiteExecution | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Derive a simple "is running" flag from either the latest execution row
+  // or the suite-execution context (preferred when this suite is the one
+  // being tracked).
+  const isRunning =
+    (activeSuiteRun?.suiteId === suiteId && activeSuiteRun?.status === 'running') ||
+    executions.some((e) => e.status === 'running');
 
   useEffect(() => {
     if (suiteId) {
@@ -99,21 +108,32 @@ export function SuiteResultsPage() {
   }
 
   const runSuite = async () => {
+    if (isRunning || !testSuite) return;
     try {
-      await testSuitesAPI.execute(suiteId!)
-      
+      const response = await testSuitesAPI.execute(suiteId!)
+      const executionId =
+        response?.data?.executionId ?? response?.data?.id ?? response?.data?.execution?.id;
+      if (executionId) {
+        startTracking({
+          suiteId: suiteId!,
+          suiteName: testSuite.name,
+          executionId,
+          testsTotal: 0,
+        });
+      }
+
       // Poll for updates every 3 seconds for 60 seconds
       let pollCount = 0
       const maxPolls = 20
       const pollInterval = setInterval(async () => {
         await loadSuiteAndResults()
         pollCount++
-        
+
         if (pollCount >= maxPolls) {
           clearInterval(pollInterval)
         }
       }, 3000)
-      
+
     } catch (error) {
       console.error('Failed to run suite:', error)
       showError('Execution Failed', 'Failed to start suite execution')
@@ -171,9 +191,34 @@ export function SuiteResultsPage() {
           )}
         </div>
         <div className="row" style={{ gap: 6 }}>
-          <button type="button" onClick={runSuite} className="btn btn-primary">
-            <Play size={13} />
-            <span>Run Suite</span>
+          {isRunning && activeSuiteRun?.suiteId === suiteId && (
+            <button
+              type="button"
+              onClick={minimizeSuiteRun}
+              className="btn btn-outline btn-sm"
+              title="Minimize — execution continues in the background"
+            >
+              <span>Minimize</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={runSuite}
+            className="btn btn-primary"
+            disabled={isRunning}
+            style={isRunning ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+          >
+            {isRunning ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Running…</span>
+              </>
+            ) : (
+              <>
+                <Play size={13} />
+                <span>Run Suite</span>
+              </>
+            )}
           </button>
         </div>
       </div>

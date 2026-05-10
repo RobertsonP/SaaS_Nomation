@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { Eye, Layers, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 import { Pill } from '../../components/ui/Pill'
 import { TestStep } from '../../types/test.types'
@@ -47,6 +48,7 @@ interface Project {
 export function TestSuitesPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { showSuccess, showError } = useNotification()
+  const { startTracking } = useSuiteExecutionContext()
   
   // Type guard to check if item is TestSuiteTest
   const isTestSuiteTest = (item: TestSuiteTest | Test): item is TestSuiteTest => {
@@ -125,8 +127,20 @@ export function TestSuitesPage() {
     const { id: suiteId, name } = pickerForSuite
     setPickerForSuite(null)
 
+    const suite = testSuites.find((s) => s.id === suiteId)
+    const testCount = suite?.tests?.length ?? 0
     try {
-      await testSuitesAPI.execute(suiteId, { headed: mode === 'headed' })
+      const response = await testSuitesAPI.execute(suiteId, { headed: mode === 'headed' })
+      const executionId =
+        response?.data?.executionId ?? response?.data?.id ?? response?.data?.execution?.id;
+      if (executionId) {
+        startTracking({
+          suiteId,
+          suiteName: name,
+          executionId,
+          testsTotal: testCount,
+        });
+      }
       showSuccess('Suite Started', `Executing "${name}" (${mode}). Streaming progress on the results page.`)
       navigate(`/suites/${suiteId}/results`)
     } catch (error) {

@@ -8,6 +8,8 @@ import { DiscoveryProvider } from './contexts/DiscoveryContext'
 import { DiscoveryFloatingIndicator } from './components/discovery/DiscoveryFloatingIndicator'
 import { AnalysisProvider } from './contexts/AnalysisContext'
 import { AnalysisFloatingIndicator } from './components/analysis/AnalysisFloatingIndicator'
+import { SuiteExecutionProvider } from './contexts/SuiteExecutionContext'
+import { SuiteExecutionFloatingIndicator } from './components/execution/SuiteExecutionFloatingIndicator'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { VerdantShell } from './components/layout/VerdantShell'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -53,6 +55,7 @@ function AuthLogoutListener() {
       {/* Indicators must live INSIDE the router so they can use useNavigate. */}
       <DiscoveryFloatingIndicator />
       <AnalysisFloatingIndicator />
+      <SuiteExecutionFloatingIndicator />
     </>
   );
 }
@@ -154,8 +157,10 @@ function App() {
             <NotificationProvider>
               <DiscoveryProvider>
                 <AnalysisProvider>
-                  <RouterProvider router={router} />
-                  <NotificationContainer />
+                  <SuiteExecutionProvider>
+                    <RouterProvider router={router} />
+                    <NotificationContainer />
+                  </SuiteExecutionProvider>
                 </AnalysisProvider>
               </DiscoveryProvider>
             </NotificationProvider>
