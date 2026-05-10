@@ -274,22 +274,21 @@ export function TestResultsPage() {
                     style={{
                       width: '100%',
                       textAlign: 'left',
-                      padding: '10px 14px',
+                      padding: '8px 12px',
                       borderBottom: '1px solid var(--hair)',
-                      background: isSelected ? 'var(--moss-soft)' : 'transparent',
-                      borderLeft: isSelected ? '2px solid var(--moss)' : '2px solid transparent',
+                      background: isSelected ? 'var(--surface-2)' : 'transparent',
                       cursor: 'pointer',
                     }}
                   >
                     <div className="row" style={{ justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <Pill kind={getStatusKind(execution.status)}>
-                          {execution.status.toUpperCase()}
+                        <Pill kind={getStatusKind(execution.status)} dot={false}>
+                          {execution.status}
                         </Pill>
                         <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
                           {new Date(execution.startedAt).toLocaleString()}
                         </div>
-                        <div className="dim tabular" style={{ fontSize: 10.5 }}>
+                        <div className="dim mono" style={{ fontSize: 10.5 }}>
                           Duration: {formatDuration(execution.duration)}
                         </div>
                       </div>

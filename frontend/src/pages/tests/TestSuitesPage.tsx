@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Eye, Layers, Play, Plus, Trash2 } from 'lucide-react'
+import { Eye, Layers, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
@@ -258,131 +258,102 @@ export function TestSuitesPage() {
               </div>
             </div>
           ) : (
-            <div>
-              {testSuites.map((suite) => (
-                <div
-                  key={suite.id}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--hair)',
-                  }}
-                >
-                  <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: 'var(--ink)',
-                            letterSpacing: '-0.005em',
-                          }}
-                        >
-                          {suite.name}
-                        </span>
-                        <Pill kind={suite.status === 'active' ? 'ok' : 'mute'}>{suite.status}</Pill>
-                      </div>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Suite</th>
+                  <th className="num">Tests</th>
+                  <th>Status</th>
+                  <th className="num">Created</th>
+                  <th className="num">Last run</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {testSuites.map((suite) => (
+                  <tr key={suite.id}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{suite.name}</div>
                       {suite.description && (
-                        <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                        <div className="dim" style={{ fontSize: 10.5 }}>
                           {suite.description}
                         </div>
                       )}
-                      <div
-                        className="row"
-                        style={{ gap: 12, marginTop: 4, fontSize: 11, color: 'var(--ink-4)' }}
-                      >
-                        <span className="tabular">
-                          {suite.tests.length} test{suite.tests.length === 1 ? '' : 's'}
-                        </span>
-                        <span>·</span>
-                        <span>Created {new Date(suite.createdAt).toLocaleDateString()}</span>
-                        {suite.lastRun && (
-                          <>
-                            <span>·</span>
-                            <span>Last run {new Date(suite.lastRun).toLocaleDateString()}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="row" style={{ gap: 4, flexShrink: 0 }}>
-                      <Link
-                        to={`/projects/${projectId}/suites/${suite.id}`}
-                        className="btn btn-ghost btn-sm"
-                      >
-                        Manage
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleRunSuite(suite.id)}
-                        disabled={suite.tests.length === 0}
-                        className="btn btn-outline btn-sm"
-                        style={
-                          suite.tests.length === 0
-                            ? { opacity: 0.5, cursor: 'not-allowed' }
-                            : undefined
-                        }
-                      >
-                        <Play size={13} />
-                        <span>Run All</span>
-                      </button>
-                      <Link
-                        to={`/suites/${suite.id}/results`}
-                        className="btn btn-ghost btn-sm"
-                      >
-                        <Eye size={13} />
-                        <span>Results</span>
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSuite(suite.id, suite.name)}
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: 'var(--clay)' }}
-                        title="Delete suite"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {suite.tests.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        paddingTop: 10,
-                        borderTop: '1px dashed var(--hair-2)',
-                      }}
-                    >
-                      <div
-                        className="dim"
-                        style={{
-                          fontSize: 10.5,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.06em',
-                          marginBottom: 6,
-                        }}
-                      >
-                        Tests in this suite
-                      </div>
-                      <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
-                        {suite.tests.slice(0, 5).map((suiteTest) => {
-                          const test = isTestSuiteTest(suiteTest) ? suiteTest.test : suiteTest;
-                          return (
-                            <Pill key={test.id} kind="mute" dot={false}>
-                              {test.name}
+                      {suite.tests.length > 0 && (
+                        <div className="row" style={{ gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                          {suite.tests.slice(0, 5).map((suiteTest) => {
+                            const test = isTestSuiteTest(suiteTest) ? suiteTest.test : suiteTest;
+                            return (
+                              <Pill key={test.id} kind="mute" dot={false}>
+                                {test.name}
+                              </Pill>
+                            );
+                          })}
+                          {suite.tests.length > 5 && (
+                            <Pill kind="mute" dot={false}>
+                              +{suite.tests.length - 5}
                             </Pill>
-                          );
-                        })}
-                        {suite.tests.length > 5 && (
-                          <Pill kind="mute" dot={false}>
-                            +{suite.tests.length - 5} more
-                          </Pill>
-                        )}
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="num">{suite.tests.length}</td>
+                    <td>
+                      <Pill kind={suite.status === 'active' ? 'ok' : 'mute'} dot={false}>
+                        {suite.status}
+                      </Pill>
+                    </td>
+                    <td className="num dim">
+                      {new Date(suite.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="num dim">
+                      {suite.lastRun ? new Date(suite.lastRun).toLocaleDateString() : '—'}
+                    </td>
+                    <td>
+                      <div className="row" style={{ justifyContent: 'flex-end', gap: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRunSuite(suite.id)}
+                          disabled={suite.tests.length === 0}
+                          className="btn btn-ghost btn-icon"
+                          title="Run all tests"
+                          style={
+                            suite.tests.length === 0
+                              ? { opacity: 0.5, cursor: 'not-allowed' }
+                              : undefined
+                          }
+                        >
+                          <Play size={13} />
+                        </button>
+                        <Link
+                          to={`/projects/${projectId}/suites/${suite.id}`}
+                          className="btn btn-ghost btn-icon"
+                          title="Manage suite"
+                        >
+                          <Pencil size={13} />
+                        </Link>
+                        <Link
+                          to={`/suites/${suite.id}/results`}
+                          className="btn btn-ghost btn-icon"
+                          title="Results"
+                        >
+                          <Eye size={13} />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSuite(suite.id, suite.name)}
+                          className="btn btn-ghost btn-icon"
+                          style={{ color: 'var(--clay)' }}
+                          title="Delete suite"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

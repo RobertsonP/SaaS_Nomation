@@ -320,111 +320,92 @@ export function TestsPage() {
             </button>
           </div>
         ) : (
-          <div>
-            {tests.map((test) => {
-              const running = isExecuting && currentlyRunningTestId === test.id;
-              return (
-                <div
-                  key={test.id}
-                  className="row"
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--hair)',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--ink)',
-                          letterSpacing: '-0.005em',
-                        }}
-                      >
-                        {test.name}
-                      </span>
-                      <Pill kind={test.status === 'active' ? 'ok' : 'mute'}>{test.status}</Pill>
-                    </div>
-                    {test.description && (
-                      <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
-                        {test.description}
-                      </div>
-                    )}
-                    <div
-                      className="row"
-                      style={{ gap: 12, marginTop: 4, fontSize: 11, color: 'var(--ink-4)' }}
-                    >
-                      <span className="tabular">{test.steps.length} step{test.steps.length === 1 ? '' : 's'}</span>
-                      <span>·</span>
-                      <span>Created {new Date(test.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: 4, flexShrink: 0 }}>
-                    <Link
-                      to={`/projects/${projectId}/tests/${test.id}/edit`}
-                      className="btn btn-ghost btn-sm"
-                      title="Edit test"
-                    >
-                      <Pencil size={13} />
-                      <span>Edit</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenRunPicker(test.id, test.name)}
-                      disabled={test.steps.length === 0 || running}
-                      className="btn btn-outline btn-sm"
-                      title={
-                        test.steps.length === 0
-                          ? 'No steps yet — open the Test Builder to add some'
-                          : 'Run with live progress (choose headed or headless)'
-                      }
-                      style={
-                        test.steps.length === 0
-                          ? { opacity: 0.5, cursor: 'not-allowed' }
-                          : undefined
-                      }
-                    >
-                      {running ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" />
-                          <span>
-                            {executionState?.status === 'waiting'
-                              ? `#${executionState.position}`
-                              : 'Running'}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <Play size={13} />
-                          <span>Run</span>
-                        </>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Test</th>
+                <th className="num">Steps</th>
+                <th>Status</th>
+                <th className="num">Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tests.map((test) => {
+                const running = isExecuting && currentlyRunningTestId === test.id;
+                return (
+                  <tr key={test.id}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{test.name}</div>
+                      {test.description && (
+                        <div className="dim" style={{ fontSize: 10.5 }}>
+                          {test.description}
+                        </div>
                       )}
-                    </button>
-                    <Link
-                      to={`/tests/${test.id}/results`}
-                      className="btn btn-ghost btn-sm"
-                      title="View execution history"
-                    >
-                      <Eye size={13} />
-                      <span>Results</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTest(test.id, test.name)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ color: 'var(--clay)' }}
-                      title="Delete test"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    </td>
+                    <td className="num">{test.steps.length}</td>
+                    <td>
+                      <Pill kind={test.status === 'active' ? 'ok' : 'mute'} dot={false}>
+                        {test.status}
+                      </Pill>
+                    </td>
+                    <td className="num dim">
+                      {new Date(test.createdAt).toLocaleDateString()}
+                    </td>
+                    <td>
+                      <div className="row" style={{ justifyContent: 'flex-end', gap: 2 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRunPicker(test.id, test.name)}
+                          disabled={test.steps.length === 0 || running}
+                          className="btn btn-ghost btn-icon"
+                          title={
+                            test.steps.length === 0
+                              ? 'No steps yet — open the Test Builder to add some'
+                              : 'Run with live progress (choose headed or headless)'
+                          }
+                          style={
+                            test.steps.length === 0
+                              ? { opacity: 0.5, cursor: 'not-allowed' }
+                              : undefined
+                          }
+                        >
+                          {running ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Play size={13} />
+                          )}
+                        </button>
+                        <Link
+                          to={`/projects/${projectId}/tests/${test.id}/edit`}
+                          className="btn btn-ghost btn-icon"
+                          title="Edit test"
+                        >
+                          <Pencil size={13} />
+                        </Link>
+                        <Link
+                          to={`/tests/${test.id}/results`}
+                          className="btn btn-ghost btn-icon"
+                          title="View execution history"
+                        >
+                          <Eye size={13} />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTest(test.id, test.name)}
+                          className="btn btn-ghost btn-icon"
+                          style={{ color: 'var(--clay)' }}
+                          title="Delete test"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
       

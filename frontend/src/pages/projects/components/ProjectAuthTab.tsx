@@ -1,10 +1,11 @@
-import { Lock, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
+import { Lock, Pencil, Play, Plus, Shield, Trash2 } from 'lucide-react';
 import { Pill } from '../../../components/ui/Pill';
 
 interface AuthFlow {
   id: string;
   name: string;
   loginUrl: string;
+  steps?: Array<{ type: string; selector?: string; value?: string }>;
 }
 
 interface ProjectAuthTabProps {
@@ -60,73 +61,72 @@ export function ProjectAuthTab({
           </div>
         </div>
       ) : (
-        <div className="col" style={{ gap: 6 }}>
+        <div className="col" style={{ gap: 12 }}>
           {authFlows.map((authFlow) => (
-            <div
-              key={authFlow.id}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--hair)',
-                borderRadius: 6,
-                padding: '10px 12px',
-              }}
-            >
-              <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
-                <span
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    background: 'var(--moss-soft)',
-                    color: 'var(--moss)',
-                    border: '1px solid var(--moss-edge)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Shield size={14} />
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row" style={{ gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-                      {authFlow.name}
-                    </span>
-                    <Pill kind="ok">Active</Pill>
-                  </div>
-                  <a
-                    href={authFlow.loginUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mono"
+            <div key={authFlow.id} className="card">
+              <div className="card-head">
+                <div className="row" style={{ gap: 10 }}>
+                  <span
                     style={{
-                      fontSize: 11.5,
-                      color: 'var(--slate)',
-                      textDecoration: 'none',
-                      display: 'block',
-                      marginTop: 2,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      background: 'var(--moss-soft)',
+                      color: 'var(--moss)',
+                      border: '1px solid var(--moss-edge)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
                     }}
-                    title={authFlow.loginUrl}
                   >
-                    {authFlow.loginUrl}
-                  </a>
+                    <Shield size={14} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>
+                      {authFlow.name}
+                    </div>
+                    <a
+                      href={authFlow.loginUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mono dim"
+                      style={{
+                        fontSize: 11,
+                        textDecoration: 'none',
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: 360,
+                      }}
+                      title={authFlow.loginUrl}
+                    >
+                      {authFlow.loginUrl}
+                    </a>
+                  </div>
                 </div>
-                <div className="row" style={{ gap: 4, flexShrink: 0 }}>
+                <div className="row" style={{ gap: 6 }}>
+                  <Pill kind="ok" dot={false}>verified</Pill>
                   <button
                     type="button"
+                    className="btn btn-outline btn-sm"
                     onClick={() => onEditAuthentication(authFlow)}
-                    className="btn btn-ghost btn-sm"
                   >
-                    <Pencil size={13} />
+                    <Pencil size={12} />
                     <span>Edit</span>
                   </button>
                   <button
                     type="button"
+                    className="btn btn-outline btn-sm"
+                    title="Run a test login to verify the flow"
+                  >
+                    <Play size={12} />
+                    <span>Test login</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon"
                     onClick={() => onDeleteAuthentication(authFlow.id, authFlow.name)}
-                    className="btn btn-ghost btn-sm"
                     style={{ color: 'var(--clay)' }}
                     title="Delete auth flow"
                   >
@@ -134,6 +134,59 @@ export function ProjectAuthTab({
                   </button>
                 </div>
               </div>
+              {authFlow.steps && authFlow.steps.length > 0 && (
+                <div className="card-pad">
+                  <div className="col" style={{ gap: 4 }}>
+                    {authFlow.steps.map((step, j) => (
+                      <div
+                        key={j}
+                        className="row"
+                        style={{
+                          padding: '4px 6px',
+                          borderRadius: 4,
+                          background: 'var(--surface-2)',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          className="mono"
+                          style={{ width: 22, color: 'var(--ink-4)', fontSize: 10.5 }}
+                        >
+                          {j + 1}
+                        </span>
+                        <Pill kind="info" dot={false}>{step.type}</Pill>
+                        {step.selector && (
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--ink-2)',
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={step.selector}
+                          >
+                            {step.selector}
+                          </span>
+                        )}
+                        {step.value && (
+                          <>
+                            <span className="dim mono" style={{ fontSize: 10.5 }}>=</span>
+                            <span
+                              className="mono"
+                              style={{ fontSize: 11, color: 'var(--moss)' }}
+                            >
+                              {step.value}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
