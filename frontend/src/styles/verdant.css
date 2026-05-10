@@ -768,20 +768,58 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .nav-add { color: var(--ink-3); font-style: normal; }
 .nav-add:hover { color: var(--ink); }
 
-/* Component preview chips for element library */
+/* Component preview chips for element library — sized to give the user a
+   real visual sense of the element before they click into the inspector. */
 .el-preview {
   background: var(--surface);
   border: 1px solid var(--hair);
-  border-radius: 4px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  padding: 14px 16px;
   display: grid;
   place-items: center;
-  min-height: 36px;
+  min-height: 72px;
   position: relative;
 }
-.el-preview-btn { background: var(--ink); color: var(--bone); padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-.el-preview-input { width: 100%; height: 22px; background: var(--bone); border: 1px solid var(--hair-2); border-radius: 3px; }
-.el-preview-link { color: var(--slate); text-decoration: underline; font-size: 11px; }
+.el-preview-btn {
+  background: var(--ink);
+  color: var(--bone);
+  padding: 8px 18px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.el-preview-input {
+  width: 100%;
+  height: 32px;
+  background: var(--bone);
+  border: 1px solid var(--hair-2);
+  border-radius: 4px;
+}
+.el-preview-link {
+  color: var(--slate);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Compact variant for the project Elements tab table column where horizontal
+   space is tight; keeps the chip readable at ~52px tall. */
+.el-preview.el-preview-compact {
+  padding: 8px 10px;
+  min-height: 52px;
+}
+.el-preview.el-preview-compact .el-preview-btn { padding: 5px 12px; font-size: 11.5px; }
+.el-preview.el-preview-compact .el-preview-input { height: 24px; }
+.el-preview.el-preview-compact .el-preview-link { font-size: 11.5px; }
 
 /* Flow diagram */
 .flow-stage { background: var(--surface); border: 1px solid var(--hair); border-radius: 8px; padding: 24px; }

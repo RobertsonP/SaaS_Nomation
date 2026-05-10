@@ -654,7 +654,7 @@ export function ElementLibraryPanel({
               <table className="table">
                 <thead>
                   <tr>
-                    <th style={{ width: 100 }}>Preview</th>
+                    <th style={{ width: 130 }}>Preview</th>
                     <th>Label</th>
                     <th>Selector</th>
                     <th>Type</th>
@@ -692,8 +692,8 @@ export function ElementLibraryPanel({
                         style={{ cursor: 'pointer' }}
                       >
                         <td>
-                          <div style={{ width: 90 }}>
-                            <ElPreview type={element.elementType} label={element.description} />
+                          <div style={{ width: 110 }}>
+                            <ElPreview type={element.elementType} label={element.description} compact />
                           </div>
                         </td>
                         <td style={{ fontWeight: 500 }}>{element.description}</td>

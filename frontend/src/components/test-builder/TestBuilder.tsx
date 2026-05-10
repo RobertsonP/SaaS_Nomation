@@ -60,12 +60,16 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
         height: '100%',
       }}
     >
+      {/* Layout matches pages.jsx:15 — fixed library sidebar (320px, slightly
+          wider than the design's 280px to keep our richer cards readable),
+          flexible test-steps panel on the right. */}
       <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
         <div
           style={{
-            width: '60%',
+            width: 320,
+            flexShrink: 0,
             borderRight: '1px solid var(--hair)',
-            background: 'var(--bone)',
+            background: 'var(--paper)',
             overflow: 'hidden',
           }}
         >
@@ -86,7 +90,7 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
           />
         </div>
 
-        <div style={{ width: '40%', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <TestBuilderPanel
             selectedElement={selectedElement || undefined}
             onClearSelection={() => setSelectedElement(null)}
