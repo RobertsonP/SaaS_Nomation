@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Check, ChevronsUpDown, CheckCheck, Copy, Plus } from 'lucide-react';
+import { Check, ChevronsUpDown, CheckCheck, Copy, ExternalLink, Plus } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { CellStepData } from './CellSelectorPopover';
+import { DropdownExplorerModal } from './DropdownExplorerModal';
 
 interface DropdownOption {
   value: string;
@@ -20,6 +21,7 @@ interface DropdownPreviewCardProps {
 
 export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: DropdownPreviewCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showExplorer, setShowExplorer] = useState(false);
   const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
 
   const dropdownData = element.dropdownData || (element.attributes as any)?.dropdownData;
@@ -64,6 +66,7 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
   };
 
   return (
+    <>
     <div
       role="button"
       tabIndex={0}
@@ -111,6 +114,24 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
         >
           {element.description || 'Dropdown'}
         </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowExplorer(true);
+          }}
+          className="btn btn-outline btn-sm"
+          style={{
+            color: 'var(--slate)',
+            borderColor: 'var(--slate-edge)',
+            background: 'var(--surface)',
+            flexShrink: 0,
+          }}
+          title="Open the dropdown explorer to browse and act on every option"
+        >
+          <ExternalLink size={11} />
+          <span>Open explorer</span>
+        </button>
         <span
           className="tabular"
           style={{
@@ -340,5 +361,14 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
         </button>
       )}
     </div>
+
+    <DropdownExplorerModal
+      open={showExplorer}
+      dropdownData={dropdownData}
+      onClose={() => setShowExplorer(false)}
+      onAddStep={onAddStep}
+      title={element.description || 'Dropdown options'}
+    />
+    </>
   );
 }
