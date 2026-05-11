@@ -100,6 +100,19 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   background: var(--bone);
 }
 .app.collapsed { grid-template-columns: 56px 1fr; }
+/* When the sidebar is collapsed (56px wide), the brand mark + theme toggle +
+   collapse toggle can no longer share a horizontal row. Stack vertically and
+   hide the brand mark so the collapse button stays reachable. */
+.app.collapsed .sidebar-head {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  padding: 8px 0;
+  gap: 4px;
+}
+.app.collapsed .sidebar-head .brand { display: none; }
+.app.collapsed .sidebar-head > .row { flex-direction: column; gap: 4px; }
 
 .sidebar {
   background: var(--paper);
