@@ -3,6 +3,7 @@ import { Check, ExternalLink, Table as TableIcon } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { TableExplorerModal } from './TableExplorerModal';
 import { CellStepData } from './CellSelectorPopover';
+import { Pill } from '../ui/Pill';
 
 interface TablePreviewCardProps {
   element: ProjectElement;
@@ -100,21 +101,9 @@ export function TablePreviewCard({ element, onSelectElement, onAddStep }: TableP
           >
             {element.description || 'Data Table'}
           </span>
-          <span
-            className="tabular"
-            style={{
-              padding: '1px 7px',
-              borderRadius: 999,
-              background: 'var(--surface)',
-              border: '1px solid var(--moss-edge)',
-              color: 'var(--moss)',
-              fontSize: 10.5,
-              fontWeight: 600,
-              flexShrink: 0,
-            }}
-          >
+          <Pill kind="ok" dot={false}>
             {rowCount} row{rowCount !== 1 ? 's' : ''}
-          </span>
+          </Pill>
           {hasExplorerData && (
             <button
               type="button"

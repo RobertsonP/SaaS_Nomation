@@ -499,22 +499,13 @@ export function ElementLibraryPanel({
             >
               Elements
             </span>
-            <span
-              className="tabular dim"
-              style={{
-                fontSize: 11,
-                background: 'var(--surface-2)',
-                border: '1px solid var(--hair)',
-                padding: '1px 7px',
-                borderRadius: 999,
-              }}
-            >
+            <Pill kind="mute" dot={false}>
               {usePagination
                 ? (searchQuery.trim()
                     ? `${filteredElements.length} of ${paginatedElements.length} loaded · ${totalCount} total`
                     : `${paginatedElements.length} of ${totalCount}`)
                 : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`}
-            </span>
+            </Pill>
           </div>
           <div className="row" style={{ gap: 4 }}>
             {!isProjectMode && (onAnalyzePages || onAnalyzeSelected) && (

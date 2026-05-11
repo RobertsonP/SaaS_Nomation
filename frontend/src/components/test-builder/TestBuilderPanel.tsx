@@ -881,19 +881,9 @@ export function TestBuilderPanel({
                 >
                   Test Steps
                 </span>
-                <span
-                  className="tabular"
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--ink-3)',
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--hair)',
-                    padding: '1px 7px',
-                    borderRadius: 999,
-                  }}
-                >
+                <Pill kind="mute" dot={false}>
                   {steps.length}
-                </span>
+                </Pill>
               </div>
               <div className="row" style={{ gap: 4 }}>
                 <button

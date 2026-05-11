@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, CheckCheck, Copy, ExternalLink, Plus } from 'luc
 import { ProjectElement } from '../../types/element.types';
 import { CellStepData } from './CellSelectorPopover';
 import { DropdownExplorerModal } from './DropdownExplorerModal';
+import { Pill } from '../ui/Pill';
 
 interface DropdownOption {
   value: string;
@@ -132,35 +133,12 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
           <ExternalLink size={11} />
           <span>Open explorer</span>
         </button>
-        <span
-          className="tabular"
-          style={{
-            padding: '1px 7px',
-            borderRadius: 999,
-            background: 'var(--surface)',
-            border: '1px solid var(--slate-edge)',
-            color: 'var(--slate)',
-            fontSize: 10.5,
-            fontWeight: 600,
-            flexShrink: 0,
-          }}
-        >
+        <Pill kind="info" dot={false}>
           {optionCount} option{optionCount !== 1 ? 's' : ''}
-        </span>
-        <span
-          style={{
-            padding: '1px 7px',
-            borderRadius: 999,
-            background: 'var(--surface-2)',
-            border: '1px solid var(--hair)',
-            color: 'var(--ink-3)',
-            fontSize: 10.5,
-            fontWeight: 600,
-            flexShrink: 0,
-          }}
-        >
+        </Pill>
+        <Pill kind="mute" dot={false}>
           {isNative ? 'native' : 'custom'}
-        </span>
+        </Pill>
       </div>
 
       {/* Trigger selector */}
