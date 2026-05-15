@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Check, Copy, Eye, GripVertical } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
+import { ElPreview } from './ElPreview';
 import { CSSPreviewRenderer } from './CSSPreviewRenderer';
+import { Pill, PillKind } from '../ui/Pill';
 
 interface ElementPreviewCardProps {
   element: ProjectElement;
@@ -9,6 +12,10 @@ interface ElementPreviewCardProps {
   onPerformAction?: (action: { type: string; selector: string; value?: string }) => void;
   showQuality?: boolean;
   compact?: boolean;
+  /** When true, the card is rendered as "selected" (clear visual state) and
+   * scrolls itself to the top of its scroll container so the user notices
+   * the selection and can pick the action from the right panel. */
+  selected?: boolean;
 }
 
 function getPathFromUrl(url: string): string {
@@ -20,13 +27,38 @@ function getPathFromUrl(url: string): string {
   }
 }
 
+function confidenceKind(confidence?: string): PillKind {
+  if (confidence === 'high' || confidence === 'ok') return 'ok';
+  if (confidence === 'med' || confidence === 'medium' || confidence === 'warn') return 'warn';
+  if (confidence === 'low' || confidence === 'err') return 'err';
+  return 'mute';
+}
+
 export function ElementPreviewCard({
   element,
   onSelectElement,
   isLiveMode,
   onPerformAction,
+  selected = false,
 }: ElementPreviewCardProps) {
   const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  const sourceUrl = element.sourceUrl?.url;
+  const attributes = element.attributes as any;
+  const confidence = attributes?.confidence || attributes?.score
+    ? String(attributes?.confidence || attributes?.score)
+    : undefined;
+
+  // Scroll the whole page to the top when an element becomes selected —
+  // gives clear feedback that the click registered and brings the test
+  // builder's action picker (in the right pane) into view. We deliberately
+  // do NOT scroll the element library's inner scroll container; that would
+  // hide the just-clicked card.
+  useEffect(() => {
+    if (!selected) return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [selected]);
 
   const handleCopySelector = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -35,7 +67,7 @@ export function ElementPreviewCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard API may not be available
+      // ignore
     }
   };
 
@@ -49,215 +81,216 @@ export function ElementPreviewCard({
   const handleLiveAction = (e: React.MouseEvent, action: string) => {
     e.stopPropagation();
     if (!onPerformAction) return;
-
-    const actionMap: Record<string, { type: string; selector: string; value?: string }> = {
+    const map: Record<string, { type: string; selector: string; value?: string }> = {
       click: { type: 'click', selector: element.selector },
       hover: { type: 'hover', selector: element.selector },
       type: { type: 'type', selector: element.selector, value: 'test input' },
     };
-
-    const actionConfig = actionMap[action];
-    if (actionConfig) {
-      onPerformAction(actionConfig);
-    }
+    if (map[action]) onPerformAction(map[action]);
   };
 
-  const getElementTypeColor = (type: string) => {
-    switch (type) {
-      case 'button': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700';
-      case 'input': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700';
-      case 'link': return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700';
-      case 'form': return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700';
-      case 'navigation': return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700';
-      case 'table': return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700';
-      case 'heading': return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-700';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
-    }
-  };
-
-  const getDiscoveryStateBadge = (discoveryState?: string) => {
-    if (!discoveryState || discoveryState === 'static') return null;
-
-    const stateConfig: Record<string, { color: string; label: string }> = {
-      after_login: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', label: 'After Login' },
-      login_page: { color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', label: 'Login' },
-      after_interaction: { color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', label: 'Interactive' },
-      modal: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', label: 'Modal' },
-      hover: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300', label: 'Hover' },
-      tab: { color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300', label: 'Tab' },
-      popup: { color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300', label: 'Popup' },
-    };
-
-    const config = stateConfig[discoveryState];
-    if (!config) return null;
-
-    return (
-      <span className={`px-1.5 py-0.5 text-xs rounded ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  // Classify native Playwright locator type
-  const getLocatorType = (selector: string): { type: string; color: string } | null => {
-    if (selector.startsWith('getByRole(')) return { type: 'Role', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' };
-    if (selector.startsWith('getByText(')) return { type: 'Text', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' };
-    if (selector.startsWith('getByLabel(')) return { type: 'Label', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' };
-    if (selector.startsWith('getByTestId(')) return { type: 'TestId', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
-    if (selector.startsWith('getByPlaceholder(')) return { type: 'Placeholder', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
-    if (selector.startsWith('getByTitle(')) return { type: 'Title', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' };
-    return null;
-  };
-
-  // Parse native locator into readable parts: badge type + human-readable value
-  const parseNativeLocator = (selector: string): { role?: string; name?: string } | null => {
-    // getByRole('button', { name: 'Export Excel' }) → role=button, name=Export Excel
-    const roleMatch = selector.match(/^getByRole\('([^']+)'(?:,\s*\{\s*name:\s*['"]([^'"]+)['"]\s*\})?\)/);
-    if (roleMatch) return { role: roleMatch[1], name: roleMatch[2] };
-
-    // getByText('Login') → name=Login
-    const simpleMatch = selector.match(/^getBy(?:Text|Label|TestId|Placeholder|Title)\('([^']+)'\)/);
-    if (simpleMatch) return { name: simpleMatch[1] };
-
-    return null;
-  };
-
-  const attributes = element.attributes as any;
-  const sourceUrl = element.sourceUrl?.url;
-  const locatorType = getLocatorType(element.selector);
-  const parsedLocator = locatorType ? parseNativeLocator(element.selector) : null;
+  // Background + border respond to selected first, then hover.
+  const cardBackground = selected
+    ? 'var(--moss-soft)'
+    : hovered
+    ? 'var(--surface-2)'
+    : 'var(--surface)';
+  const cardBorder = selected ? 'var(--moss)' : hovered ? 'var(--ink-3)' : 'var(--hair)';
+  const cardShadow = selected ? 'var(--shadow-md)' : 'none';
 
   return (
     <div
       role="button"
       tabIndex={0}
+      aria-pressed={selected}
       onClick={() => onSelectElement(element)}
       onKeyDown={handleKeyDown}
-      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden
-        hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-[0.98] transition-all duration-150
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      draggable
+      className="card"
+      style={{
+        padding: 8,
+        display: 'grid',
+        gap: 6,
+        cursor: 'pointer',
+        background: cardBackground,
+        borderColor: cardBorder,
+        boxShadow: cardShadow,
+        transition: 'background .12s ease, border-color .12s ease, box-shadow .15s ease',
+      }}
     >
-      {/* Badges */}
-      <div className="px-3 pt-3 flex items-center gap-1.5 flex-wrap">
-        <span className={`px-2 py-0.5 text-xs rounded border ${getElementTypeColor(element.elementType)}`}>
-          {element.elementType}
-        </span>
-        {attributes?.discoveryState && getDiscoveryStateBadge(attributes.discoveryState)}
-        {element.authFlow && (
-          <span className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-            {element.authFlow.name}
-          </span>
-        )}
-      </div>
-
-      {/* Description */}
-      <div className="px-3 pt-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-3">
-          {element.description}
-        </p>
-      </div>
-
-      {/* Screenshot or CSS Preview */}
+      {/* Row 1: visual preview — real screenshot first, then CSS-rendered
+          preview when we have cssInfo (gives the user a faithful look at
+          the element), falling back to the design's mini chip otherwise. */}
       {element.screenshot ? (
-        <div className="px-3 pt-2">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded overflow-hidden max-h-40">
-            <img
-              src={element.screenshot}
-              alt={element.description}
-              className="w-full h-full object-cover object-top"
-              loading="lazy"
-            />
-          </div>
+        <div
+          style={{
+            background: 'var(--bone)',
+            border: '1px solid var(--hair)',
+            borderRadius: 6,
+            overflow: 'hidden',
+            minHeight: 72,
+            display: 'grid',
+            placeItems: 'center',
+          }}
+        >
+          <img
+            src={element.screenshot}
+            alt={element.description}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+            loading="lazy"
+          />
         </div>
-      ) : element.attributes?.cssInfo ? (
-        <div className="px-3 pt-2">
+      ) : attributes?.cssInfo ? (
+        <div
+          style={{
+            background: (() => {
+              const bg =
+                attributes?.resolvedColors?.backgroundColor ||
+                attributes?.cssInfo?.backgroundColor;
+              return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)'
+                ? bg
+                : 'var(--surface)';
+            })(),
+            border: '1px solid var(--hair)',
+            borderRadius: 6,
+            padding: '10px 12px',
+            minHeight: 72,
+            display: 'grid',
+            placeItems: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          <CSSPreviewRenderer
+            element={element}
+            mode="compact"
+            showQuality={false}
+            interactive={false}
+          />
+        </div>
+      ) : (
+        <ElPreview type={element.elementType} label={element.description} />
+      )}
+
+      {/* Row 2: drag · label/selector · confidence */}
+      <div className="row" style={{ gap: 6 }}>
+        <span
+          className="dim"
+          title="Drag to reorder (or click anywhere on the card to select)"
+          style={{
+            display: 'inline-flex',
+            flexShrink: 0,
+            cursor: 'grab',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical size={12} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
-            className="rounded p-1.5 max-h-32 overflow-hidden"
             style={{
-              backgroundColor: (() => {
-                const bg = (element.attributes as any)?.resolvedColors?.backgroundColor
-                  || (element.attributes as any)?.cssInfo?.backgroundColor;
-                return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' ? bg : undefined;
-              })(),
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--ink)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            <CSSPreviewRenderer
-              element={element}
-              mode="compact"
-              showQuality={false}
-              interactive={false}
-              className="mx-auto"
-            />
+            {element.description}
+          </div>
+          <div
+            className="mono dim"
+            style={{
+              fontSize: 10,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={element.selector}
+          >
+            {element.selector}
           </div>
         </div>
-      ) : null}
-
-      {/* Selector + Copy */}
-      <div className="px-3 pt-2 flex items-start gap-1.5">
-        {locatorType && (
-          <span className={`flex-shrink-0 px-1.5 py-0.5 text-xs rounded font-medium mt-0.5 ${locatorType.color}`}>
-            {locatorType.type}
-          </span>
+        {confidence && (
+          <Pill kind={confidenceKind(confidence)} dot={false}>
+            {confidence}
+          </Pill>
         )}
-        <code className="flex-1 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono text-gray-600 dark:text-gray-400 break-all text-wrap">
-          {parsedLocator
-            ? (parsedLocator.role
-                ? `${parsedLocator.role}${parsedLocator.name ? ` \u203A ${parsedLocator.name}` : ''}`
-                : parsedLocator.name || element.selector)
-            : element.selector}
-        </code>
-        <button
-          onClick={handleCopySelector}
-          className="flex-shrink-0 p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-          title="Copy selector"
-        >
-          {copied ? (
-            <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          )}
-        </button>
       </div>
 
-      {/* Source URL */}
-      {sourceUrl && (
-        <div className="px-3 pt-1.5 pb-3">
-          <span className="text-xs text-gray-400 dark:text-gray-500 truncate block">
+      {/* Row 3: page path · spacer · actions */}
+      <div className="row" style={{ gap: 4, fontSize: 10.5 }}>
+        {sourceUrl && (
+          <span
+            className="dim mono"
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={sourceUrl}
+          >
             {getPathFromUrl(sourceUrl)}
           </span>
-        </div>
-      )}
-      {!sourceUrl && <div className="pb-3" />}
+        )}
+        {!sourceUrl && <span className="spacer" style={{ flex: 1 }} />}
 
-      {/* Live Mode Actions (only in live mode) */}
-      {isLiveMode && onPerformAction && (
-        <div className="px-3 pb-3 flex gap-1 border-t border-gray-100 dark:border-gray-700 pt-2">
-          <button
-            onClick={(e) => handleLiveAction(e, 'click')}
-            className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Click
-          </button>
-          <button
-            onClick={(e) => handleLiveAction(e, 'hover')}
-            className="px-2 py-1 text-xs bg-yellow-500 text-white rounded hover:bg-yellow-600"
-          >
-            Hover
-          </button>
-          {element.elementType === 'input' && (
+        {isLiveMode && onPerformAction && (
+          <>
             <button
-              onClick={(e) => handleLiveAction(e, 'type')}
-              className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+              type="button"
+              onClick={(e) => handleLiveAction(e, 'click')}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 10.5, padding: '2px 6px' }}
             >
-              Type
+              click
             </button>
-          )}
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={(e) => handleLiveAction(e, 'hover')}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 10.5, padding: '2px 6px' }}
+            >
+              hover
+            </button>
+            {element.elementType === 'input' && (
+              <button
+                type="button"
+                onClick={(e) => handleLiveAction(e, 'type')}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 10.5, padding: '2px 6px' }}
+              >
+                type
+              </button>
+            )}
+          </>
+        )}
+
+        <button
+          type="button"
+          onClick={handleCopySelector}
+          className="btn btn-ghost btn-icon"
+          title={copied ? 'Copied!' : 'Copy selector'}
+          style={{ width: 18, height: 18, padding: 0 }}
+        >
+          {copied ? <Check size={11} style={{ color: 'var(--moss)' }} /> : <Copy size={11} />}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectElement(element);
+          }}
+          className="btn btn-ghost btn-icon"
+          title="Inspect"
+          style={{ width: 18, height: 18, padding: 0 }}
+        >
+          <Eye size={11} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
+import { AlertTriangle, Check, Pencil, Settings, X } from 'lucide-react'
 import { TestBuilder } from '../../components/test-builder/TestBuilder'
 import { TestConfigurationModal } from '../../components/test-builder/TestConfigurationModal'
 import { LiveElementPicker } from '../../components/element-picker/LiveElementPicker' // NEW IMPORT
@@ -183,24 +184,54 @@ export function TestBuilderPage() {
     navigate(`/projects/${projectId}/tests`)
   }
 
-  const handleConfigurationSave = (config: {
+  const handleConfigurationSave = async (config: {
     name: string
     description: string
     startingUrl: string
   }) => {
-    // Check if configuration was actually modified
-    const wasModified = testId && (
-      config.name !== test?.name ||
-      config.description !== test?.description ||
-      config.startingUrl !== selectedStartingUrl
-    )
-    
+    // Always update local state first so the builder header reflects the new
+    // values immediately.
     setTestName(config.name)
     setTestDescription(config.description)
     setSelectedStartingUrl(config.startingUrl)
     setConfigurationComplete(true)
     setShowConfigModal(false)
-    // setConfigModified(wasModified || false) // Currently unused
+
+    // For new tests the full save happens later via handleSave when the user
+    // saves the test from the builder panel. For an EXISTING test we must
+    // persist the config change to the backend now — otherwise refreshing
+    // the page reverts the starting URL / name / description.
+    if (!testId || !test) return
+
+    const wasModified =
+      config.name !== test.name ||
+      config.description !== test.description ||
+      config.startingUrl !== test.startingUrl
+    if (!wasModified) return
+
+    try {
+      await testsAPI.update(testId, {
+        name: config.name,
+        description: config.description,
+        startingUrl: config.startingUrl,
+        // Preserve the steps that are currently persisted on the backend.
+        // Unsaved step edits live in TestBuilderPanel/localStorage and are
+        // applied via handleSave when the user clicks Save on the builder.
+        steps: test.steps ?? [],
+      })
+      // Keep the in-memory `test` snapshot consistent with what was just saved
+      // so subsequent comparisons / cancel paths see fresh values.
+      setTest({
+        ...test,
+        name: config.name,
+        description: config.description,
+        startingUrl: config.startingUrl,
+      })
+      showSuccess('Configuration Saved', `Updated test configuration for "${config.name}"`)
+    } catch (error) {
+      logger.error('Failed to save configuration', error)
+      showError('Save Failed', 'Failed to save test configuration. Please try again.')
+    }
   }
 
   const handleConfigurationCancel = () => {
@@ -243,8 +274,10 @@ export function TestBuilderPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="text-lg text-gray-900 dark:text-white">Loading test builder...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
@@ -267,66 +300,108 @@ export function TestBuilderPage() {
 
       {/* Main Test Builder Interface */}
       {configurationComplete && (
-        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-          {/* Minimal Header - Editable name + edit button */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 flex-1">
-                {isEditingName ? (
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={editedName}
-                      onChange={(e) => setEditedName(e.target.value)}
-                      onKeyDown={handleNameKeyPress}
-                      onBlur={handleSaveNameEdit}
-                      autoFocus
-                      className="text-lg font-medium text-gray-900 dark:text-white bg-transparent border-b-2 border-blue-500 focus:outline-none min-w-0 flex-1"
-                      placeholder="Enter test name"
-                    />
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={handleSaveNameEdit}
-                        className="p-1 text-green-600 hover:text-green-800 text-xs"
-                        title="Save (Enter)"
-                      >
-                        ✓
-                      </button>
-                      <button
-                        onClick={handleCancelNameEdit}
-                        className="p-1 text-red-600 hover:text-red-800 text-xs"
-                        title="Cancel (Escape)"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 group">
-                    <h1 className="text-lg font-medium text-gray-900 dark:text-white">
-                      {testName}
-                    </h1>
-                    <button
-                      onClick={handleStartNameEdit}
-                      className="p-1 text-gray-400 hover:text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Click to edit test name"
-                    >
-                      ✏️
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={handleEditConfiguration}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Edit Config
-              </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--bone)',
+          }}
+        >
+          {/* Minimal Header - Editable name + Edit Config */}
+          <div
+            style={{
+              background: 'var(--paper)',
+              borderBottom: '1px solid var(--hair)',
+              padding: '8px 16px',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <div className="row" style={{ flex: 1, minWidth: 0, gap: 6 }}>
+              {isEditingName ? (
+                <>
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={handleNameKeyPress}
+                    onBlur={handleSaveNameEdit}
+                    autoFocus
+                    placeholder="Enter test name"
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: 'var(--ink)',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '2px solid var(--moss)',
+                      outline: 'none',
+                      padding: '2px 0',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={handleSaveNameEdit}
+                    title="Save (Enter)"
+                    style={{ color: 'var(--moss)' }}
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={handleCancelNameEdit}
+                    title="Cancel (Escape)"
+                    style={{ color: 'var(--clay)' }}
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: 'var(--ink)',
+                      letterSpacing: '-0.005em',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {testName}
+                  </span>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={handleStartNameEdit}
+                    title="Click to edit test name"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                </>
+              )}
             </div>
+            <button
+              type="button"
+              onClick={handleEditConfiguration}
+              className="btn btn-outline btn-sm"
+            >
+              <Settings size={13} />
+              <span>Edit Config</span>
+            </button>
           </div>
 
           {/* Full-Height Test Builder */}
-          <div className="flex-1 overflow-hidden">
+          <div style={{ flex: 1, overflow: 'hidden' }}>
             <TestBuilder
               onSave={handleSave}
               onCancel={handleCancel}
@@ -334,7 +409,7 @@ export function TestBuilderPage() {
               projectId={projectId}
               testId={testId}
               startingUrl={selectedStartingUrl}
-              setShowLivePicker={setShowLivePicker} // NEW PROP
+              setShowLivePicker={setShowLivePicker}
             />
           </div>
         </div>
@@ -342,57 +417,74 @@ export function TestBuilderPage() {
 
       {/* Navigation Blocking Modal */}
       {blocker.state === "blocked" && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                ⚠️ Unsaved Changes
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                You have unsaved changes that will be lost if you leave this page.
-                Would you like to save your test before leaving?
+        <div className="modal-backdrop" onClick={() => blocker.reset()}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-title row" style={{ gap: 6 }}>
+                  <AlertTriangle size={14} style={{ color: 'var(--amber)' }} />
+                  <span>Unsaved Changes</span>
+                </div>
+                <div className="modal-sub">Save before you leave or discard your edits</div>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => blocker.reset()}
+                aria-label="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                You have unsaved changes that will be lost if you leave this page. Would you
+                like to save your test before leaving?
               </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={async () => {
-                    // Save current test steps from localStorage
-                    if (testId) {
-                      const savedSteps = localStorage.getItem(`test-steps-${testId}`);
-                      if (savedSteps) {
-                        try {
-                          const parsedSteps = JSON.parse(savedSteps);
-                          await handleSave(parsedSteps);
-                        } catch (e) {
-                          logger.error('Failed to save before navigation', e);
-                        }
+            </div>
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ marginRight: 'auto' }}
+                onClick={() => blocker.reset()}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  if (testId) {
+                    localStorage.removeItem(`test-steps-${testId}`);
+                  }
+                  setHasUnsavedChanges(false);
+                  blocker.proceed();
+                }}
+              >
+                Discard & Leave
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (testId) {
+                    const savedSteps = localStorage.getItem(`test-steps-${testId}`);
+                    if (savedSteps) {
+                      try {
+                        const parsedSteps = JSON.parse(savedSteps);
+                        await handleSave(parsedSteps);
+                      } catch (e) {
+                        logger.error('Failed to save before navigation', e);
                       }
                     }
-                    blocker.proceed();
-                  }}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Save & Leave
-                </button>
-                <button
-                  onClick={() => {
-                    // Clear localStorage and proceed
-                    if (testId) {
-                      localStorage.removeItem(`test-steps-${testId}`);
-                    }
-                    setHasUnsavedChanges(false);
-                    blocker.proceed();
-                  }}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                >
-                  Discard & Leave
-                </button>
-                <button
-                  onClick={() => blocker.reset()}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-              </div>
+                  }
+                  blocker.proceed();
+                }}
+              >
+                <Check size={13} />
+                <span>Save & Leave</span>
+              </button>
             </div>
           </div>
         </div>

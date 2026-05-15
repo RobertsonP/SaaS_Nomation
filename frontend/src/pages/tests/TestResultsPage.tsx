@@ -6,8 +6,10 @@ import { TestExecutionReport } from '../../components/test-results/TestExecution
 import { ExecutionVideoPlayer } from '../../components/execution/ExecutionVideoPlayer'
 import { useTestExecution } from '../../hooks/useTestExecution'
 import { useNotification } from '../../contexts/NotificationContext'
-import { FileText, Mail, Download } from 'lucide-react'
+import { Download, Loader2, Mail, Play } from 'lucide-react'
 import { createLogger } from '../../lib/logger'
+import { Pill, PillKind } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 
 const logger = createLogger('TestResultsPage')
 
@@ -172,173 +174,221 @@ export function TestResultsPage() {
   }
 
 
-  const getStatusColor = (status: string) => {
+  const getStatusKind = (status: string): PillKind => {
     switch (status) {
-      case 'passed': return 'text-green-600 bg-green-100'
-      case 'failed': return 'text-red-600 bg-red-100'
-      case 'running': return 'text-blue-600 bg-blue-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'passed': return 'ok'
+      case 'failed': return 'err'
+      case 'running': return 'info'
+      default: return 'mute'
     }
-  }
-
-  const formatDuration = (duration?: number) => {
-    if (!duration) return 'N/A'
-    return `${(duration / 1000).toFixed(1)}s`
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading test results...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
+  // Page-head must match pages.jsx:232–245 — status pill + run ID + h1 + sub
+  // and action buttons (Download log / Re-run / Open in builder) on the right.
+  const sel = selectedExecution;
+  const startedAt = sel?.startedAt ? new Date(sel.startedAt) : null;
+  const startedLabel = startedAt
+    ? (() => {
+        const diff = Date.now() - startedAt.getTime();
+        if (diff < 60_000) return 'started just now';
+        if (diff < 3_600_000) return `started ${Math.floor(diff / 60_000)}m ago`;
+        if (diff < 86_400_000) return `started ${Math.floor(diff / 3_600_000)}h ago`;
+        return `started ${startedAt.toLocaleDateString()}`;
+      })()
+    : '';
+  const ranForLabel = sel?.duration ? `ran for ${formatDuration(sel.duration)}` : '';
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to={`/projects/${test?.project.id}/tests`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Tests
-          </Link>
-        </div>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{test?.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Project: {test?.project.name}</p>
-          </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={handleRunTest}
-              disabled={isExecuting}
-              className={`px-4 py-2 rounded-lg text-white ${
-                isExecuting 
-                  ? 'bg-blue-400 cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
+    <div className="content">
+      <div className="page-head">
+        <div>
+          {test?.project?.id && (
+            <Link
+              to={`/projects/${test.project.id}/tests`}
+              className="dim"
+              style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
             >
-              {isExecuting ? (
-                <div className="flex items-center space-x-2">
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>
-                    {executionState?.status === 'waiting' ? `Queued (#${executionState.position})` :
-                     executionState?.status === 'active' ? `Running (${executionState.progress}%)` :
-                     'Running...'}
-                  </span>
-                </div>
-              ) : 'Run Test'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Execution History */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-            <div className="p-4 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold">Execution History</h2>
-            </div>
-            <div className="divide-y dark:divide-gray-700 max-h-96 overflow-y-auto">
-              {executions.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No executions yet
-                </div>
-              ) : (
-                executions.map((execution) => (
-                  <div
-                    key={execution.id}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                      selectedExecution?.id === execution.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
-                    }`}
-                    onClick={() => setSelectedExecution(execution)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
-                            {execution.status.toUpperCase()}
-                          </span>
-                          
-                          {/* Report Buttons */}
-                          {execution.status !== 'running' && (
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDownloadReport(execution.id)
-                                }}
-                                disabled={isDownloading}
-                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
-                                title="Download PDF Report"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleEmailReport(execution.id)
-                                }}
-                                disabled={isEmailing}
-                                className="p-1 text-gray-500 dark:text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-                                title="Email Report"
-                              >
-                                <Mail className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {new Date(execution.startedAt).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Duration: {formatDuration(execution.duration)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Test Execution Report */}
-        <div className="lg:col-span-2">
-          {selectedExecution ? (
-            <>
-              {selectedExecution.videoPath && (
-                <ExecutionVideoPlayer 
-                  executionId={selectedExecution.id}
-                  testName={test?.name || 'Unknown'}
-                  videoPath={selectedExecution.videoPath}
-                  thumbnailPath={selectedExecution.videoThumbnail}
-                  seekToTimestamp={seekTimestamp}
-                />
-              )}
-              <TestExecutionReport
-                execution={selectedExecution}
-                testName={test?.name || 'Unknown Test'}
-              />
-            </>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-lg font-semibold">Select an execution to view details</h2>
-              </div>
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                <div className="text-4xl mb-4">📊</div>
-                <p className="text-lg mb-2">Professional Test Results</p>
-                <p className="text-sm">Select an execution from the history to view its step-by-step report</p>
-              </div>
+              ← Back to Tests
+            </Link>
+          )}
+          {sel && (
+            <div className="row" style={{ marginBottom: 4, gap: 8 }}>
+              <Pill kind={getStatusKind(sel.status)} dot={false}>
+                {sel.status}
+              </Pill>
+              <span className="dim mono" style={{ fontSize: 11 }}>
+                run_{sel.id.slice(0, 8)}
+              </span>
             </div>
           )}
+          <h1>{test?.name || 'Test results'}</h1>
+          <div className="sub">
+            {test?.project?.name && <span>{test.project.name}</span>}
+            {startedLabel && (
+              <>
+                {test?.project?.name && <span> · </span>}
+                <span>{startedLabel}</span>
+              </>
+            )}
+            {ranForLabel && (
+              <>
+                <span> · </span>
+                <span>{ranForLabel}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          {sel && sel.status !== 'running' && (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => handleDownloadReport(sel.id)}
+              disabled={isDownloading}
+              style={isDownloading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              title="Download PDF report"
+            >
+              <Download size={13} />
+              <span>Download</span>
+            </button>
+          )}
+          {sel && sel.status !== 'running' && (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => handleEmailReport(sel.id)}
+              disabled={isEmailing}
+              style={isEmailing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              title="Email report"
+            >
+              <Mail size={13} />
+              <span>Email</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleRunTest}
+            disabled={isExecuting}
+            className="btn btn-primary"
+            style={isExecuting ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+          >
+            {isExecuting ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>
+                  {executionState?.status === 'waiting'
+                    ? `Queued (#${executionState.position})`
+                    : executionState?.status === 'active'
+                      ? `Running (${executionState.progress}%)`
+                      : 'Running…'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Play size={13} />
+                <span>Re-run</span>
+              </>
+            )}
+          </button>
+          <PageHelpButton helpKey="test-results" />
         </div>
       </div>
-      
+
+      {/* Body */}
+      {selectedExecution ? (
+        <div className="col" style={{ gap: 12 }}>
+          <TestExecutionReport
+            execution={selectedExecution}
+            testName={test?.name || 'Unknown Test'}
+          />
+          {selectedExecution.videoPath && (
+            <ExecutionVideoPlayer
+              executionId={selectedExecution.id}
+              testName={test?.name || 'Unknown'}
+              videoPath={selectedExecution.videoPath}
+              thumbnailPath={selectedExecution.videoThumbnail}
+              seekToTimestamp={seekTimestamp}
+            />
+          )}
+
+          {/* Execution history — selectable list of past runs */}
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">Execution history</span>
+              <span className="dim tabular" style={{ fontSize: 11 }}>
+                {executions.length}
+              </span>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+              {executions.map((execution) => {
+                const isSelected = selectedExecution?.id === execution.id;
+                return (
+                  <button
+                    key={execution.id}
+                    type="button"
+                    onClick={() => setSelectedExecution(execution)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      borderBottom: '1px solid var(--hair)',
+                      background: isSelected ? 'var(--surface-2)' : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div
+                      className="row"
+                      style={{ gap: 10, alignItems: 'center' }}
+                    >
+                      <Pill kind={getStatusKind(execution.status)} dot={false}>
+                        {execution.status}
+                      </Pill>
+                      <span className="dim mono" style={{ fontSize: 10.5, width: 80 }}>
+                        run_{execution.id.slice(0, 8)}
+                      </span>
+                      <span style={{ flex: 1, fontSize: 12, color: 'var(--ink)' }}>
+                        {new Date(execution.startedAt).toLocaleString()}
+                      </span>
+                      <span className="mono dim" style={{ fontSize: 10.5 }}>
+                        {formatDuration(execution.duration)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="empty" style={{ padding: '40px 16px' }}>
+            <div className="empty-icon">
+              <Play size={20} />
+            </div>
+            <h3>No executions yet</h3>
+            <p>Click "Re-run" to start the first run.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function formatDuration(ms?: number | null): string {
+  if (!ms || ms < 0) return '—';
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
 }

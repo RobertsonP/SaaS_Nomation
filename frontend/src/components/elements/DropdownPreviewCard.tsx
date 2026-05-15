@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { Check, ChevronsUpDown, CheckCheck, Copy, ExternalLink, Plus } from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { CellStepData } from './CellSelectorPopover';
+import { DropdownExplorerModal } from './DropdownExplorerModal';
+import { Pill } from '../ui/Pill';
 
 interface DropdownOption {
   value: string;
@@ -19,6 +22,7 @@ interface DropdownPreviewCardProps {
 
 export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: DropdownPreviewCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showExplorer, setShowExplorer] = useState(false);
   const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
 
   const dropdownData = element.dropdownData || (element.attributes as any)?.dropdownData;
@@ -34,7 +38,7 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
       setCopiedSelector(selector);
       setTimeout(() => setCopiedSelector(null), 1500);
     } catch {
-      // Clipboard API may not be available
+      // Clipboard unavailable
     }
   };
 
@@ -46,7 +50,7 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
       setCopiedSelector(`assert-${option.index}`);
       setTimeout(() => setCopiedSelector(null), 1500);
     } catch {
-      // Clipboard API may not be available
+      // Clipboard unavailable
     }
   };
 
@@ -63,91 +67,205 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
   };
 
   return (
+    <>
     <div
       role="button"
       tabIndex={0}
       onClick={() => onSelectElement(element)}
       onKeyDown={handleKeyDown}
-      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden
-        hover:border-blue-400 hover:shadow-md cursor-pointer active:scale-[0.98] transition-all duration-150
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'border-color .12s ease, box-shadow .12s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--moss)';
+        e.currentTarget.style.boxShadow = 'var(--shadow-1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--hair)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
     >
       {/* Header */}
-      <div className="px-3 py-2 bg-violet-50 dark:bg-violet-900/30 border-b border-violet-200 dark:border-violet-800 flex items-center gap-2">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-violet-600 dark:text-violet-400 flex-shrink-0">
-          <rect x="2" y="3" width="12" height="3" rx="1" />
-          <path d="M5 5L8 8L11 5" />
-          <rect x="2" y="8" width="12" height="6" rx="1" strokeDasharray="2 1" />
-          <line x1="4" y1="10" x2="12" y2="10" />
-          <line x1="4" y1="12" x2="12" y2="12" />
-        </svg>
-        <span className="text-sm font-medium text-violet-800 dark:text-violet-200 truncate">
+      <div
+        className="row"
+        style={{
+          padding: '8px 12px',
+          background: 'var(--slate-soft)',
+          borderBottom: '1px solid var(--slate-edge)',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <ChevronsUpDown size={14} style={{ color: 'var(--slate)', flexShrink: 0 }} />
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: 'var(--ink)',
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {element.description || 'Dropdown'}
         </span>
-        <span className="px-1.5 py-0.5 text-xs bg-violet-100 dark:bg-violet-800 text-violet-700 dark:text-violet-300 rounded flex-shrink-0">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowExplorer(true);
+          }}
+          className="btn btn-outline btn-sm"
+          style={{
+            color: 'var(--slate)',
+            borderColor: 'var(--slate-edge)',
+            background: 'var(--surface)',
+            flexShrink: 0,
+          }}
+          title="Open the dropdown explorer to browse and act on every option"
+        >
+          <ExternalLink size={11} />
+          <span>Open explorer</span>
+        </button>
+        <Pill kind="info" dot={false}>
           {optionCount} option{optionCount !== 1 ? 's' : ''}
-        </span>
-        <span className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded flex-shrink-0">
+        </Pill>
+        <Pill kind="mute" dot={false}>
           {isNative ? 'native' : 'custom'}
-        </span>
+        </Pill>
       </div>
 
-      {/* Trigger Selector */}
+      {/* Trigger selector */}
       {triggerSelector && (
-        <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">Select:</span>
+        <div
+          className="row"
+          style={{
+            padding: '6px 12px',
+            background: 'var(--surface-2)',
+            borderBottom: '1px solid var(--hair)',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <span className="dim" style={{ fontSize: 11, flexShrink: 0 }}>
+            Select:
+          </span>
           <code
-            className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 truncate"
+            className="mono"
             onClick={(e) => handleCopy(e, triggerSelector)}
             title="Click to copy"
+            style={{
+              fontSize: 11,
+              color: 'var(--slate)',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              padding: '2px 6px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
             {copiedSelector === triggerSelector ? 'Copied!' : triggerSelector}
           </code>
         </div>
       )}
 
-      {/* Options List */}
-      <div className="divide-y divide-gray-100 dark:divide-gray-700" onClick={(e) => e.stopPropagation()}>
+      {/* Options list */}
+      <div onClick={(e) => e.stopPropagation()}>
         {displayOptions.map((option: DropdownOption) => (
           <div
             key={option.index}
-            className="px-3 py-1.5 flex items-center gap-2 hover:bg-violet-50 dark:hover:bg-violet-900/20 group"
+            className="row dropdown-option-row"
+            style={{
+              padding: '6px 12px',
+              gap: 8,
+              alignItems: 'center',
+              borderBottom: '1px solid var(--hair)',
+              transition: 'background .12s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            {/* Option index */}
-            <span className="text-xs text-gray-400 dark:text-gray-500 w-5 text-right flex-shrink-0">
+            <span
+              className="tabular dim"
+              style={{
+                fontSize: 10.5,
+                width: 20,
+                textAlign: 'right',
+                flexShrink: 0,
+              }}
+            >
               {option.index + 1}
             </span>
 
-            {/* CSS color swatch if available */}
             {option.cssPreview?.backgroundColor && option.cssPreview.backgroundColor !== 'rgba(0, 0, 0, 0)' && (
               <span
-                className="w-3 h-3 rounded-sm border border-gray-200 dark:border-gray-600 flex-shrink-0"
-                style={{ backgroundColor: option.cssPreview.backgroundColor }}
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 3,
+                  border: '1px solid var(--hair)',
+                  flexShrink: 0,
+                  backgroundColor: option.cssPreview.backgroundColor,
+                }}
               />
             )}
 
-            {/* Option text */}
-            <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1">
-              {option.text || <span className="italic text-gray-400">(empty)</span>}
+            <span
+              style={{
+                fontSize: 11.5,
+                color: 'var(--ink-2)',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {option.text || <span style={{ fontStyle: 'italic', color: 'var(--ink-4)' }}>(empty)</span>}
             </span>
 
-            {/* Value badge (if different from text) */}
             {option.value && option.value !== option.text && (
-              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono truncate max-w-[80px]" title={option.value}>
+              <span
+                className="mono dim"
+                title={option.value}
+                style={{
+                  fontSize: 10,
+                  maxWidth: 80,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 ={option.value}
               </span>
             )}
 
-            {/* Selected indicator */}
             {option.selected && (
-              <span className="text-[10px] text-green-600 dark:text-green-400 flex-shrink-0">selected</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: 'var(--moss)',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                selected
+              </span>
             )}
 
-            {/* Action buttons (visible on hover) */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              {/* Add as test step */}
+            <div className="row" style={{ gap: 2, flexShrink: 0 }}>
               {onAddStep && (
                 <button
+                  type="button"
+                  className="icon-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     onAddStep({
@@ -157,62 +275,78 @@ export function DropdownPreviewCard({ element, onSelectElement, onAddStep }: Dro
                       description: `Select "${option.text}" from dropdown`,
                     });
                   }}
-                  className="p-0.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
                   title={`Add step: Select "${option.text}"`}
+                  style={{ width: 20, height: 20, color: 'var(--moss)' }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="8" cy="8" r="6" />
-                    <path d="M8 5v6M5 8h6" strokeLinecap="round" />
-                  </svg>
+                  <Plus size={10} />
                 </button>
               )}
-              {/* Copy selector */}
               <button
+                type="button"
+                className="icon-btn"
                 onClick={(e) => handleCopy(e, option.selector)}
-                className="p-0.5 text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
                 title={`Copy: ${option.selector}`}
+                style={{
+                  width: 20,
+                  height: 20,
+                  color: copiedSelector === option.selector ? 'var(--moss)' : 'var(--ink-3)',
+                }}
               >
-                {copiedSelector === option.selector ? (
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
-                    <path d="M4 8L7 11L12 5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="5" y="5" width="8" height="8" rx="1" />
-                    <path d="M3 11V3h8" strokeLinecap="round" />
-                  </svg>
-                )}
+                {copiedSelector === option.selector ? <Check size={10} /> : <Copy size={10} />}
               </button>
-              {/* Copy assertion */}
               <button
+                type="button"
+                className="icon-btn"
                 onClick={(e) => handleCopyAssertion(e, option)}
-                className="p-0.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
                 title="Copy assertion"
+                style={{
+                  width: 20,
+                  height: 20,
+                  color: copiedSelector === `assert-${option.index}` ? 'var(--moss)' : 'var(--ink-3)',
+                }}
               >
-                {copiedSelector === `assert-${option.index}` ? (
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
-                    <path d="M4 8L7 11L12 5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M4 8L7 11L12 5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+                {copiedSelector === `assert-${option.index}` ? <Check size={10} /> : <CheckCheck size={10} />}
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Expand/Collapse */}
       {options.length > 5 && (
         <button
+          type="button"
           onClick={handleToggleExpand}
-          className="w-full px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 border-t border-gray-100 dark:border-gray-700"
+          style={{
+            width: '100%',
+            padding: '6px 12px',
+            fontSize: 11,
+            color: 'var(--ink-3)',
+            background: 'var(--surface-2)',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'background .12s ease, color .12s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--surface)';
+            e.currentTarget.style.color = 'var(--ink)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--surface-2)';
+            e.currentTarget.style.color = 'var(--ink-3)';
+          }}
         >
           {expanded ? 'Show less' : `Show ${Math.min(options.length, 50) - 5} more options`}
         </button>
       )}
     </div>
+
+    <DropdownExplorerModal
+      open={showExplorer}
+      dropdownData={dropdownData}
+      onClose={() => setShowExplorer(false)}
+      onAddStep={onAddStep}
+      title={element.description || 'Dropdown options'}
+    />
+    </>
   );
 }

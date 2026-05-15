@@ -1,9 +1,11 @@
-import React from 'react';
+import { Lock, Pencil, Play, Plus, Shield, Trash2 } from 'lucide-react';
+import { Pill } from '../../../components/ui/Pill';
 
 interface AuthFlow {
   id: string;
   name: string;
   loginUrl: string;
+  steps?: Array<{ type: string; selector?: string; value?: string }>;
 }
 
 interface ProjectAuthTabProps {
@@ -20,65 +22,171 @@ export function ProjectAuthTab({
   onDeleteAuthentication,
 }: ProjectAuthTabProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="col" style={{ gap: 12 }}>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Authentication Flows</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Configure login credentials for testing authenticated pages</p>
+          <div
+            style={{
+              fontFamily: 'Inter Tight',
+              fontSize: 16,
+              fontWeight: 600,
+              letterSpacing: '-0.005em',
+              color: 'var(--ink)',
+            }}
+          >
+            Authentication flows
+          </div>
+          <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>
+            Configure login credentials for testing authenticated pages.
+          </div>
         </div>
-        <button
-          onClick={onAddAuthentication}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          + Add Authentication
+        <button type="button" className="btn btn-primary btn-sm" onClick={onAddAuthentication}>
+          <Plus size={13} />
+          <span>Add authentication</span>
         </button>
       </div>
 
       {authFlows.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-            <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">
+              <Lock size={20} />
+            </div>
+            <h3>No authentication configured</h3>
+            <p>Add an auth flow to test pages that require login credentials.</p>
+            <button type="button" className="btn btn-primary" onClick={onAddAuthentication}>
+              <Shield size={13} />
+              <span>Setup authentication</span>
+            </button>
           </div>
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Authentication Configured</h4>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-            Add authentication to test pages that require login credentials
-          </p>
-          <button
-            onClick={onAddAuthentication}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Setup Authentication
-          </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="col" style={{ gap: 12 }}>
           {authFlows.map((authFlow) => (
-            <div key={authFlow.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">{authFlow.name}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">{authFlow.loginUrl}</div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => onEditAuthentication(authFlow)}
-                    className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1"
+            <div key={authFlow.id} className="card">
+              <div className="card-head">
+                <div className="row" style={{ gap: 10 }}>
+                  <span
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      background: 'var(--moss-soft)',
+                      color: 'var(--moss)',
+                      border: '1px solid var(--moss-edge)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
+                    }}
                   >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => onDeleteAuthentication(authFlow.id, authFlow.name)}
-                    className="text-sm text-red-600 hover:text-red-800 px-3 py-1"
-                  >
-                    Delete
-                  </button>
-                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-xs rounded">
-                    Active
+                    <Shield size={14} />
                   </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>
+                      {authFlow.name}
+                    </div>
+                    <a
+                      href={authFlow.loginUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mono dim"
+                      style={{
+                        fontSize: 11,
+                        textDecoration: 'none',
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: 360,
+                      }}
+                      title={authFlow.loginUrl}
+                    >
+                      {authFlow.loginUrl}
+                    </a>
+                  </div>
+                </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <Pill kind="ok" dot={false}>verified</Pill>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => onEditAuthentication(authFlow)}
+                  >
+                    <Pencil size={12} />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    title="Run a test login to verify the flow"
+                  >
+                    <Play size={12} />
+                    <span>Test login</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon"
+                    onClick={() => onDeleteAuthentication(authFlow.id, authFlow.name)}
+                    style={{ color: 'var(--clay)' }}
+                    title="Delete auth flow"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </div>
+              {authFlow.steps && authFlow.steps.length > 0 && (
+                <div className="card-pad">
+                  <div className="col" style={{ gap: 4 }}>
+                    {authFlow.steps.map((step, j) => (
+                      <div
+                        key={j}
+                        className="row"
+                        style={{
+                          padding: '4px 6px',
+                          borderRadius: 4,
+                          background: 'var(--surface-2)',
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          className="mono"
+                          style={{ width: 22, color: 'var(--ink-4)', fontSize: 10.5 }}
+                        >
+                          {j + 1}
+                        </span>
+                        <Pill kind="info" dot={false}>{step.type}</Pill>
+                        {step.selector && (
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--ink-2)',
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={step.selector}
+                          >
+                            {step.selector}
+                          </span>
+                        )}
+                        {step.value && (
+                          <>
+                            <span className="dim mono" style={{ fontSize: 10.5 }}>=</span>
+                            <span
+                              className="mono"
+                              style={{ fontSize: 11, color: 'var(--moss)' }}
+                            >
+                              {step.value}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

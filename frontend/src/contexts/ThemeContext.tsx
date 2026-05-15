@@ -19,15 +19,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Apply theme to document
     const root = document.documentElement;
+
+    // Tailwind's class-based dark mode (`.dark` class) — used by existing pages.
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
 
-    // Save to localStorage
+    // Verdant design tokens key off `data-theme` (see styles/verdant.css).
+    // Both selectors stay in sync during the redesign rollout.
+    root.setAttribute('data-theme', theme);
+
     storage.set(StorageKeys.THEME_PREFERENCE, theme);
   }, [theme]);
 

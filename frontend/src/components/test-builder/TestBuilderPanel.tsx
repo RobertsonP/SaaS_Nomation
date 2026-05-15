@@ -1,9 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  AlertTriangle,
+  Bug,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  Play,
+  PlayCircle,
+  Save,
+  StepForward,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { projectsAPI, browserAPI } from '../../lib/api'
 import { ProjectElement } from '../../types/element.types'
 import { TestStep } from '../../types/test.types'
 import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 import { StepList } from './StepList'
+import { Pill } from '../ui/Pill'
+import { PageHelpButton } from '../help/PageHelpButton'
 import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
 import {
@@ -487,6 +503,10 @@ export function TestBuilderPanel({
     setSequentialExecutionResults([])
     setShowSequentialExecutionModal(true)
 
+    // Local var so the finally block can clean up regardless of state-closure timing.
+    // The setBrowserSessionToken state update doesn't reach the finally closure.
+    let localSessionToken: string | null = null
+
     try {
       logger.info(`Starting sequential execution of ${steps.length} steps`)
 
@@ -506,6 +526,7 @@ export function TestBuilderPanel({
       logger.debug('Creating shared browser session...')
       const sessionResponse = await browserAPI.createSession(projectId, undefined, url)
       const sessionToken = sessionResponse.sessionToken
+      localSessionToken = sessionToken
       setBrowserSessionToken(sessionToken)
       logger.info(`Browser session created: ${sessionToken}`)
 
@@ -589,22 +610,24 @@ export function TestBuilderPanel({
       logger.error('Sequential execution failed', error)
       showError('Execution Failed', `Sequential execution failed: ${error.message || 'Unknown error'}`)
     } finally {
-      // Clean up browser session
-      if (browserSessionToken) {
+      // Clean up browser session — read from the local var because the state
+      // closure captured `browserSessionToken` from the render where this
+      // callback was created (often null), so checking state would skip cleanup.
+      if (localSessionToken) {
         try {
-          logger.debug(`Closing browser session: ${browserSessionToken}`)
-          await browserAPI.closeSession(browserSessionToken)
+          logger.debug(`Closing browser session: ${localSessionToken}`)
+          await browserAPI.closeSession(localSessionToken)
           setBrowserSessionToken(null)
         } catch (cleanupError) {
           logger.warn('Failed to close browser session', cleanupError)
         }
       }
-      
+
       setIsExecutingAllSteps(false)
       setCurrentExecutingStepIndex(-1)
       setCurrentExecutingStep(null)
     }
-  }, [steps, projectId]);
+  }, [steps, projectId, startingUrl, showError, showSuccess, showWarning]);
 
   // Normal mode: delegates to existing handleExecuteAllSteps logic
   const startNormalExecution = () => {
@@ -681,50 +704,107 @@ export function TestBuilderPanel({
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full ${className}`}>
-      {/* Minimal Header - No "Test Builder" text */}
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+    <div
+      className={`col ${className}`}
+      style={{
+        background: 'var(--paper)',
+        borderLeft: '1px solid var(--hair)',
+        height: '100%',
+      }}
+    >
+      {/* Minimal Header */}
+      <div
+        style={{
+          borderBottom: '1px solid var(--hair)',
+          padding: '6px 12px',
+          minHeight: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+        }}
+      >
         {selectedElement && (
-          <div className="flex justify-end">
-            <button
-              onClick={onClearSelection}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              Clear Selection
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="btn btn-ghost btn-sm"
+            title="Clear element selection"
+          >
+            <X size={12} />
+            <span>Clear</span>
+          </button>
         )}
       </div>
 
-      {/* Content - Always Show Both Sections */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Element Selection Section - Fixed Height */}
+      <div className="col" style={{ flex: 1, minHeight: 0 }}>
+        {/* Element Selection */}
         {selectedElement && (
-          <div className="flex-shrink-0 p-3 border-b border-gray-200 dark:border-gray-700">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedElement.description}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{selectedElement.elementType}</div>
+          <div
+            style={{
+              flexShrink: 0,
+              padding: 12,
+              borderBottom: '1px solid var(--hair)',
+            }}
+          >
+            <div
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                borderRadius: 8,
+                padding: 12,
+              }}
+            >
+              <div className="row" style={{ alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--ink)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {selectedElement.description}
+                  </div>
+                  <div className="dim" style={{ fontSize: 11, marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {selectedElement.elementType}
+                  </div>
                 </div>
                 <button
+                  type="button"
                   onClick={onClearSelection}
-                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="icon-btn"
+                  aria-label="Clear selection"
                 >
-                  ×
+                  <X size={12} />
                 </button>
               </div>
-              
-              <div className="text-xs font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded text-gray-700 dark:text-gray-300 break-all mb-3">
-                {selectedElement.selector}
-              </div>
 
-              {/* Action Selection */}
-              <div className="space-y-2">
+              <code
+                className="mono"
+                style={{
+                  display: 'block',
+                  fontSize: 11,
+                  background: 'var(--surface-2)',
+                  padding: '6px 8px',
+                  borderRadius: 4,
+                  color: 'var(--slate)',
+                  wordBreak: 'break-all',
+                  marginBottom: 10,
+                  border: '1px solid var(--hair)',
+                }}
+              >
+                {selectedElement.selector}
+              </code>
+
+              <div className="col" style={{ gap: 8 }}>
                 <select
+                  className="field"
                   value={newStep.type}
                   onChange={(e) => setNewStep({ ...newStep, type: e.target.value as TestStep['type'] })}
-                  className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  style={{ fontSize: 12.5, padding: '6px 8px' }}
                 >
                   {stepTypes.map(type => (
                     <option key={type.value} value={type.value}>
@@ -733,26 +813,26 @@ export function TestBuilderPanel({
                   ))}
                 </select>
 
-                {/* Conditional Input Field */}
                 {selectedStepType?.needsValue && (
                   <input
                     type="text"
+                    className="field"
                     value={newStep.value || ''}
                     onChange={(e) => setNewStep({ ...newStep, value: e.target.value })}
-                    placeholder="Enter value..."
-                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Enter value…"
+                    style={{ fontSize: 12.5, padding: '6px 8px' }}
                   />
                 )}
 
                 <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
                   onClick={() => {
-                    // Validate required fields
                     if (selectedStepType?.needsValue && (!newStep.value || newStep.value.trim() === '')) {
                       showWarning('Value Required', 'Please enter a value for this action type.');
                       return;
                     }
 
-                    // Create the step immediately
                     const stepToAdd = {
                       id: generateId(),
                       type: newStep.type as TestStep['type'],
@@ -760,10 +840,9 @@ export function TestBuilderPanel({
                       value: selectedStepType?.needsValue ? newStep.value?.trim() : undefined,
                       description: `${selectedStepType?.label} on ${selectedElement.description}`
                     };
-                    
+
                     setSteps([...steps, stepToAdd]);
-                    
-                    // Reset the action selection
+
                     setNewStep({
                       type: 'click',
                       selector: '',
@@ -771,7 +850,7 @@ export function TestBuilderPanel({
                       description: ''
                     });
                   }}
-                  className="w-full px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  style={{ width: '100%', justifyContent: 'center' }}
                 >
                   Add Step
                 </button>
@@ -780,14 +859,37 @@ export function TestBuilderPanel({
           </div>
         )}
 
-        {/* Test Steps Section - Always Visible */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Test Steps Header - Fixed Height */}
-          <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Test Steps ({steps.length})</h3>
-              <div className="flex items-center space-x-2">
+        {/* Test Steps Section */}
+        <div className="col" style={{ flex: 1, minHeight: 0 }}>
+          {/* Action bar */}
+          <div
+            style={{
+              flexShrink: 0,
+              padding: '8px 12px',
+              borderBottom: '1px solid var(--hair)',
+              background: 'var(--surface)',
+            }}
+          >
+            <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div className="row" style={{ alignItems: 'baseline', gap: 6 }}>
+                <span
+                  style={{
+                    fontFamily: 'Inter Tight',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--ink)',
+                  }}
+                >
+                  Test Steps
+                </span>
+                <Pill kind="mute" dot={false}>
+                  {steps.length}
+                </Pill>
+              </div>
+              <div className="row" style={{ gap: 4 }}>
                 <button
+                  type="button"
+                  className={hasUnsavedChanges ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
                   onClick={() => {
                     onSave?.(steps);
                     if (testId) {
@@ -795,55 +897,58 @@ export function TestBuilderPanel({
                     }
                     setHasUnsavedChanges(false);
                   }}
-                  className={`px-3 py-1 text-xs text-white rounded font-medium transition-colors ${
-                    hasUnsavedChanges
-                      ? 'bg-orange-600 hover:bg-orange-700'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
                   title={hasUnsavedChanges ? 'Save unsaved changes' : 'Save test'}
+                  style={hasUnsavedChanges ? { background: 'var(--amber)', borderColor: 'var(--amber)' } : undefined}
                 >
-                  {hasUnsavedChanges ? '⚠️ Save' : 'Save'}
+                  {hasUnsavedChanges ? <AlertTriangle size={12} /> : <Save size={12} />}
+                  <span>Save</span>
                 </button>
                 <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
                   onClick={onCancel}
-                  className="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   title="Cancel and exit"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowExecutionModeModal(true)}
                   disabled={steps.length === 0 || isExecutingAllSteps || debugMode}
-                  className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Execute all test steps sequentially from starting URL - perfect for flow validation"
+                  className="btn btn-success btn-sm"
+                  title="Execute all test steps sequentially from starting URL"
+                  style={steps.length === 0 || isExecutingAllSteps || debugMode ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                 >
                   {isExecutingAllSteps ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Step {currentExecutingStepIndex + 1}/{steps.length}
-                    </span>
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      <span className="tabular">{currentExecutingStepIndex + 1}/{steps.length}</span>
+                    </>
                   ) : (
-                    'Run Test'
+                    <>
+                      <Play size={12} />
+                      <span>Run</span>
+                    </>
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setSteps([])}
                   disabled={steps.length === 0 || isExecutingAllSteps}
-                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="icon-btn"
                   title="Clear all test steps"
+                  style={steps.length === 0 || isExecutingAllSteps ? { opacity: 0.4, cursor: 'not-allowed', color: 'var(--ink-3)' } : { color: 'var(--clay)' }}
                 >
-                  🗑️ Clear All
+                  <Trash2 size={13} />
                 </button>
+                <PageHelpButton helpKey="test-builder" />
               </div>
             </div>
           </div>
 
-          {/* Test Steps List - Scrollable Area */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="p-3">
+          {/* Test Steps List */}
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: 'var(--bone)' }}>
+            <div style={{ padding: 12 }}>
               {steps.length > 0 ? (
                 <StepList
                   steps={steps}
@@ -853,21 +958,35 @@ export function TestBuilderPanel({
                   onLiveExecuteStep={handleLiveExecuteStep}
                   executingStepId={executingStepId}
                   projectId={projectId}
-                  activeVideoStepId={activeVideoStepId} // Pass down for video highlighting
+                  activeVideoStepId={activeVideoStepId}
                 />
               ) : (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 dark:text-gray-500 text-2xl mb-2">📝</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">No test steps yet</div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {!selectedElement 
-                      ? 'Select an element from the library to start building your test'
-                      : 'Choose an action and click "Add Step" to build your test'
-                    }
+                <div className="empty" style={{ padding: '32px 16px' }}>
+                  <div className="empty-icon">
+                    <PlayCircle size={20} />
                   </div>
+                  <h3>No test steps yet</h3>
+                  <p>
+                    {!selectedElement
+                      ? 'Select an element from the library to start building your test.'
+                      : 'Choose an action above and click "Add Step".'}
+                  </p>
                   {!selectedElement && (
-                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">
-                      💡 <strong>Tip:</strong> Use the element library on the left to browse and select elements from your project
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 10,
+                        background: 'var(--moss-soft)',
+                        border: '1px solid var(--moss-edge)',
+                        borderRadius: 6,
+                        fontSize: 11.5,
+                        color: 'var(--ink-2)',
+                        textAlign: 'left',
+                        maxWidth: 320,
+                      }}
+                    >
+                      <strong style={{ color: 'var(--moss)' }}>Tip:</strong> use the element
+                      library on the left to browse and pick elements from your project.
                     </div>
                   )}
                 </div>
@@ -878,147 +997,201 @@ export function TestBuilderPanel({
 
         {/* Debug Mode Panel */}
         {debugMode && (
-          <div className="flex-shrink-0 mx-3 mb-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-medium text-orange-800 dark:text-orange-200">
-                Debug Mode — Step {Math.min(debugStepIndex + 1, steps.length)} of {steps.length}
-              </h4>
-              <span className={`text-xs px-2 py-1 rounded ${isDebugPaused ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
-                {isDebugPaused ? 'Paused' : 'Running...'}
+          <div
+            style={{
+              flexShrink: 0,
+              margin: 12,
+              padding: 14,
+              background: 'var(--amber-soft)',
+              border: '1px solid var(--amber-edge)',
+              borderRadius: 8,
+            }}
+          >
+            <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <Bug size={14} style={{ color: 'var(--amber)' }} />
+                <span style={{ fontFamily: 'Inter Tight', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  Debug Mode — Step {Math.min(debugStepIndex + 1, steps.length)} of {steps.length}
+                </span>
+              </div>
+              <span
+                className="pill"
+                style={{
+                  background: isDebugPaused ? 'var(--amber-soft)' : 'var(--moss-soft)',
+                  color: isDebugPaused ? 'var(--amber)' : 'var(--moss)',
+                  borderColor: isDebugPaused ? 'var(--amber-edge)' : 'var(--moss-edge)',
+                }}
+              >
+                {isDebugPaused ? 'Paused' : 'Running…'}
               </span>
             </div>
 
             {debugStepIndex < steps.length && (
-              <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                <div><strong>Action:</strong> {steps[debugStepIndex]?.type}</div>
-                <div><strong>Selector:</strong> <span className="font-mono text-xs">{steps[debugStepIndex]?.selector}</span></div>
-                {steps[debugStepIndex]?.value && <div><strong>Value:</strong> {steps[debugStepIndex]?.value}</div>}
+              <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 10, lineHeight: 1.6 }}>
+                <div><strong style={{ color: 'var(--ink)' }}>Action:</strong> {steps[debugStepIndex]?.type}</div>
+                <div><strong style={{ color: 'var(--ink)' }}>Selector:</strong> <code className="mono" style={{ fontSize: 11, color: 'var(--slate)' }}>{steps[debugStepIndex]?.selector}</code></div>
+                {steps[debugStepIndex]?.value && <div><strong style={{ color: 'var(--ink)' }}>Value:</strong> {steps[debugStepIndex]?.value}</div>}
               </div>
             )}
 
             {debugStepIndex >= steps.length && (
-              <div className="text-sm text-green-700 dark:text-green-300 mb-3 font-medium">
-                All steps have been executed.
+              <div className="row" style={{ gap: 6, fontSize: 12.5, color: 'var(--moss)', fontWeight: 600, marginBottom: 10 }}>
+                <CheckCircle2 size={14} />
+                <span>All steps have been executed.</span>
               </div>
             )}
 
             {debugStepResult && (
-              <div className={`text-sm p-2 rounded mb-3 ${debugStepResult.success ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'}`}>
-                {debugStepResult.success ? `Step ${debugStepIndex} passed` : `Step ${debugStepIndex} failed: ${debugStepResult.error}`}
+              <div
+                className="row"
+                style={{
+                  gap: 6,
+                  alignItems: 'flex-start',
+                  fontSize: 12.5,
+                  padding: 8,
+                  borderRadius: 6,
+                  marginBottom: 10,
+                  background: debugStepResult.success ? 'var(--moss-soft)' : 'var(--clay-soft)',
+                  border: `1px solid ${debugStepResult.success ? 'var(--moss-edge)' : 'var(--clay-edge)'}`,
+                  color: debugStepResult.success ? 'var(--moss)' : 'var(--clay)',
+                }}
+              >
+                {debugStepResult.success ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                <span>
+                  {debugStepResult.success
+                    ? `Step ${debugStepIndex} passed`
+                    : `Step ${debugStepIndex} failed: ${debugStepResult.error}`}
+                </span>
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="row" style={{ gap: 6 }}>
               <button
+                type="button"
                 onClick={executeNextDebugStep}
                 disabled={!isDebugPaused || debugStepIndex >= steps.length}
-                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="btn btn-primary btn-sm"
+                style={!isDebugPaused || debugStepIndex >= steps.length ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {debugStepIndex >= steps.length - 1 ? 'Execute Last Step' : 'Next Step'}
+                <StepForward size={12} />
+                <span>{debugStepIndex >= steps.length - 1 ? 'Execute last step' : 'Next step'}</span>
               </button>
               <button
+                type="button"
                 onClick={stopDebugExecution}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                className="btn btn-ghost btn-sm"
               >
-                Stop Debug
+                Stop debug
               </button>
             </div>
           </div>
         )}
 
-        {/* Compact unsaved-changes hint at the bottom (action buttons live in
-            the panel header now — no more floating Save bar). */}
+        {/* Compact unsaved-changes hint at the bottom */}
         {hasUnsavedChanges && (
-          <div className="flex-shrink-0 border-t border-orange-200 dark:border-orange-900/40 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-xs text-orange-700 dark:text-orange-300">
-            ⚠️ {steps.length} step{steps.length !== 1 ? 's' : ''} with unsaved changes — click Save in the panel header.
+          <div
+            style={{
+              flexShrink: 0,
+              borderTop: '1px solid var(--amber-edge)',
+              padding: '8px 16px',
+              background: 'var(--amber-soft)',
+              fontSize: 11.5,
+              color: 'var(--amber)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <AlertTriangle size={12} />
+            <span>
+              {steps.length} step{steps.length !== 1 ? 's' : ''} with unsaved changes — click Save in the panel header.
+            </span>
           </div>
         )}
       </div>
 
       {/* Add/Edit Step Modal */}
       {showAddStep && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                {editingStep ? 'Edit Step' : 'Add Test Step'}
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Action Type
-                  </label>
-                  <select
-                    value={newStep.type}
-                    onChange={(e) => setNewStep({ ...newStep, type: e.target.value as TestStep['type'] })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {stepTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        <div className="modal-backdrop" onClick={cancelEdit}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">{editingStep ? 'Edit Step' : 'Add Test Step'}</div>
+              <button type="button" className="icon-btn" onClick={cancelEdit} aria-label="Close">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="modal-body col" style={{ gap: 12 }}>
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Action type
+                </label>
+                <select
+                  className="field"
+                  value={newStep.type}
+                  onChange={(e) => setNewStep({ ...newStep, type: e.target.value as TestStep['type'] })}
+                >
+                  {stepTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Selector
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Selector
+                </label>
+                <input
+                  type="text"
+                  className="field mono"
+                  value={newStep.selector}
+                  onChange={(e) => setNewStep({ ...newStep, selector: e.target.value })}
+                  placeholder="CSS selector"
+                />
+              </div>
+
+              {selectedStepType?.needsValue && (
+                <div className="col" style={{ gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                    Value
                   </label>
                   <input
                     type="text"
-                    value={newStep.selector}
-                    onChange={(e) => setNewStep({ ...newStep, selector: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="CSS selector"
+                    className="field"
+                    value={newStep.value || ''}
+                    onChange={(e) => setNewStep({ ...newStep, value: e.target.value })}
+                    placeholder="Enter value…"
                   />
                 </div>
+              )}
 
-                {selectedStepType?.needsValue && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Value
-                    </label>
-                    <input
-                      type="text"
-                      value={newStep.value || ''}
-                      onChange={(e) => setNewStep({ ...newStep, value: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter value..."
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Description
-                  </label>
-                  <input
-                    type="text"
-                    value={newStep.description}
-                    onChange={(e) => setNewStep({ ...newStep, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Describe this step"
-                  />
-                </div>
+              <div className="col" style={{ gap: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  className="field"
+                  value={newStep.description}
+                  onChange={(e) => setNewStep({ ...newStep, description: e.target.value })}
+                  placeholder="Describe this step"
+                />
               </div>
-
-              <div className="flex space-x-3 mt-6">
-                <button
-                  onClick={addStep}
-                  disabled={!newStep.selector || !newStep.description}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                >
-                  {editingStep ? 'Update Step' : 'Add Step'}
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={addStep}
+                disabled={!newStep.selector || !newStep.description}
+                className="btn btn-primary"
+                style={!newStep.selector || !newStep.description ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                {editingStep ? 'Update Step' : 'Add Step'}
+              </button>
             </div>
           </div>
         </div>
@@ -1038,187 +1211,185 @@ export function TestBuilderPanel({
         />
       )}
 
-      {/* Execution Mode Selection Modal */}
+      {/* Execution Mode Selection Modal — full featured picker */}
       {showExecutionModeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Choose Execution Mode
-            </h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => { setShowExecutionModeModal(false); startNormalExecution(); }}
-                className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-              >
-                <div className="font-medium text-gray-900 dark:text-gray-100">Normal Mode</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Runs all steps automatically in a real browser. Watch the browser as it executes.
-                </div>
-              </button>
-              <button
-                onClick={() => { setShowExecutionModeModal(false); startDebugExecution(); }}
-                className="w-full p-4 text-left rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-500 dark:hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-              >
-                <div className="font-medium text-gray-900 dark:text-gray-100">Debug Mode</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Step-by-step execution. Click "Next Step" to advance. Inspect results after each step.
-                </div>
-              </button>
-            </div>
-            <button
-              onClick={() => setShowExecutionModeModal(false)}
-              className="mt-4 w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <TestBuilderRunModal
+          onCancel={() => setShowExecutionModeModal(false)}
+          onPick={(mode) => {
+            setShowExecutionModeModal(false);
+            if (mode === 'debug') startDebugExecution();
+            else startNormalExecution();
+          }}
+        />
       )}
 
       {/* Sequential Execution Progress Modal */}
       {showSequentialExecutionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="bg-green-600 text-white p-4 rounded-t-lg">
-              <div className="flex items-center justify-between">
+        <div className="modal-backdrop">
+          <div className="modal modal-lg" style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-head">
+              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <PlayCircle size={16} style={{ color: 'var(--moss)' }} />
                 <div>
-                  <h2 className="text-lg font-bold">▶️ Sequential Steps Execution</h2>
-                  <p className="text-sm opacity-90">
-                    {isExecutingAllSteps 
-                      ? `Executing step ${currentExecutingStepIndex + 1} of ${steps.length}...`
-                      : `Completed execution of ${sequentialExecutionResults.length} steps`
-                    }
-                  </p>
+                  <div className="modal-title">Sequential steps execution</div>
+                  <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                    {isExecutingAllSteps
+                      ? `Executing step ${currentExecutingStepIndex + 1} of ${steps.length}…`
+                      : `Completed execution of ${sequentialExecutionResults.length} steps`}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowSequentialExecutionModal(false)}
-                  disabled={isExecutingAllSteps}
-                  className="text-white hover:text-gray-200 text-2xl font-bold disabled:opacity-50"
-                >
-                  ×
-                </button>
               </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowSequentialExecutionModal(false)}
+                disabled={isExecutingAllSteps}
+                aria-label="Close"
+                style={isExecutingAllSteps ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                <X size={14} />
+              </button>
             </div>
 
             {/* Progress Bar */}
             {isExecutingAllSteps && (
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--hair)' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: 6,
+                    background: 'var(--surface-2)',
+                    borderRadius: 999,
+                    overflow: 'hidden',
+                  }}
+                >
                   <div
-                    className="bg-green-600 h-3 rounded-full transition-all duration-500 flex items-center justify-center"
-                    style={{ width: `${((currentExecutingStepIndex + 1) / steps.length) * 100}%` }}
-                  >
-                    {currentExecutingStepIndex >= 0 && (
-                      <span className="text-xs text-white font-medium">
-                        {Math.round(((currentExecutingStepIndex + 1) / steps.length) * 100)}%
-                      </span>
-                    )}
-                  </div>
+                    style={{
+                      width: `${((currentExecutingStepIndex + 1) / steps.length) * 100}%`,
+                      height: '100%',
+                      background: 'var(--moss)',
+                      transition: 'width .5s ease',
+                    }}
+                  />
                 </div>
+                {currentExecutingStepIndex >= 0 && (
+                  <div className="dim tabular" style={{ fontSize: 10.5, textAlign: 'right', marginTop: 4 }}>
+                    {Math.round(((currentExecutingStepIndex + 1) / steps.length) * 100)}%
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Steps Progress Content */}
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-full flex flex-col">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Execution Progress</h3>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {isExecutingAllSteps 
-                      ? `Step ${currentExecutingStepIndex + 1} of ${steps.length}`
-                      : `Completed: ${sequentialExecutionResults.length}/${steps.length} steps`
-                    }
-                  </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-3">
-                {steps.map((step, index) => {
-                  const result = sequentialExecutionResults.find(r => r.step.id === step.id);
-                  const isCurrentlyExecuting = isExecutingAllSteps && index === currentExecutingStepIndex;
-                  const isCompleted = !!result;
-                  const isSuccess = result?.success;
-                  
-                  return (
-                    <div
-                      key={step.id}
-                      className={`p-3 rounded-lg border ${
-                        isCurrentlyExecuting
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                          : isCompleted
-                          ? isSuccess
-                            ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
-                            : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
-                          : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                              Step {index + 1}
-                            </span>
-                            {isCurrentlyExecuting && (
-                              <svg className="animate-spin h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                            )}
-                            {isCompleted && (
-                              <span className={`text-lg ${isSuccess ? 'text-green-600' : 'text-red-600'}`}>
-                                {isSuccess ? '✅' : '❌'}
-                              </span>
-                            )}
-                            {!isCompleted && !isCurrentlyExecuting && (
-                              <span className="text-gray-400 dark:text-gray-500">⏳</span>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {step.description}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {step.type} • {step.selector}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {result && !result.success && (
-                        <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
-                          <strong>Error:</strong> {result.result?.message || 'Unknown error occurred'}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
+              {steps.map((step, index) => {
+                const result = sequentialExecutionResults.find(r => r.step.id === step.id);
+                const isCurrentlyExecuting = isExecutingAllSteps && index === currentExecutingStepIndex;
+                const isCompleted = !!result;
+                const isSuccess = result?.success;
 
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
-              {!isExecutingAllSteps && sequentialExecutionResults.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    <span className="text-green-600 dark:text-green-400 font-medium">
+                const pillKind = isCompleted
+                  ? isSuccess ? 'ok' : 'err'
+                  : isCurrentlyExecuting ? 'info' : 'mute';
+                const pillLabel = isCompleted
+                  ? isSuccess ? 'pass' : 'fail'
+                  : isCurrentlyExecuting ? 'running' : 'pending';
+
+                return (
+                  <div key={step.id}>
+                    <div
+                      className="row"
+                      style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--hair)',
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        className="mono dim"
+                        style={{ width: 18, fontSize: 10.5, flexShrink: 0 }}
+                      >
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <Pill kind={pillKind} dot={false}>
+                        {pillLabel}
+                      </Pill>
+                      <span
+                        style={{
+                          flex: 1,
+                          fontSize: 12,
+                          color: 'var(--ink)',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={step.description}
+                      >
+                        {step.description}
+                      </span>
+                      <span
+                        className="mono dim"
+                        style={{
+                          fontSize: 10.5,
+                          maxWidth: 220,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                        title={step.selector}
+                      >
+                        {step.selector}
+                      </span>
+                    </div>
+
+                    {result && !result.success && (
+                      <div
+                        style={{
+                          marginLeft: 30,
+                          marginRight: 12,
+                          marginBottom: 8,
+                          padding: 8,
+                          background: 'var(--clay-soft)',
+                          border: '1px solid var(--clay-edge)',
+                          borderRadius: 4,
+                          fontSize: 11.5,
+                          color: 'var(--clay)',
+                        }}
+                      >
+                        <strong>Error:</strong> {result.result?.message || 'Unknown error occurred'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="modal-foot">
+              {!isExecutingAllSteps && sequentialExecutionResults.length > 0 ? (
+                <>
+                  <div className="row" style={{ gap: 12, fontSize: 12, marginRight: 'auto' }}>
+                    <span className="row" style={{ gap: 4, color: 'var(--moss)', fontWeight: 600 }}>
+                      <CheckCircle2 size={12} />
                       {sequentialExecutionResults.filter(r => r.success).length} succeeded
                     </span>
                     {sequentialExecutionResults.filter(r => !r.success).length > 0 && (
-                      <span className="text-red-600 dark:text-red-400 font-medium ml-4">
+                      <span className="row" style={{ gap: 4, color: 'var(--clay)', fontWeight: 600 }}>
+                        <XCircle size={12} />
                         {sequentialExecutionResults.filter(r => !r.success).length} failed
                       </span>
                     )}
                   </div>
                   <button
+                    type="button"
+                    className="btn btn-primary"
                     onClick={() => setShowSequentialExecutionModal(false)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                   >
                     Close
                   </button>
-                </div>
+                </>
+              ) : (
+                <span className="dim" style={{ fontSize: 11.5 }}>Execution in progress…</span>
               )}
             </div>
           </div>
@@ -1227,28 +1398,47 @@ export function TestBuilderPanel({
 
       {/* Step failure confirmation dialog */}
       {failedStepMessage && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Step Failed</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line mb-6">{failedStepMessage}</p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setFailedStepMessage(null)
-                  failedStepResolverRef.current?.(false)
-                  failedStepResolverRef.current = null
+        <div className="modal-backdrop" style={{ zIndex: 60 }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+                <AlertTriangle size={16} style={{ color: 'var(--clay)', marginTop: 1 }} />
+                <div className="modal-title">Step failed</div>
+              </div>
+            </div>
+            <div className="modal-body">
+              <p
+                style={{
+                  fontSize: 12.5,
+                  color: 'var(--ink-2)',
+                  whiteSpace: 'pre-line',
+                  margin: 0,
+                  lineHeight: 1.6,
                 }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                Stop Execution
+                {failedStepMessage}
+              </p>
+            </div>
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setFailedStepMessage(null);
+                  failedStepResolverRef.current?.(false);
+                  failedStepResolverRef.current = null;
+                }}
+              >
+                Stop execution
               </button>
               <button
+                type="button"
+                className="btn btn-primary"
                 onClick={() => {
-                  setFailedStepMessage(null)
-                  failedStepResolverRef.current?.(true)
-                  failedStepResolverRef.current = null
+                  setFailedStepMessage(null);
+                  failedStepResolverRef.current?.(true);
+                  failedStepResolverRef.current = null;
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Continue
               </button>
@@ -1258,4 +1448,213 @@ export function TestBuilderPanel({
       )}
     </div>
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Flat run modal for the test builder. Mirrors `modals.jsx:132–153` (RunModal)
+// — field-row dropdowns + plain switch rows. Adds two extra switches (Run headed
+// and Debug) so the existing functional behaviour is preserved within the design's
+// switch-row pattern.
+// ─────────────────────────────────────────────────────────────────────────────
+type RunChoice = 'normal-headed' | 'normal-headless' | 'debug';
+
+function TestBuilderRunModal({
+  onCancel,
+  onPick,
+}: {
+  onCancel: () => void;
+  onPick: (mode: RunChoice) => void;
+}) {
+  const [headed, setHeaded] = useState(false);
+  const [debug, setDebug] = useState(false);
+  const [browser, setBrowser] = useState('chromium');
+  const [viewport, setViewport] = useState('desktop');
+  const [concurrency, setConcurrency] = useState('1');
+  const [retries, setRetries] = useState('0');
+  const [captureVideo, setCaptureVideo] = useState(true);
+  const [captureNetwork, setCaptureNetwork] = useState(true);
+  const [bisect, setBisect] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  void browser; void viewport; void concurrency; void retries; void captureNetwork; void bisect; void captureVideo;
+
+  const handleStart = () => {
+    if (debug) onPick('debug');
+    else if (headed) onPick('normal-headed');
+    else onPick('normal-headless');
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Run test</h3>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="modal-body col" style={{ gap: 14 }}>
+          <div className="field-row">
+            <div className="field">
+              <label>Browser</label>
+              <select value={browser} onChange={(e) => setBrowser(e.target.value)}>
+                <option value="chromium">Chromium</option>
+                <option value="firefox" disabled>Firefox (soon)</option>
+                <option value="webkit" disabled>WebKit (soon)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>
+                Viewport <TbSoonPill />
+              </label>
+              <select value={viewport} onChange={(e) => setViewport(e.target.value)} disabled>
+                <option value="desktop">Desktop · 1280×720</option>
+                <option value="tablet">Tablet · 1024×768</option>
+                <option value="mobile">Mobile · 390×844</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <label>
+                Concurrency <TbSoonPill />
+              </label>
+              <select value={concurrency} onChange={(e) => setConcurrency(e.target.value)} disabled>
+                <option value="1">1</option>
+                <option value="2">2 parallel</option>
+                <option value="4">4 parallel</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>
+                Retries <TbSoonPill />
+              </label>
+              <select value={retries} onChange={(e) => setRetries(e.target.value)} disabled>
+                <option value="0">None</option>
+                <option value="1">1 on failure</option>
+                <option value="2">2 on failure</option>
+              </select>
+            </div>
+          </div>
+
+          <TbSwitchRow
+            label="Run headed (visible browser)"
+            on={headed}
+            onChange={(v) => {
+              setHeaded(v);
+              if (v) setDebug(false);
+            }}
+          />
+          <TbSwitchRow
+            label="Debug — pause after each step"
+            on={debug}
+            onChange={(v) => {
+              setDebug(v);
+              if (v) setHeaded(true); // debug requires headed
+            }}
+          />
+          <TbSwitchRow
+            label="Capture video"
+            on={captureVideo}
+            onChange={setCaptureVideo}
+          />
+          <TbSwitchRow
+            label="Capture network log"
+            on={captureNetwork}
+            onChange={setCaptureNetwork}
+            soon
+          />
+          <TbSwitchRow
+            label="Bisect mode (find first failing commit)"
+            on={bisect}
+            onChange={setBisect}
+            soon
+          />
+        </div>
+
+        <div className="modal-foot">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleStart}>
+            <Play size={13} />
+            <span>Start run</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TbSwitchRow({
+  label,
+  on,
+  onChange,
+  soon,
+}: {
+  label: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  soon?: boolean;
+}) {
+  return (
+    <label
+      className="row"
+      style={{
+        gap: 10,
+        cursor: soon ? 'not-allowed' : 'pointer',
+        opacity: soon ? 0.6 : 1,
+      }}
+    >
+      <button
+        type="button"
+        className={`switch ${on ? 'on' : ''}`}
+        onClick={() => !soon && onChange(!on)}
+        aria-pressed={on}
+        disabled={soon}
+        style={{ border: 0, padding: 0 }}
+      />
+      <span style={{ fontSize: 12, color: 'var(--ink)' }}>{label}</span>
+      {soon && <TbSoonPill />}
+    </label>
+  );
+}
+
+function TbSoonPill() {
+  return (
+    <span
+      style={{
+        marginLeft: 6,
+        padding: '0 6px',
+        height: 14,
+        display: 'inline-flex',
+        alignItems: 'center',
+        borderRadius: 999,
+        background: 'var(--amber-soft)',
+        color: 'var(--amber)',
+        border: '1px solid var(--amber-edge)',
+        fontSize: 9,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        verticalAlign: 'middle',
+      }}
+    >
+      soon
+    </span>
+  );
 }

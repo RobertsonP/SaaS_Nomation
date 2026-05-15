@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { AnalysisProgressState, AnalysisPhase, AnalysisEvent } from '../../contexts/AnalysisContext';
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Minus, X, XCircle } from 'lucide-react';
+import { AnalysisProgressState, AnalysisPhase } from '../../contexts/AnalysisContext';
 
 interface AnalysisProgressModalProps {
   isOpen: boolean;
@@ -38,88 +39,116 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
 
   if (!isOpen) return null;
 
-  const { isComplete, hasError, currentPhase, currentPhaseLabel, overallPercent,
-    currentUrlIndex, totalUrls, elementsFound, elapsedSeconds, rawEvents, errorMessage } = progress;
+  const {
+    isComplete, hasError, currentPhase, currentPhaseLabel, overallPercent,
+    currentUrlIndex, totalUrls, elementsFound, elapsedSeconds, rawEvents, errorMessage,
+  } = progress;
 
   const currentPhaseIdx = phaseIndex(currentPhase);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-              {projectName}
-            </h2>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {projectName}
           </div>
-          <div className="flex items-center gap-1 ml-4 flex-shrink-0">
+          <div className="row" style={{ gap: 2 }}>
             {onMinimize && !isComplete && !hasError && (
               <button
+                type="button"
+                className="icon-btn"
                 onClick={onMinimize}
-                className="p-1.5 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                 title="Minimize"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <Minus size={14} />
               </button>
             )}
             <button
+              type="button"
+              className="icon-btn"
               onClick={onClose}
-              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
               title={isComplete || hasError ? 'Close' : 'Close (analysis continues in background)'}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={14} />
             </button>
           </div>
         </div>
 
-        {/* Stepper */}
-        <div className="px-6 pt-5 pb-3">
-          <div className="flex items-center justify-between">
+        <div className="modal-body col" style={{ gap: 16 }}>
+          {/* Stepper */}
+          <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 0 }}>
             {PHASES.map((phase, idx) => {
               const isDone = idx < currentPhaseIdx || isComplete;
               const isActive = idx === currentPhaseIdx && !isComplete;
               const isError = hasError && idx === currentPhaseIdx;
 
+              let bg = 'var(--surface-2)';
+              let fg = 'var(--ink-3)';
+              let borderColor = 'var(--hair)';
+              if (isError) {
+                bg = 'var(--clay)';
+                fg = '#fff';
+                borderColor = 'var(--clay)';
+              } else if (isDone) {
+                bg = 'var(--moss)';
+                fg = '#fff';
+                borderColor = 'var(--moss)';
+              } else if (isActive) {
+                bg = 'var(--info)';
+                fg = '#fff';
+                borderColor = 'var(--info)';
+              }
+
               return (
                 <React.Fragment key={phase.key}>
                   {idx > 0 && (
-                    <div className={`flex-1 h-0.5 mx-2 rounded ${
-                      isDone ? 'bg-green-500' :
-                      isActive ? 'bg-blue-300 dark:bg-blue-700' :
-                      'bg-gray-200 dark:bg-gray-700'
-                    }`} />
+                    <div
+                      style={{
+                        flex: 1,
+                        height: 2,
+                        margin: '0 6px',
+                        borderRadius: 999,
+                        background: isDone ? 'var(--moss)' : isActive ? 'var(--info-soft)' : 'var(--hair)',
+                      }}
+                    />
                   )}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      isError ? 'bg-red-500 text-white' :
-                      isDone ? 'bg-green-500 text-white' :
-                      isActive ? 'bg-blue-500 text-white' :
-                      'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                    }`}>
+                  <div className="col" style={{ alignItems: 'center', gap: 4 }}>
+                    <div
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 999,
+                        background: bg,
+                        color: fg,
+                        border: `1px solid ${borderColor}`,
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
                       {isError ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <XCircle size={13} />
                       ) : isDone ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                        <CheckCircle2 size={13} />
                       ) : isActive ? (
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <Loader2 size={12} className="animate-spin" />
                       ) : (
                         idx + 1
                       )}
                     </div>
-                    <span className={`text-xs mt-1 ${
-                      isError ? 'text-red-600 dark:text-red-400 font-medium' :
-                      isDone || isActive ? 'text-gray-900 dark:text-white font-medium' :
-                      'text-gray-400 dark:text-gray-500'
-                    }`}>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: isDone || isActive ? 600 : 500,
+                        color: isError
+                          ? 'var(--clay)'
+                          : isDone || isActive
+                          ? 'var(--ink)'
+                          : 'var(--ink-3)',
+                      }}
+                    >
                       {phase.label}
                     </span>
                   </div>
@@ -127,98 +156,157 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({
               );
             })}
           </div>
-        </div>
 
-        {/* Progress bar */}
-        <div className="px-6 pb-2">
-          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          {/* Progress bar */}
+          <div
+            style={{
+              width: '100%',
+              height: 6,
+              background: 'var(--surface-2)',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}
+          >
             <div
-              className={`h-full transition-all duration-500 ease-out rounded-full ${
-                hasError ? 'bg-red-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${overallPercent}%` }}
+              style={{
+                height: '100%',
+                width: `${overallPercent}%`,
+                background: hasError ? 'var(--clay)' : isComplete ? 'var(--moss)' : 'var(--info)',
+                transition: 'width .5s ease, background .3s ease',
+              }}
             />
           </div>
-        </div>
 
-        {/* Main status area */}
-        <div className="px-6 py-4">
-          <p className={`text-sm font-medium ${
-            hasError ? 'text-red-700 dark:text-red-300' :
-            isComplete ? 'text-green-700 dark:text-green-300' :
-            'text-gray-900 dark:text-white'
-          }`}>
-            {currentPhaseLabel}
-          </p>
+          {/* Main status */}
+          <div className="col" style={{ gap: 6 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 500,
+                color: hasError ? 'var(--clay)' : isComplete ? 'var(--moss)' : 'var(--ink)',
+              }}
+            >
+              {currentPhaseLabel}
+            </p>
+            <div className="row dim tabular" style={{ gap: 12, fontSize: 11 }}>
+              {totalUrls > 0 && (
+                <span>
+                  Page {Math.min(currentUrlIndex, totalUrls)} of {totalUrls}
+                </span>
+              )}
+              {elementsFound > 0 && <span>{elementsFound} elements found</span>}
+              {elapsedSeconds > 0 && <span>{formatElapsed(elapsedSeconds)}</span>}
+            </div>
 
-          {/* Stats row */}
-          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {totalUrls > 0 && (
-              <span>
-                Page {Math.min(currentUrlIndex, totalUrls)} of {totalUrls}
-              </span>
-            )}
-            {elementsFound > 0 && (
-              <span>{elementsFound} elements found</span>
-            )}
-            {elapsedSeconds > 0 && (
-              <span>{formatElapsed(elapsedSeconds)}</span>
+            {hasError && errorMessage && (
+              <div
+                style={{
+                  marginTop: 4,
+                  padding: 10,
+                  background: 'var(--clay-soft)',
+                  border: '1px solid var(--clay-edge)',
+                  borderRadius: 6,
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--clay)' }}>{errorMessage}</p>
+                {rawEvents
+                  .filter(e => e.status === 'error' && e.details?.suggestions)
+                  .map((e, i) => (
+                    <ul
+                      key={i}
+                      style={{
+                        marginTop: 6,
+                        marginBottom: 0,
+                        paddingLeft: 18,
+                        fontSize: 11.5,
+                        color: 'var(--clay)',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {e.details.suggestions.map((s: string, j: number) => (
+                        <li key={j}>{s}</li>
+                      ))}
+                    </ul>
+                  ))}
+              </div>
             )}
           </div>
 
-          {/* Error details */}
-          {hasError && errorMessage && (
-            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
-              <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
-              {rawEvents.filter(e => e.status === 'error' && e.details?.suggestions).map((e, i) => (
-                <ul key={i} className="mt-2 text-xs text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                  {e.details.suggestions.map((s: string, j: number) => (
-                    <li key={j}>{s}</li>
-                  ))}
-                </ul>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Details toggle */}
-        <div className="px-6 pb-4">
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            {showDetails ? 'Hide details' : 'Show details'}
-          </button>
-
-          {showDetails && rawEvents.length > 0 && (
-            <div className="mt-2 bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto">
-              <div className="space-y-1">
-                {rawEvents.map((event, index) => (
-                  <div key={index} className="flex items-start gap-2 text-xs">
-                    <span className={`flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
-                      event.status === 'error' ? 'bg-red-500' :
-                      event.status === 'completed' ? 'bg-green-500' :
-                      event.status === 'started' ? 'bg-blue-500' : 'bg-gray-400'
-                    }`} />
-                    <span className="text-gray-500 dark:text-gray-400 flex-shrink-0">
-                      {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                    <span className="text-gray-700 dark:text-gray-300">{event.message}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer — only show close button when done */}
-        {(isComplete || hasError) && (
-          <div className="flex items-center justify-end px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          {/* Details toggle */}
+          <div>
             <button
+              type="button"
+              onClick={() => setShowDetails(!showDetails)}
+              className="row btn-ghost btn-sm"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--ink-3)',
+                fontSize: 11.5,
+                padding: 0,
+                cursor: 'pointer',
+                gap: 4,
+              }}
+            >
+              {showDetails ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              {showDetails ? 'Hide details' : 'Show details'}
+            </button>
+
+            {showDetails && rawEvents.length > 0 && (
+              <div
+                style={{
+                  marginTop: 8,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 6,
+                  padding: 10,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                }}
+              >
+                <div className="col" style={{ gap: 4 }}>
+                  {rawEvents.map((event, index) => (
+                    <div key={index} className="row" style={{ alignItems: 'flex-start', gap: 6, fontSize: 11 }}>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          width: 6,
+                          height: 6,
+                          marginTop: 6,
+                          borderRadius: 999,
+                          background:
+                            event.status === 'error'
+                              ? 'var(--clay)'
+                              : event.status === 'completed'
+                              ? 'var(--moss)'
+                              : event.status === 'started'
+                              ? 'var(--info)'
+                              : 'var(--ink-4)',
+                        }}
+                      />
+                      <span className="dim mono" style={{ flexShrink: 0 }}>
+                        {new Date(event.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </span>
+                      <span style={{ color: 'var(--ink-2)' }}>{event.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {(isComplete || hasError) && (
+          <div className="modal-foot">
+            <button
+              type="button"
               onClick={onClose}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                hasError ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-              }`}
+              className={hasError ? 'btn btn-danger' : 'btn btn-success'}
             >
               {hasError ? 'Close' : 'Done'}
             </button>

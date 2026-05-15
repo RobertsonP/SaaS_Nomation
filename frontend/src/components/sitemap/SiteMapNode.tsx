@@ -1,8 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Lock, CheckCircle, AlertCircle, Globe, ExternalLink } from 'lucide-react';
+import { Lock, CheckCircle2, AlertCircle, Globe, ExternalLink } from 'lucide-react';
 
-// Data stored in each node
 interface SiteMapNodeDataPayload {
   url: string;
   title: string;
@@ -13,71 +12,75 @@ interface SiteMapNodeDataPayload {
   discovered: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
-  screenshot?: string;  // Base64 thumbnail image
+  screenshot?: string;
 }
-
 
 interface SiteMapNodeProps {
   id: string;
   data: SiteMapNodeDataPayload;
 }
 
+type Tone = { bg: string; fg: string; edge: string };
+
+function statusTone(d: SiteMapNodeDataPayload): Tone {
+  if (d.requiresAuth) {
+    return { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
+  }
+  if (d.analyzed && d.verified) {
+    return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+  }
+  if (d.analyzed) {
+    return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
+  }
+  if (!d.discovered) {
+    return { bg: 'var(--surface)', fg: 'var(--ink-3)', edge: 'var(--hair)' };
+  }
+  return { bg: 'var(--surface-2)', fg: 'var(--ink-3)', edge: 'var(--hair)' };
+}
+
+function pageTypeTone(pageType?: string): Tone {
+  switch (pageType) {
+    case 'home':
+      return { bg: 'var(--moss-soft)', fg: 'var(--moss)', edge: 'var(--moss-edge)' };
+    case 'product':
+    case 'category':
+      return { bg: 'var(--info-soft)', fg: 'var(--info)', edge: 'var(--info-edge)' };
+    case 'cart':
+    case 'account':
+      return { bg: 'var(--amber-soft)', fg: 'var(--amber)', edge: 'var(--amber-edge)' };
+    case 'checkout':
+      return { bg: 'var(--clay-soft)', fg: 'var(--clay)', edge: 'var(--clay-edge)' };
+    case 'form':
+      return { bg: 'var(--slate-soft)', fg: 'var(--slate)', edge: 'var(--slate-edge)' };
+    default:
+      return { bg: 'var(--surface-2)', fg: 'var(--ink-3)', edge: 'var(--hair)' };
+  }
+}
+
+function pillStyle(tone: Tone): React.CSSProperties {
+  return {
+    padding: '1px 6px',
+    borderRadius: 999,
+    fontSize: 9.5,
+    fontWeight: 600,
+    letterSpacing: '0.02em',
+    background: tone.bg,
+    color: tone.fg,
+    border: `1px solid ${tone.edge}`,
+  };
+}
+
 function SiteMapNode({ id, data }: SiteMapNodeProps) {
   const { title, url, analyzed, verified, requiresAuth, pageType, discovered, selected, onSelect, screenshot } = data;
+  const tone = statusTone(data);
 
-  // Handle opening URL in new tab
   const handleOpenUrl = (e: React.MouseEvent) => {
-    e.stopPropagation();  // Don't trigger node selection
+    e.stopPropagation();
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Determine node color based on status
-  const getNodeStyles = () => {
-    if (requiresAuth) {
-      return 'border-orange-500 bg-orange-50';
-    }
-    if (analyzed && verified) {
-      return 'border-green-500 bg-green-50';
-    }
-    if (analyzed) {
-      return 'border-blue-500 bg-blue-50';
-    }
-    if (!discovered) {
-      return 'border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600';
-    }
-    return 'border-gray-400 bg-gray-50 dark:bg-gray-900 border-dashed';
-  };
+  const StatusIcon = requiresAuth ? Lock : verified ? CheckCircle2 : analyzed ? AlertCircle : Globe;
 
-  // Get status icon
-  const getStatusIcon = () => {
-    if (requiresAuth) {
-      return <Lock className="w-3.5 h-3.5 text-orange-600" />;
-    }
-    if (verified) {
-      return <CheckCircle className="w-3.5 h-3.5 text-green-600" />;
-    }
-    if (analyzed) {
-      return <AlertCircle className="w-3.5 h-3.5 text-blue-600" />;
-    }
-    return <Globe className="w-3.5 h-3.5 text-gray-400" />;
-  };
-
-  // Get page type badge color
-  const getPageTypeBadge = () => {
-    const typeColors: Record<string, string> = {
-      home: 'bg-purple-100 text-purple-700',
-      product: 'bg-green-100 text-green-700',
-      category: 'bg-blue-100 text-blue-700',
-      cart: 'bg-yellow-100 text-yellow-700',
-      checkout: 'bg-red-100 text-red-700',
-      account: 'bg-orange-100 text-orange-700',
-      content: 'bg-gray-100 text-gray-700',
-      form: 'bg-pink-100 text-pink-700',
-    };
-    return typeColors[pageType || 'content'] || 'bg-gray-100 text-gray-700';
-  };
-
-  // Extract display URL (path only)
   const displayUrl = (() => {
     try {
       const parsed = new URL(url);
@@ -87,84 +90,146 @@ function SiteMapNode({ id, data }: SiteMapNodeProps) {
     }
   })();
 
+  const dashed = !analyzed && discovered;
+
   return (
     <div
-      className={`
-        px-4 py-3 rounded-lg border-2 shadow-sm min-w-[200px] max-w-[280px] cursor-pointer transition-all
-        ${getNodeStyles()}
-        ${selected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
-        hover:shadow-md
-      `}
       onClick={() => onSelect?.(id)}
+      style={{
+        background: tone.bg,
+        border: `2px ${dashed ? 'dashed' : 'solid'} ${tone.edge}`,
+        borderRadius: 8,
+        padding: '10px 14px',
+        minWidth: 200,
+        maxWidth: 280,
+        cursor: 'pointer',
+        boxShadow: selected ? '0 0 0 2px var(--moss)' : 'var(--shadow-1)',
+        transition: 'box-shadow .15s ease',
+      }}
     >
-      {/* Target handle */}
       <Handle
         type="target"
         position={Position.Top}
-        className="w-2 h-2 !bg-gray-400"
+        style={{ width: 8, height: 8, background: 'var(--ink-4)', border: 'none' }}
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {getStatusIcon()}
+      <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+        <div className="row" style={{ alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <StatusIcon size={13} style={{ color: tone.fg, flexShrink: 0 }} />
           <button
+            type="button"
             onClick={handleOpenUrl}
-            className="font-medium text-sm text-gray-900 dark:text-gray-100 hover:text-blue-600 truncate max-w-[120px] flex items-center gap-1 group"
             title={`Open ${url} in new tab`}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: 'var(--ink)',
+              maxWidth: 130,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
           >
-            <span className="truncate">{title || 'Untitled'}</span>
-            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity" />
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 110,
+              }}
+            >
+              {title || 'Untitled'}
+            </span>
+            <ExternalLink size={10} style={{ flexShrink: 0, opacity: 0.5 }} />
           </button>
         </div>
         {selected && (
-          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <CheckCircle className="w-3 h-3 text-white" />
-          </div>
+          <span
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 999,
+              background: 'var(--moss)',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <CheckCircle2 size={10} style={{ color: '#fff' }} />
+          </span>
         )}
       </div>
 
       {/* URL */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
-        <span className="truncate">{displayUrl}</span>
+      <div
+        className="mono dim"
+        style={{
+          fontSize: 11,
+          marginBottom: 8,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {displayUrl}
       </div>
 
       {/* Footer badges */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {pageType && (
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPageTypeBadge()}`}>
-            {pageType}
-          </span>
-        )}
+      <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+        {pageType && <span style={pillStyle(pageTypeTone(pageType))}>{pageType}</span>}
         {requiresAuth && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
+          <span
+            style={pillStyle({
+              bg: 'var(--amber-soft)',
+              fg: 'var(--amber)',
+              edge: 'var(--amber-edge)',
+            })}
+          >
             Auth
           </span>
         )}
         {discovered && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">
+          <span
+            style={pillStyle({
+              bg: 'var(--info-soft)',
+              fg: 'var(--info)',
+              edge: 'var(--info-edge)',
+            })}
+          >
             Auto
           </span>
         )}
       </div>
 
-      {/* Screenshot thumbnail */}
+      {/* Screenshot */}
       {screenshot && (
-        <div className="mt-2 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700">
+        <div
+          style={{
+            marginTop: 8,
+            borderRadius: 4,
+            overflow: 'hidden',
+            border: '1px solid var(--hair)',
+            background: 'var(--surface-2)',
+          }}
+        >
           <img
             src={screenshot}
             alt={`Preview of ${title}`}
-            className="w-full h-16 object-cover object-top"
+            style={{ width: '100%', height: 64, objectFit: 'cover', objectPosition: 'top' }}
             loading="lazy"
           />
         </div>
       )}
 
-      {/* Source handle */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="w-2 h-2 !bg-gray-400"
+        style={{ width: 8, height: 8, background: 'var(--ink-4)', border: 'none' }}
       />
     </div>
   );

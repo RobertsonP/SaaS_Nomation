@@ -1,10 +1,22 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  FileX,
+  Loader2,
+  MousePointerClick,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ProjectElement } from '../../types/element.types';
 import { ElementPreviewCard } from '../elements/ElementPreviewCard';
 import { TablePreviewCard } from '../elements/TablePreviewCard';
 import { DropdownPreviewCard } from '../elements/DropdownPreviewCard';
+import { ElPreview } from '../elements/ElPreview';
+import { CSSPreviewRenderer } from '../elements/CSSPreviewRenderer';
 import { CellStepData } from '../elements/CellSelectorPopover';
 import { AnalyzeUrlsModal } from '../analysis/AnalyzeUrlsModal';
+import { Pill } from '../ui/Pill';
 import { projectsAPI } from '../../lib/api';
 
 interface ProjectUrl {
@@ -35,6 +47,18 @@ interface ElementLibraryPanelProps {
   onClearElements?: () => void;
   projectUrls?: ProjectUrl[];
   isAnalyzing?: boolean;
+  /**
+   * Layout mode:
+   * - `test-builder` (default): page-sidebar + linear card list with search +
+   *   filter pills. Live picker / Analyze / Clear-elements visible in the header.
+   * - `project-details`: <table className="table"> with row click → drawer.
+   *   Live picker / Analyze / Clear-all hidden (lives elsewhere on the page).
+   */
+  mode?: 'project-details' | 'test-builder';
+  /** Id of the element currently selected by the parent (e.g. Test Builder's
+   * `selectedElement`). Used to render a clear "selected" state and scroll
+   * the matching card into view on click. */
+  selectedElementId?: string;
 }
 
 const UNATTRIBUTED_KEY = '__unattributed__';
@@ -107,13 +131,17 @@ export function ElementLibraryPanel({
   onAddStep,
   isLoading,
   selectedElementType,
+  onElementTypeChange,
   setShowLivePicker,
   onAnalyzePages,
   onAnalyzeSelected,
   onClearElements,
   projectUrls = [],
   isAnalyzing = false,
+  mode = 'test-builder',
+  selectedElementId,
 }: ElementLibraryPanelProps) {
+  const isProjectMode = mode === 'project-details';
   const [showUrlPicker, setShowUrlPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
@@ -339,15 +367,16 @@ export function ElementLibraryPanel({
     return list;
   }, [pageIndex, filteredElements, sharedSelectors]);
 
-  // Auto-select first REAL page when data loads or selection becomes invalid.
-  // Don't auto-select the Shared bucket — that's a frontend filter that's only
-  // useful once a user explicitly opts into it.
+  // Auto-select the first real page when the page index loads (test-builder
+  // mode only — the project Elements tab uses a table and doesn't need a
+  // page filter). Skips the Shared bucket so users land on actual pages.
   useEffect(() => {
+    if (isProjectMode) return;
     if (pageList.length === 0) return;
-    if (selectedPageUrl && pageList.some(p => p.url === selectedPageUrl)) return;
-    const firstReal = pageList.find(p => p.url !== SHARED_KEY) ?? pageList[0];
+    if (selectedPageUrl && pageList.some((p) => p.url === selectedPageUrl)) return;
+    const firstReal = pageList.find((p) => p.url !== SHARED_KEY) ?? pageList[0];
     setSelectedPageUrl(firstReal.url);
-  }, [pageList, selectedPageUrl]);
+  }, [isProjectMode, pageList, selectedPageUrl]);
 
   // Elements for the selected page, grouped by type.
   // - SHARED_KEY: chrome elements deduped by selector across all pages.
@@ -404,247 +433,567 @@ export function ElementLibraryPanel({
   // far less jarring than a blank panel that feels like a full reload.
   if (isLoading || (paginationLoading && elements.length === 0)) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading elements...</p>
+      <div className="empty" style={{ padding: '40px 20px' }}>
+        <div className="empty-icon">
+          <Loader2 size={20} className="animate-spin" />
         </div>
+        <h3>Loading elements…</h3>
+        <p>Pulling element library from the server.</p>
       </div>
     );
   }
 
   if (elements.length === 0) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <p className="text-lg font-medium mb-2">No elements found</p>
-          <p className="text-sm mb-4">Analyze pages to discover elements, or use the Live Picker</p>
-          <div className="flex gap-2 justify-center">
-            {(onAnalyzePages || onAnalyzeSelected) && (
-              <button
-                onClick={handleAnalyzeClick}
-                className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg"
-              >
-                Analyze Pages
-              </button>
-            )}
+      <div className="empty" style={{ padding: '40px 20px' }}>
+        <div className="empty-icon">
+          <FileX size={20} />
+        </div>
+        <h3>No elements found</h3>
+        <p>Analyze pages to discover elements, or use the Live Picker.</p>
+        <div className="row" style={{ gap: 8, justifyContent: 'center' }}>
+          {(onAnalyzePages || onAnalyzeSelected) && (
             <button
-              onClick={() => setShowLivePicker(true)}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              type="button"
+              onClick={handleAnalyzeClick}
+              className="btn btn-success btn-sm"
             >
-              Live Picker
+              <Sparkles size={12} />
+              <span>Analyze pages</span>
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowLivePicker(true)}
+            className="btn btn-primary btn-sm"
+          >
+            <MousePointerClick size={12} />
+            <span>Live picker</span>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="col" style={{ height: '100%', background: 'var(--paper)' }}>
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Elements
-            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+      <div
+        style={{
+          flexShrink: 0,
+          padding: 12,
+          borderBottom: '1px solid var(--hair)',
+          background: 'var(--surface)',
+        }}
+      >
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+          <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+            <span
+              style={{
+                fontFamily: 'Inter Tight',
+                fontSize: 15,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                color: 'var(--ink)',
+              }}
+            >
+              Elements
+            </span>
+            <Pill kind="mute" dot={false}>
               {usePagination
                 ? (searchQuery.trim()
-                    ? `${filteredElements.length} matching of ${paginatedElements.length} loaded (${totalCount} total)`
+                    ? `${filteredElements.length} of ${paginatedElements.length} loaded · ${totalCount} total`
                     : `${paginatedElements.length} of ${totalCount}`)
-                : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`
-              }
-            </span>
-          </h3>
-          <div className="flex gap-2">
-            {(onAnalyzePages || onAnalyzeSelected) && (
+                : `${filteredElements.length}${filteredElements.length !== elements.length ? ` of ${elements.length}` : ''}`}
+            </Pill>
+          </div>
+          <div className="row" style={{ gap: 4 }}>
+            {!isProjectMode && (onAnalyzePages || onAnalyzeSelected) && (
               <button
+                type="button"
                 onClick={handleAnalyzeClick}
                 disabled={isAnalyzing}
-                className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
-                  isAnalyzing
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
+                className="btn btn-success btn-sm"
+                style={isAnalyzing ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {isAnalyzing ? 'Analyzing...' : 'Analyze'}
+                {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                <span>{isAnalyzing ? 'Analyzing…' : 'Analyze'}</span>
               </button>
             )}
-            <button
-              onClick={() => setShowLivePicker(true)}
-              className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
-            >
-              Live Picker
-            </button>
-            {onClearElements && elements.length > 0 && (
+            {!isProjectMode && (
               <button
-                onClick={onClearElements}
-                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 border border-red-300 dark:border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md font-medium"
-                title="Clear all elements"
+                type="button"
+                onClick={() => setShowLivePicker(true)}
+                className="btn btn-primary btn-sm"
               >
-                Clear
+                <MousePointerClick size={12} />
+                <span>Live picker</span>
+              </button>
+            )}
+            {!isProjectMode && onClearElements && elements.length > 0 && (
+              <button
+                type="button"
+                onClick={onClearElements}
+                className="btn btn-outline btn-sm"
+                title="Remove every saved element"
+                style={{ color: 'var(--clay)', borderColor: 'var(--clay-edge)' }}
+              >
+                <Trash2 size={12} />
+                <span>Clear elements</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+        <div style={{ position: 'relative' }}>
+          <Search
+            size={13}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--ink-3)',
+              pointerEvents: 'none',
+            }}
+          />
           <input
             type="text"
+            className="field"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search elements..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Search elements…"
+            style={{ paddingLeft: 30, paddingRight: searchQuery ? 30 : 12 }}
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="icon-btn"
+              aria-label="Clear search"
+              style={{
+                position: 'absolute',
+                right: 4,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 22,
+                height: 22,
+              }}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={11} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Two-panel layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: Page list */}
-        <div className="w-[30%] border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
-          <div className="p-2">
-            {pageList.map(page => {
-              const isPseudo = page.url === UNATTRIBUTED_KEY || page.url === SHARED_KEY;
+      {/* Filter pills — match prototype's pages.jsx:19–21 */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '0 8px 8px',
+          display: 'flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          borderBottom: '1px solid var(--hair)',
+          background: 'var(--surface)',
+        }}
+      >
+        {(['all', 'button', 'input', 'link'] as const).map((f) => {
+          const active = (selectedElementType ?? 'all') === f;
+          return (
+            <button
+              key={f}
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{
+                fontSize: 10.5,
+                padding: '2px 8px',
+                background: active ? 'var(--surface-2)' : 'transparent',
+                color: active ? 'var(--ink)' : 'var(--ink-3)',
+                fontWeight: active ? 600 : 500,
+              }}
+              onClick={() => onElementTypeChange?.(f)}
+            >
+              {f}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Outer area — table for project mode, two-pane (page sidebar +
+          element list) for test-builder mode. */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'row',
+          minHeight: 0,
+          background: 'var(--paper)',
+        }}
+      >
+        {!isProjectMode && pageList.length > 0 && (
+          <div
+            style={{
+              width: 180,
+              flexShrink: 0,
+              borderRight: '1px solid var(--hair)',
+              background: 'var(--surface-2)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              className="dim"
+              style={{
+                padding: '10px 12px 6px',
+                fontSize: 10.5,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'var(--ink-4)',
+              }}
+            >
+              Pages
+            </div>
+            {pageList.map((page) => {
+              const isActive = selectedPageUrl === page.url;
+              const isPseudo = page.url === SHARED_KEY || page.url === UNATTRIBUTED_KEY;
+              const path = (() => {
+                if (isPseudo) return null;
+                try {
+                  return new URL(page.url).pathname || '/';
+                } catch {
+                  return page.url;
+                }
+              })();
               return (
                 <button
                   key={page.url}
+                  type="button"
                   onClick={() => setSelectedPageUrl(page.url)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-                    selectedPageUrl === page.url
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    borderBottom: '1px solid var(--hair)',
+                    background: isActive ? 'var(--moss-soft)' : 'transparent',
+                    borderLeft: isActive ? '2px solid var(--moss)' : '2px solid transparent',
+                    cursor: 'pointer',
+                    display: 'block',
+                  }}
                 >
-                  <div className="truncate font-medium">{page.title}</div>
-                  {!isPseudo && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {getPathFromUrl(page.url)}
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--ink)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={page.title}
+                  >
+                    {page.title}
+                  </div>
+                  {path && (
+                    <div
+                      className="mono dim"
+                      style={{
+                        fontSize: 10.5,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={page.url}
+                    >
+                      {path}
                     </div>
                   )}
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{page.count} elements</div>
+                  <div className="dim" style={{ fontSize: 10.5, marginTop: 2 }}>
+                    {page.count} element{page.count === 1 ? '' : 's'}
+                  </div>
                 </button>
               );
             })}
-            {pageList.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 p-3">No pages analyzed yet</p>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Right panel: Elements grouped by type */}
-        <div className="w-[70%] overflow-y-auto">
-          <div className="p-3">
-            {selectedPageUrl && elementsByType.length > 0 ? (
-              elementsByType.map(([type, typeElements]) => (
-                <div key={type} className="mb-3">
-                  {/* Type section header */}
-                  <button
-                    onClick={() => toggleTypeCollapse(type)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {(TYPE_LABELS[type] ?? type)} ({typeElements.length})
-                    </span>
-                    <span className="text-gray-400 dark:text-gray-500 text-xs">
-                      {collapsedTypes.has(type) ? '\u25B8' : '\u25BE'}
-                    </span>
-                  </button>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            minHeight: 0,
+            padding: isProjectMode ? 0 : 8,
+            display: isProjectMode ? 'block' : 'flex',
+            flexDirection: 'column',
+            gap: isProjectMode ? 0 : 6,
+            background: 'var(--paper)',
+          }}
+        >
+        {(() => {
+          // Filter elements by selected page (test-builder mode):
+          // - SHARED_KEY: chrome elements deduped by selector across pages
+          // - UNATTRIBUTED_KEY: elements without a sourceUrl
+          // - Real page: server-side filter already scopes; hide chrome here
+          // - Project mode: no page selection, just hide chrome
+          let flatElements: ProjectElement[];
+          if (!isProjectMode && selectedPageUrl === SHARED_KEY) {
+            const seen = new Set<string>();
+            flatElements = [];
+            for (const el of filteredElements) {
+              if (!isSharedRegion(el.description)) continue;
+              if (seen.has(el.selector)) continue;
+              seen.add(el.selector);
+              flatElements.push(el);
+            }
+          } else if (!isProjectMode && selectedPageUrl === UNATTRIBUTED_KEY) {
+            flatElements = filteredElements.filter((el) => !el.sourceUrl);
+          } else {
+            flatElements = filteredElements.filter(
+              (el) => !isSharedRegion(el.description),
+            );
+          }
 
-                  {/* Element cards */}
-                  {!collapsedTypes.has(type) && (
-                    <div className="mt-2 space-y-2">
-                      {typeElements.map(element => {
-                        const hasTableData = element.elementType === 'table' && (element.tableData || (element.attributes as any)?.tableData);
-                        const hasDropdownData = element.elementType === 'dropdown' && (element.dropdownData || (element.attributes as any)?.dropdownData);
-
-                        if (hasTableData) {
-                          return (
-                            <div key={element.id}>
-                              <TablePreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                            </div>
-                          );
-                        }
-                        if (hasDropdownData) {
-                          return (
-                            <div key={element.id}>
-                              <DropdownPreviewCard element={element} onSelectElement={onSelectElement} onAddStep={onAddStep} />
-                            </div>
-                          );
-                        }
-                        return (
-                          <ElementPreviewCard
-                            key={element.id}
-                            element={element}
-                            onSelectElement={onSelectElement}
-                            showQuality
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                {selectedPageUrl ? 'No elements found for this page' : 'Select a page to view elements'}
+          if (flatElements.length === 0) {
+            return (
+              <p
+                className="dim"
+                style={{
+                  fontSize: 12.5,
+                  textAlign: 'center',
+                  padding: '32px 12px',
+                }}
+              >
+                {elements.length === 0
+                  ? 'No elements yet — analyze a page or use the live picker'
+                  : 'No elements match your search'}
               </p>
-            )}
+            );
+          }
 
-            {/* Load More */}
-            {hasMore && (
-              <div className="py-4 text-center border-t border-gray-100 dark:border-gray-700 mt-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Showing {paginatedElements.length} of {totalCount} elements
-                </p>
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadMoreLoading}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    loadMoreLoading
-                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {loadMoreLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      Loading...
-                    </span>
-                  ) : (
-                    `Load More (${Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)`
-                  )}
-                </button>
-              </div>
-            )}
+          if (isProjectMode) {
+            // Project Details Elements tab — table layout matching projects.jsx:367–395
+            return (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 160 }}>Preview</th>
+                    <th>Label</th>
+                    <th>Selector</th>
+                    <th>Type</th>
+                    <th>Page</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flatElements.map((element) => {
+                    const attrs = element.attributes as any;
+                    const confidence = attrs?.confidence ? String(attrs.confidence) : undefined;
+                    const sourceUrl = element.sourceUrl?.url;
+                    const path = sourceUrl
+                      ? (() => {
+                          try {
+                            return new URL(sourceUrl).pathname || '/';
+                          } catch {
+                            return sourceUrl;
+                          }
+                        })()
+                      : '—';
+                    const confKind: 'ok' | 'warn' | 'err' | 'mute' =
+                      confidence === 'high' || confidence === 'ok'
+                        ? 'ok'
+                        : confidence === 'med' || confidence === 'medium' || confidence === 'warn'
+                        ? 'warn'
+                        : confidence === 'low' || confidence === 'err'
+                        ? 'err'
+                        : 'mute';
 
-            {/* No Results */}
-            {filteredElements.length === 0 && elements.length > 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 mb-2">No elements match your search</p>
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-                >
-                  Clear search
-                </button>
-              </div>
-            )}
+                    return (
+                      <tr
+                        key={element.id}
+                        onClick={() => onSelectElement(element)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td>
+                          <div style={{ width: 140 }}>
+                            {element.screenshot ? (
+                              <div
+                                style={{
+                                  background: 'var(--bone)',
+                                  border: '1px solid var(--hair)',
+                                  borderRadius: 6,
+                                  overflow: 'hidden',
+                                  height: 76,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                }}
+                              >
+                                <img
+                                  src={element.screenshot}
+                                  alt={element.description}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    objectPosition: 'top',
+                                  }}
+                                  loading="lazy"
+                                />
+                              </div>
+                            ) : attrs?.cssInfo ? (
+                              <div
+                                style={{
+                                  background: (() => {
+                                    const bg =
+                                      attrs?.resolvedColors?.backgroundColor ||
+                                      attrs?.cssInfo?.backgroundColor;
+                                    return bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)'
+                                      ? bg
+                                      : 'var(--surface)';
+                                  })(),
+                                  border: '1px solid var(--hair)',
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  height: 76,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <CSSPreviewRenderer
+                                  element={element}
+                                  mode="compact"
+                                  showQuality={false}
+                                  interactive={false}
+                                />
+                              </div>
+                            ) : (
+                              <ElPreview type={element.elementType} label={element.description} compact />
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{element.description}</td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              maxWidth: 240,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={element.selector}
+                          >
+                            {element.selector}
+                          </span>
+                        </td>
+                        <td className="dim">{element.elementType}</td>
+                        <td className="mono dim" style={{ fontSize: 11 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              maxWidth: 200,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={sourceUrl}
+                          >
+                            {path}
+                          </span>
+                        </td>
+                        <td>
+                          {confidence ? (
+                            <Pill kind={confKind} dot={false}>
+                              {confidence}
+                            </Pill>
+                          ) : (
+                            <span className="dim">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          }
+
+          return flatElements.map((element) => {
+            const hasTableData =
+              element.elementType === 'table' &&
+              (element.tableData || (element.attributes as any)?.tableData);
+            const hasDropdownData =
+              element.elementType === 'dropdown' &&
+              (element.dropdownData || (element.attributes as any)?.dropdownData);
+
+            if (hasTableData) {
+              return (
+                <div key={element.id}>
+                  <TablePreviewCard
+                    element={element}
+                    onSelectElement={onSelectElement}
+                    onAddStep={onAddStep}
+                  />
+                </div>
+              );
+            }
+            if (hasDropdownData) {
+              return (
+                <div key={element.id}>
+                  <DropdownPreviewCard
+                    element={element}
+                    onSelectElement={onSelectElement}
+                    onAddStep={onAddStep}
+                  />
+                </div>
+              );
+            }
+            return (
+              <ElementPreviewCard
+                key={element.id}
+                element={element}
+                onSelectElement={onSelectElement}
+                showQuality
+                selected={selectedElementId === element.id}
+              />
+            );
+          });
+        })()}
+
+        {/* Load More */}
+        {hasMore && (
+          <div
+            style={{
+              padding: '14px 0',
+              textAlign: 'center',
+              borderTop: '1px solid var(--hair)',
+              marginTop: 8,
+            }}
+          >
+            <p className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
+              Showing {paginatedElements.length} of {totalCount} elements
+            </p>
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={loadMoreLoading}
+              className="btn btn-outline btn-sm"
+              style={loadMoreLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+            >
+              {loadMoreLoading ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>Loading…</span>
+                </>
+              ) : (
+                <span>
+                  Load more ({Math.min(PAGE_SIZE, totalCount - paginatedElements.length)} more)
+                </span>
+              )}
+            </button>
           </div>
+        )}
         </div>
       </div>
 

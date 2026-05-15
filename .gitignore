@@ -208,6 +208,8 @@ frontend/*.png
 /*.png
 # Playwright MCP verification snapshots
 .playwright-mcp/
+# Claude Design handoff bundle (private reference, never published)
+design-input/
 # Ad-hoc test scripts in wrong location (real tests are in backend/test/)
 backend/test-*.js
 backend/test-*.ts

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ChevronUp, CheckCircle2, FlaskConical, Loader2, Minus, X, XCircle } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
 import { WebSocketExecutionEvent } from '../../types/api.types'
 import { createLogger } from '../../lib/logger'
@@ -184,211 +185,371 @@ export function TestExecutionModal({
   const totalSteps = executionResult.steps.length
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
-  return (
-    <div className={`fixed ${isMinimized ? 'bottom-4 right-4 w-96' : 'inset-0 bg-black bg-opacity-50 flex items-center justify-center'} z-50`}>
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl ${isMinimized ? 'w-96' : 'w-full max-w-2xl max-h-[90vh]'} flex flex-col`}>
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${
-              executionResult.status === 'running' ? 'bg-blue-500 animate-pulse' :
-              executionResult.status === 'passed' ? 'bg-green-500' :
-              'bg-red-500'
-            }`} />
-            <div>
-              <h2 className="text-xl font-bold">🧪 Test Execution (Live)</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{testName}</p>
+  const accentFg = executionResult.status === 'passed'
+    ? 'var(--moss)'
+    : executionResult.status === 'failed'
+    ? 'var(--clay)'
+    : 'var(--info)';
+
+  const minimizedShell: React.CSSProperties = {
+    position: 'fixed',
+    bottom: 16,
+    right: 16,
+    width: 360,
+    background: 'var(--surface)',
+    border: '1px solid var(--hair)',
+    borderRadius: 8,
+    boxShadow: 'var(--shadow-2)',
+    zIndex: 50,
+    overflow: 'hidden',
+  };
+
+  if (isMinimized) {
+    return (
+      <div style={minimizedShell}>
+        <div
+          className="row"
+          style={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            borderBottom: '1px solid var(--hair)',
+            background: 'var(--surface-2)',
+          }}
+        >
+          <div className="row" style={{ gap: 8, alignItems: 'center', minWidth: 0 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: accentFg,
+                animation: executionResult.status === 'running' ? 'pulse 1.5s ease-in-out infinite' : undefined,
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: 'var(--ink)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {testName}
+              </div>
+              <div className="dim" style={{ fontSize: 11 }}>
+                {executionResult.status === 'running' ? 'Running…' : executionResult.status === 'passed' ? 'Passed' : 'Failed'}
+              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="row" style={{ gap: 2 }}>
             <button
-              onClick={() => setIsMinimized(!isMinimized)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title={isMinimized ? 'Maximize' : 'Minimize'}
+              type="button"
+              onClick={() => setIsMinimized(false)}
+              className="icon-btn"
+              title="Maximize"
             >
-              {isMinimized ? '⬆️' : '⬇️'}
+              <ChevronUp size={13} />
             </button>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Close"
+            <button type="button" onClick={onClose} className="icon-btn" title="Close">
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+        <div style={{ padding: '10px 14px' }}>
+          <div className="row tabular dim" style={{ justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+            <span>{completedSteps}/{totalSteps} steps</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <div
+            style={{
+              height: 4,
+              background: 'var(--surface-2)',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${progress}%`,
+                background: accentFg,
+                transition: 'width .3s ease',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal modal-lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head">
+          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: 'var(--info-soft)',
+                color: 'var(--info)',
+                border: '1px solid var(--info-edge)',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
             >
-              ✕
+              <FlaskConical size={16} />
+            </span>
+            <div>
+              <div className="modal-title">Test execution (live)</div>
+              <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>{testName}</div>
+            </div>
+          </div>
+          <div className="row" style={{ gap: 2 }}>
+            <button
+              type="button"
+              onClick={() => setIsMinimized(true)}
+              className="icon-btn"
+              title="Minimize"
+            >
+              <Minus size={14} />
+            </button>
+            <button type="button" onClick={onClose} className="icon-btn" title="Close">
+              <X size={14} />
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        {!isMinimized && (
-          <div className="flex-1 overflow-y-auto p-6">
-            {/* Overall Progress */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Overall Progress: {completedSteps}/{totalSteps} steps
-                </span>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {Math.round(progress)}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
-                <div
-                  className={`h-3 rounded-full transition-all duration-300 ${
-                    executionResult.status === 'passed' ? 'bg-green-500' :
-                    executionResult.status === 'failed' ? 'bg-red-500' :
-                    'bg-blue-500'
-                  }`}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+        <div className="modal-body col" style={{ gap: 16, overflowY: 'auto' }}>
+          {/* Overall progress */}
+          <div>
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                Overall progress: <span className="tabular">{completedSteps}/{totalSteps}</span> steps
+              </span>
+              <span className="tabular" style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)' }}>
+                {Math.round(progress)}%
+              </span>
             </div>
+            <div
+              style={{
+                width: '100%',
+                height: 6,
+                background: 'var(--surface-2)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${progress}%`,
+                  background: accentFg,
+                  transition: 'width .3s ease',
+                }}
+              />
+            </div>
+          </div>
 
-            {/* Current Step */}
-            {currentStep && (
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span className="text-sm font-medium text-blue-700">Current Step</span>
-                </div>
-                <p className="text-sm text-gray-700">
-                  Step {currentStep.stepIndex + 1}: {currentStep.description}
-                </p>
+          {/* Current step */}
+          {currentStep && (
+            <div
+              style={{
+                background: 'var(--info-soft)',
+                border: '1px solid var(--info-edge)',
+                borderRadius: 6,
+                padding: 12,
+              }}
+            >
+              <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <Loader2 size={13} className="animate-spin" style={{ color: 'var(--info)' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--info)' }}>
+                  Current step
+                </span>
               </div>
-            )}
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink)' }}>
+                Step {currentStep.stepIndex + 1}: {currentStep.description}
+              </p>
+            </div>
+          )}
 
-            {/* Steps List */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Execution Steps:</h3>
-              {executionResult.steps.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <div className="animate-pulse">Initializing test execution...</div>
+          {/* Steps list */}
+          <div>
+            <div
+              className="dim"
+              style={{
+                fontSize: 10.5,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                marginBottom: 8,
+              }}
+            >
+              Execution steps
+            </div>
+            {executionResult.steps.length === 0 ? (
+              <div className="empty" style={{ padding: '24px 12px' }}>
+                <div className="empty-icon">
+                  <Loader2 size={18} className="animate-spin" />
                 </div>
-              ) : (
-                executionResult.steps.map((step, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg border ${
-                      step.status === 'passed' ? 'bg-green-50 border-green-200' :
-                      step.status === 'failed' ? 'bg-red-50 border-red-200' :
-                      step.status === 'running' ? 'bg-blue-50 border-blue-200' :
-                      'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          step.status === 'passed' ? 'bg-green-500 text-white' :
-                          step.status === 'failed' ? 'bg-red-500 text-white' :
-                          step.status === 'running' ? 'bg-blue-500 text-white' :
-                          'bg-gray-300 text-gray-600'
-                        }`}>
-                          {step.status === 'passed' ? '✓' :
-                           step.status === 'failed' ? '✗' :
-                           step.status === 'running' ? '⟳' :
-                           step.stepIndex + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <p>Initializing test execution…</p>
+              </div>
+            ) : (
+              <div className="col" style={{ gap: 6 }}>
+                {executionResult.steps.map((step, index) => {
+                  let bg = 'var(--surface-2)';
+                  let border = 'var(--hair)';
+                  if (step.status === 'passed') {
+                    bg = 'var(--moss-soft)';
+                    border = 'var(--moss-edge)';
+                  } else if (step.status === 'failed') {
+                    bg = 'var(--clay-soft)';
+                    border = 'var(--clay-edge)';
+                  } else if (step.status === 'running') {
+                    bg = 'var(--info-soft)';
+                    border = 'var(--info-edge)';
+                  }
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        padding: 10,
+                        borderRadius: 6,
+                        border: `1px solid ${border}`,
+                        background: bg,
+                      }}
+                    >
+                      <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+                        <span
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 999,
+                            background:
+                              step.status === 'passed'
+                                ? 'var(--moss)'
+                                : step.status === 'failed'
+                                ? 'var(--clay)'
+                                : step.status === 'running'
+                                ? 'var(--info)'
+                                : 'var(--surface-2)',
+                            color:
+                              step.status === 'pending' ? 'var(--ink-3)' : '#fff',
+                            border:
+                              step.status === 'pending'
+                                ? '1px solid var(--hair)'
+                                : 'none',
+                            display: 'grid',
+                            placeItems: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {step.status === 'passed' ? (
+                            <CheckCircle2 size={12} />
+                          ) : step.status === 'failed' ? (
+                            <XCircle size={12} />
+                          ) : step.status === 'running' ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <span className="tabular" style={{ fontSize: 10, fontWeight: 600 }}>
+                              {step.stepIndex + 1}
+                            </span>
+                          )}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: 12.5,
+                              fontWeight: 500,
+                              color: 'var(--ink)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             Step {step.stepIndex + 1}: {step.description}
                           </p>
                           {step.error && (
-                            <p className="text-xs text-red-600 mt-1">
+                            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--clay)' }}>
                               Error: {step.error}
                             </p>
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {step.status === 'passed' && '✅'}
-                        {step.status === 'failed' && '❌'}
-                        {step.status === 'running' && (
-                          <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        )}
-                      </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Final Result */}
-            {executionResult.status !== 'running' && (
-              <div className={`mt-6 p-4 rounded-lg border ${
-                executionResult.status === 'passed'
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl">
-                    {executionResult.status === 'passed' ? '✅' : '❌'}
-                  </span>
-                  <div>
-                    <h3 className={`text-lg font-bold ${
-                      executionResult.status === 'passed' ? 'text-green-700' : 'text-red-700'
-                    }`}>
-                      Test {executionResult.status === 'passed' ? 'Passed' : 'Failed'}
-                    </h3>
-                    {executionResult.duration && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Duration: {(executionResult.duration / 1000).toFixed(2)}s
-                      </p>
-                    )}
-                    {executionResult.error && (
-                      <p className="text-sm text-red-600 mt-1">
-                        Error: {executionResult.error}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        )}
 
-        {/* Minimized Footer */}
-        {isMinimized && (
-          <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">
-                {executionResult.status === 'running' ? 'Running...' :
-                 executionResult.status === 'passed' ? 'Passed ✅' :
-                 'Failed ❌'}
-              </span>
-              <span className="font-medium text-gray-700 dark:text-gray-300">
-                {completedSteps}/{totalSteps} steps
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mt-2">
-              <div
-                className={`h-2 rounded-full transition-all ${
-                  executionResult.status === 'passed' ? 'bg-green-500' :
-                  executionResult.status === 'failed' ? 'bg-red-500' :
-                  'bg-blue-500'
-                }`}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Footer Actions */}
-        {!isMinimized && executionResult.status !== 'running' && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-            <button
-              onClick={onClose}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          {/* Final result */}
+          {executionResult.status !== 'running' && (
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 8,
+                background:
+                  executionResult.status === 'passed' ? 'var(--moss-soft)' : 'var(--clay-soft)',
+                border: `1px solid ${
+                  executionResult.status === 'passed' ? 'var(--moss-edge)' : 'var(--clay-edge)'
+                }`,
+              }}
             >
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                {executionResult.status === 'passed' ? (
+                  <CheckCircle2 size={20} style={{ color: 'var(--moss)', flexShrink: 0 }} />
+                ) : (
+                  <XCircle size={20} style={{ color: 'var(--clay)', flexShrink: 0 }} />
+                )}
+                <div>
+                  <div
+                    style={{
+                      fontFamily: 'Inter Tight',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color:
+                        executionResult.status === 'passed' ? 'var(--moss)' : 'var(--clay)',
+                    }}
+                  >
+                    Test {executionResult.status === 'passed' ? 'passed' : 'failed'}
+                  </div>
+                  {executionResult.duration && (
+                    <p className="dim" style={{ margin: '2px 0 0', fontSize: 11.5 }}>
+                      Duration: {(executionResult.duration / 1000).toFixed(2)}s
+                    </p>
+                  )}
+                  {executionResult.error && (
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--clay)' }}>
+                      Error: {executionResult.error}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {executionResult.status !== 'running' && (
+          <div className="modal-foot">
+            <button type="button" onClick={onClose} className="btn btn-primary">
               Close
             </button>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

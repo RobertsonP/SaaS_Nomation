@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Folder, Pencil, Plus, Trash2 } from 'lucide-react';
 import { projectsAPI, authFlowsAPI } from '../../lib/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useProjects } from '../../contexts/ProjectsContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
+import { Pill } from '../../components/ui/Pill';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { AuthStep } from '../../types/api.types';
 import { createLogger } from '../../lib/logger';
 
@@ -14,6 +17,7 @@ type Project = ReturnType<typeof import('../../contexts/ProjectsContext').usePro
 
 export function ProjectsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showSuccess, showError } = useNotification();
   const { projects, loading, refreshProjects, removeProjectFromCache } = useProjects();
 
@@ -23,6 +27,18 @@ export function ProjectsPage() {
     refreshProjects();
   }, [refreshProjects]);
   const [showForm, setShowForm] = useState(false);
+
+  // Auto-open the create-project modal when navigated here with ?new=1
+  // (used by the dashboard's "New project" button).
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setShowForm(true);
+      // Clear the query param so a refresh doesn't re-trigger the modal.
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [showEditForm, setShowEditForm] = useState<string | null>(null); // projectId being edited
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -353,340 +369,410 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Projects</h1>
-        <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Create Project
+    <div className="content">
+      <div className="page-head">
+        <div>
+          <h1>Projects</h1>
+          <div className="sub">
+            {projects.length} project{projects.length === 1 ? '' : 's'} in this workspace
+          </div>
+        </div>
+        <div className="row">
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={13} />
+            <span>New project</span>
           </button>
+          <PageHelpButton helpKey="projects" />
+        </div>
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create New Project</h2>
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
+        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
+          <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">Create New Project</div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowForm(false)}
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
 
-              {/* Tabs */}
-              <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-                <button
-                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-                    activeTab === 'manual'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  onClick={() => setActiveTab('manual')}
-                >
-                  Manual Setup
-                </button>
-                <button
-                  className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-                    activeTab === 'github'
-                      ? 'border-purple-600 text-purple-600 dark:text-purple-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                  }`}
-                  onClick={() => setActiveTab('github')}
-                >
-                  GitHub Import
-                </button>
-              </div>
+            <div className="tabs" style={{ margin: '0 18px' }}>
+              <button
+                type="button"
+                className={`tab ${activeTab === 'manual' ? 'active' : ''}`}
+                onClick={() => setActiveTab('manual')}
+              >
+                Manual Setup
+              </button>
+              <button
+                type="button"
+                className={`tab ${activeTab === 'github' ? 'active' : ''}`}
+                onClick={() => setActiveTab('github')}
+              >
+                GitHub Import
+              </button>
+            </div>
 
-              {/* Manual Tab Content */}
+            <div className="modal-body">
               {activeTab === 'manual' && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                    <p className="text-blue-700 dark:text-blue-300 text-sm">
-                      Create a project and add URLs to analyze. Best for testing live websites.
-                    </p>
+                <form onSubmit={handleSubmit} className="col" style={{ gap: 12 }}>
+                  <div
+                    style={{
+                      background: 'var(--moss-soft)',
+                      border: '1px solid var(--moss-edge)',
+                      color: 'var(--moss)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                    }}
+                  >
+                    Create a project and add URLs to analyze. Best for testing live websites.
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Project Name <span className="text-red-500">*</span>
+                  <div className="field">
+                    <label htmlFor="proj-name">
+                      Project Name <span style={{ color: 'var(--clay)' }}>*</span>
                     </label>
                     <input
+                      id="proj-name"
                       type="text"
                       required
-                      placeholder="e.g., My E-commerce Site"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="e.g. My E-commerce Site"
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Description (optional)
-                    </label>
-                    <textarea
-                      placeholder="Brief description..."
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      rows={3}
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Website URLs (optional)
-                    </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  <div className="field">
+                    <label htmlFor="proj-desc">Description (optional)</label>
+                    <textarea
+                      id="proj-desc"
+                      placeholder="Brief description…"
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>Website URLs (optional)</label>
+                    <span className="hint" style={{ marginBottom: 4 }}>
                       Add URLs to analyze and test. You can also add them later.
-                    </p>
-                    {formData.urls.map((url, index) => (
-                      <div key={index} className="flex items-center space-x-2 mb-2">
-                        <input
-                          type="url"
-                          placeholder="https://example.com"
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          value={url}
-                          onChange={(e) => updateUrl(index, e.target.value)}
-                        />
-                        {formData.urls.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeUrlField(index)}
-                            className="bg-red-500 text-white px-2 py-2 rounded-md hover:bg-red-600 text-sm"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    </span>
+                    <div className="col" style={{ gap: 6 }}>
+                      {formData.urls.map((url, index) => (
+                        <div key={index} className="row" style={{ gap: 6 }}>
+                          <input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={url}
+                            onChange={(e) => updateUrl(index, e.target.value)}
+                            className="mono"
+                            style={{
+                              flex: 1,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--hair-2)',
+                              borderRadius: 5,
+                              padding: '6px 8px',
+                              fontSize: 12.5,
+                              color: 'var(--ink)',
+                            }}
+                          />
+                          {formData.urls.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeUrlField(index)}
+                              className="icon-btn"
+                              style={{ color: 'var(--clay)' }}
+                              aria-label="Remove URL"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                     <button
                       type="button"
                       onClick={addUrlField}
-                      className="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm mt-2"
+                      className="btn btn-outline btn-sm"
+                      style={{ alignSelf: 'flex-start', marginTop: 6 }}
                     >
-                      + Add URL
-                    </button>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating || !formData.name.trim()}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                    >
-                      {isCreating ? 'Creating...' : 'Create Project'}
+                      <Plus size={13} />
+                      <span>Add URL</span>
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* GitHub Tab Content */}
               {activeTab === 'github' && (
-                <form onSubmit={handleGitHubSubmit} className="space-y-4">
-                  <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
-                    <p className="text-purple-700 dark:text-purple-300 text-sm">
-                      Clone a public or private repository. We'll analyze the code structure to build your test project.
-                    </p>
+                <form onSubmit={handleGitHubSubmit} className="col" style={{ gap: 12 }}>
+                  <div
+                    style={{
+                      background: 'var(--slate-soft)',
+                      border: '1px solid var(--slate-edge)',
+                      color: 'var(--slate)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                    }}
+                  >
+                    Clone a public or private repository. We'll analyze the code structure to
+                    build your test project.
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Repository URL <span className="text-red-500">*</span>
+                  <div className="field">
+                    <label htmlFor="gh-repo">
+                      Repository URL <span style={{ color: 'var(--clay)' }}>*</span>
                     </label>
                     <input
+                      id="gh-repo"
                       type="url"
                       required
                       placeholder="https://github.com/username/repo"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       value={githubData.repoUrl}
-                      onChange={(e) => setGithubData({...githubData, repoUrl: e.target.value})}
+                      onChange={(e) => setGithubData({ ...githubData, repoUrl: e.target.value })}
+                      className="mono"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Personal Access Token (Optional)
-                    </label>
+                  <div className="field">
+                    <label htmlFor="gh-token">Personal Access Token (Optional)</label>
                     <input
+                      id="gh-token"
                       type="password"
                       placeholder="ghp_xxxxxxxxxxxx"
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       value={githubData.token}
-                      onChange={(e) => setGithubData({...githubData, token: e.target.value})}
+                      onChange={(e) => setGithubData({ ...githubData, token: e.target.value })}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Required only for private repositories.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="mr-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating || !githubData.repoUrl.trim()}
-                      className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center"
-                    >
-                      {isCreating ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Importing...
-                        </>
-                      ) : (
-                        'Import Repository'
-                      )}
-                    </button>
+                    <span className="hint">Required only for private repositories.</span>
                   </div>
                 </form>
+              )}
+            </div>
+
+            <div className="modal-foot">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
+              </button>
+              {activeTab === 'manual' ? (
+                <button
+                  type="submit"
+                  onClick={handleSubmit as any}
+                  disabled={isCreating || !formData.name.trim()}
+                  className="btn btn-primary"
+                  style={
+                    isCreating || !formData.name.trim()
+                      ? { opacity: 0.5, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {isCreating ? 'Creating…' : 'Create Project'}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  onClick={handleGitHubSubmit as any}
+                  disabled={isCreating || !githubData.repoUrl.trim()}
+                  className="btn btn-primary"
+                  style={
+                    isCreating || !githubData.repoUrl.trim()
+                      ? { opacity: 0.5, cursor: 'not-allowed' }
+                      : undefined
+                  }
+                >
+                  {isCreating ? 'Importing…' : 'Import Repository'}
+                </button>
               )}
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => {
-          return (
-            <div
-              key={project.id}
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow hover:shadow-lg dark:shadow-gray-900/50 transition-shadow cursor-pointer border border-transparent dark:border-gray-700"
-              onDoubleClick={() => navigate(`/projects/${project.id}`)}
-            >
-              {/* Project Header with Analysis and Delete Buttons */}
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-semibold flex-1 text-gray-900 dark:text-white">{project.name}</h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/projects/${project.id}`);
-                    }}
-                    className="px-3 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    title="View and edit project details"
-                  >
-                    ✏️ Open
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent double-click navigation
-                      handleDeleteProject(project.id, project.name);
-                    }}
-                    className="px-3 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors"
-                    title="Delete project"
-                  >
-                    🗑️ Delete
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-gray-600 dark:text-gray-400 mb-2">{project.description}</p>
-              <div className="mb-4">
-                {project.urls && project.urls.length > 0 ? (
-                  <div className="space-y-1">
-                    {project.urls.slice(0, 2).map((url, index) => (
-                      <p key={url.id || index} className="text-sm text-blue-600 dark:text-blue-400 truncate">{url.url}</p>
-                    ))}
-                    {project.urls.length > 2 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">+ {project.urls.length - 2} more URLs</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="text-yellow-600 dark:text-yellow-400">⚠️</div>
-                      <div>
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Setup Required</p>
-                        <p className="text-xs text-yellow-700 dark:text-yellow-400">Add URLs and analyze pages to get started</p>
+      {projects.length === 0 && !showForm ? (
+        <div className="card">
+          <div className="empty">
+            <div className="empty-icon">
+              <Folder size={20} />
+            </div>
+            <h3>No projects yet</h3>
+            <p>Create your first project to start adding URLs, picking elements, and authoring tests.</p>
+            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+              <Plus size={13} />
+              <span>Create your first project</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="stat-grid-4"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+          }}
+        >
+          {projects.map((project) => {
+            const hasUrls = project.urls && project.urls.length > 0;
+            return (
+              <div
+                key={project.id}
+                className="card"
+                style={{ overflow: 'hidden', cursor: 'pointer' }}
+                onClick={() => navigate(`/projects/${project.id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') navigate(`/projects/${project.id}`);
+                }}
+              >
+                <div className="card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: 'var(--ink)',
+                          letterSpacing: '-0.005em',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {project.name}
                       </div>
+                      {project.description && (
+                        <div
+                          className="dim"
+                          style={{
+                            fontSize: 11.5,
+                            marginTop: 2,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {project.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="row" style={{ gap: 4, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm btn-icon"
+                        title="Open project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/projects/${project.id}`);
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm btn-icon"
+                        title="Delete project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProject(project.id, project.name);
+                        }}
+                        style={{ color: 'var(--clay)' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Project Stats */}
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-3 text-sm text-gray-500 dark:text-gray-400">
-                  <span>{project._count.tests} tests</span>
-                  {project._count.elements !== undefined && (
-                    <>
-                      <span>•</span>
-                      <span>{project._count.elements} elements</span>
-                    </>
+                  {hasUrls ? (
+                    <div className="col" style={{ gap: 2 }}>
+                      {project.urls.slice(0, 2).map((url, index) => (
+                        <div
+                          key={url.id || index}
+                          className="mono"
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--slate)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={url.url}
+                        >
+                          {url.url}
+                        </div>
+                      ))}
+                      {project.urls.length > 2 && (
+                        <div className="dim" style={{ fontSize: 10.5 }}>
+                          + {project.urls.length - 2} more
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: 'var(--amber-soft)',
+                        border: '1px solid var(--amber-edge)',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        fontSize: 11.5,
+                        color: 'var(--amber)',
+                      }}
+                    >
+                      Setup needed — add URLs to get started.
+                    </div>
                   )}
-                </div>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}
-                </span>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex space-x-2">
-                {project.urls && project.urls.length > 0 ? (
-                  <>
+                  <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.tests} test{project._count.tests === 1 ? '' : 's'}
+                    </Pill>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.elements} element{project._count.elements === 1 ? '' : 's'}
+                    </Pill>
+                    <Pill kind="mute" dot={false}>
+                      {project._count.urls} URL{project._count.urls === 1 ? '' : 's'}
+                    </Pill>
+                  </div>
+
+                  <div
+                    className="row"
+                    style={{
+                      gap: 6,
+                      paddingTop: 8,
+                      borderTop: '1px solid var(--hair)',
+                    }}
+                  >
                     <Link
                       to={`/projects/${project.id}/tests`}
-                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-center text-sm"
+                      className="btn btn-outline btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      View Tests
+                      View tests
                     </Link>
                     <Link
                       to={`/projects/${project.id}/tests/new`}
-                      className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-center text-sm"
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Create Test
+                      New test
                     </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      to={`/projects/${project.id}`}
-                      className="flex-1 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 text-center text-sm font-medium"
-                    >
-                      Setup Project
-                    </Link>
-                    <Link
-                      to={`/projects/${project.id}/tests`}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-center text-sm"
-                    >
-                      View ({project._count.tests})
-                    </Link>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {projects.length === 0 && !showForm && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">No projects yet</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
-          >
-            Create Your First Project
-          </button>
+            );
+          })}
         </div>
       )}
 

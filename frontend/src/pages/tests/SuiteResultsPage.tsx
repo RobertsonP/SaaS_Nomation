@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { io, Socket } from 'socket.io-client'
+import { Layers, Loader2, Play } from 'lucide-react'
 import { testSuitesAPI, projectsAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
+import { Pill, PillKind } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 
 interface SuiteExecution {
   id: string
@@ -31,11 +35,19 @@ interface TestSuite {
 export function SuiteResultsPage() {
   const { suiteId } = useParams<{ suiteId: string }>()
   const { showError, showSuccess } = useNotification()
-  
+  const { active: activeSuiteRun, startTracking, minimize: minimizeSuiteRun } = useSuiteExecutionContext()
+
   const [testSuite, setTestSuite] = useState<TestSuite | null>(null)
   const [executions, setExecutions] = useState<SuiteExecution[]>([])
   const [selectedExecution, setSelectedExecution] = useState<SuiteExecution | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Derive a simple "is running" flag from either the latest execution row
+  // or the suite-execution context (preferred when this suite is the one
+  // being tracked).
+  const isRunning =
+    (activeSuiteRun?.suiteId === suiteId && activeSuiteRun?.status === 'running') ||
+    executions.some((e) => e.status === 'running');
 
   useEffect(() => {
     if (suiteId) {
@@ -97,33 +109,44 @@ export function SuiteResultsPage() {
   }
 
   const runSuite = async () => {
+    if (isRunning || !testSuite) return;
     try {
-      await testSuitesAPI.execute(suiteId!)
-      
+      const response = await testSuitesAPI.execute(suiteId!)
+      const executionId =
+        response?.data?.executionId ?? response?.data?.id ?? response?.data?.execution?.id;
+      if (executionId) {
+        startTracking({
+          suiteId: suiteId!,
+          suiteName: testSuite.name,
+          executionId,
+          testsTotal: 0,
+        });
+      }
+
       // Poll for updates every 3 seconds for 60 seconds
       let pollCount = 0
       const maxPolls = 20
       const pollInterval = setInterval(async () => {
         await loadSuiteAndResults()
         pollCount++
-        
+
         if (pollCount >= maxPolls) {
           clearInterval(pollInterval)
         }
       }, 3000)
-      
+
     } catch (error) {
       console.error('Failed to run suite:', error)
       showError('Execution Failed', 'Failed to start suite execution')
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusKind = (status: string): PillKind => {
     switch (status) {
-      case 'passed': return 'text-green-600 bg-green-100'
-      case 'failed': return 'text-red-600 bg-red-100'
-      case 'running': return 'text-blue-600 bg-blue-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'passed': return 'ok'
+      case 'failed': return 'err'
+      case 'running': return 'info'
+      default: return 'mute'
     }
   }
 
@@ -139,98 +162,158 @@ export function SuiteResultsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading suite results...</div>
+      <div className="content">
+        <div className="row" style={{ minHeight: '40vh', justifyContent: 'center' }}>
+          <div className="skel" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <Link to={`/projects/${testSuite?.project.id}/suites`} className="text-blue-600 hover:text-blue-800">
-            ← Back to Test Suites
-          </Link>
+    <div className="content">
+      <div className="page-head">
+        <div>
+          {testSuite?.project?.id && (
+            <Link
+              to={`/projects/${testSuite.project.id}/suites`}
+              className="dim"
+              style={{ fontSize: 11.5, textDecoration: 'none', display: 'inline-block', marginBottom: 4 }}
+            >
+              ← Back to Test Suites
+            </Link>
+          )}
+          {selectedExecution && (
+            <div className="row" style={{ marginBottom: 4, gap: 8 }}>
+              <Pill kind={getStatusKind(selectedExecution.status)} dot={false}>
+                {selectedExecution.status}
+              </Pill>
+              <span className="dim mono" style={{ fontSize: 11 }}>
+                run_{selectedExecution.id.slice(0, 8)}
+              </span>
+            </div>
+          )}
+          <h1>{testSuite?.name || 'Suite results'}</h1>
+          {testSuite?.project?.name && (
+            <div className="sub">
+              {testSuite.project.name}
+              {testSuite.description ? ` · ${testSuite.description}` : ''}
+            </div>
+          )}
         </div>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{testSuite?.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Project: {testSuite?.project.name}</p>
-            {testSuite?.description && (
-              <p className="text-gray-500 dark:text-gray-400 mt-1">{testSuite.description}</p>
-            )}
-          </div>
+        <div className="row" style={{ gap: 6 }}>
+          {isRunning && activeSuiteRun?.suiteId === suiteId && (
+            <button
+              type="button"
+              onClick={minimizeSuiteRun}
+              className="btn btn-outline btn-sm"
+              title="Minimize — execution continues in the background"
+            >
+              <span>Minimize</span>
+            </button>
+          )}
           <button
+            type="button"
             onClick={runSuite}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            className="btn btn-primary"
+            disabled={isRunning}
+            style={isRunning ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
           >
-            ▶️ Run Suite
+            {isRunning ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Running…</span>
+              </>
+            ) : (
+              <>
+                <Play size={13} />
+                <span>Run Suite</span>
+              </>
+            )}
           </button>
+          <PageHelpButton helpKey="suite-results" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Execution History */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-            <div className="p-4 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold">Execution History</h2>
-            </div>
-            <div className="divide-y dark:divide-gray-700 max-h-96 overflow-y-auto">
-              {executions.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No executions yet
+      <div
+        className="split-2"
+        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}
+      >
+        <div className="card">
+          <div className="card-head">
+            <span className="card-title">Execution History</span>
+            <span className="dim tabular" style={{ fontSize: 11 }}>
+              {executions.length}
+            </span>
+          </div>
+          <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+            {executions.length === 0 ? (
+              <div className="empty" style={{ padding: '24px 16px' }}>
+                <div className="empty-icon">
+                  <Layers size={18} />
                 </div>
-              ) : (
-                executions.map((execution) => (
-                  <div
+                <h3>No executions yet</h3>
+                <p>Click "Run Suite" to start the first run.</p>
+              </div>
+            ) : (
+              executions.map((execution) => {
+                const isSelected = selectedExecution?.id === execution.id;
+                return (
+                  <button
                     key={execution.id}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                      selectedExecution?.id === execution.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
-                    }`}
+                    type="button"
                     onClick={() => setSelectedExecution(execution)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      borderBottom: '1px solid var(--hair)',
+                      background: isSelected ? 'var(--surface-2)' : 'transparent',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(execution.status)}`}>
-                          {execution.status.toUpperCase()}
-                        </span>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {new Date(execution.startedAt).toLocaleString()}
-                        </p>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
-                          <p>Duration: {formatDuration(execution.duration)}</p>
-                          <p>Tests: {execution.totalTests} total</p>
-                          <p className="text-green-600">✓ {execution.passedTests} passed</p>
-                          <p className="text-red-600">✗ {execution.failedTests} failed</p>
-                          <p>Pass Rate: {getPassRate(execution)}</p>
-                        </div>
-                      </div>
+                    <Pill kind={getStatusKind(execution.status)} dot={false}>
+                      {execution.status}
+                    </Pill>
+                    <div className="dim" style={{ fontSize: 11, marginTop: 4 }}>
+                      {new Date(execution.startedAt).toLocaleString()}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    <div className="col" style={{ marginTop: 4, gap: 2, fontSize: 10.5 }}>
+                      <span className="dim tabular">
+                        Duration: {formatDuration(execution.duration)}
+                      </span>
+                      <span className="tabular" style={{ color: 'var(--moss)' }}>
+                        ✓ {execution.passedTests} passed
+                      </span>
+                      <span className="tabular" style={{ color: 'var(--clay)' }}>
+                        ✗ {execution.failedTests} failed
+                      </span>
+                      <span className="dim tabular">Pass rate: {getPassRate(execution)}</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Suite Execution Report */}
-        <div className="lg:col-span-2">
+        <div>
           {selectedExecution ? (
             <SuiteExecutionReport
               execution={selectedExecution}
               suiteName={testSuite?.name || 'Unknown Suite'}
             />
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-lg font-semibold">Select an execution to view details</h2>
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Select an execution</span>
               </div>
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                <div className="text-4xl mb-4">🧪</div>
-                <p className="text-lg mb-2">Professional Suite Results</p>
-                <p className="text-sm">Select an execution from the history to view its per-test breakdown</p>
+              <div className="empty">
+                <div className="empty-icon">
+                  <Layers size={20} />
+                </div>
+                <h3>No execution selected</h3>
+                <p>Pick a run from the history on the left to see its per-test breakdown.</p>
               </div>
             </div>
           )}

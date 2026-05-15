@@ -8,8 +8,12 @@ import { DiscoveryProvider } from './contexts/DiscoveryContext'
 import { DiscoveryFloatingIndicator } from './components/discovery/DiscoveryFloatingIndicator'
 import { AnalysisProvider } from './contexts/AnalysisContext'
 import { AnalysisFloatingIndicator } from './components/analysis/AnalysisFloatingIndicator'
+import { SuiteExecutionProvider } from './contexts/SuiteExecutionContext'
+import { SuiteExecutionFloatingIndicator } from './components/execution/SuiteExecutionFloatingIndicator'
+import { PageHelpProvider } from './contexts/PageHelpContext'
+import { PageHelpDrawer } from './components/help/PageHelpDrawer'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
-import { Layout } from './components/layout/Layout'
+import { VerdantShell } from './components/layout/VerdantShell'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -22,6 +26,7 @@ import { SuiteDetailsPage } from './pages/tests/SuiteDetailsPage'
 import { TestBuilderPage } from './pages/tests/TestBuilderPage'
 import { TestResultsPage } from './pages/tests/TestResultsPage'
 import { SuiteResultsPage } from './pages/tests/SuiteResultsPage'
+import { RunsPage } from './pages/tests/RunsPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { AuthSetupPage } from './pages/auth/AuthSetupPage'
@@ -52,6 +57,8 @@ function AuthLogoutListener() {
       {/* Indicators must live INSIDE the router so they can use useNavigate. */}
       <DiscoveryFloatingIndicator />
       <AnalysisFloatingIndicator />
+      <SuiteExecutionFloatingIndicator />
+      <PageHelpDrawer />
     </>
   );
 }
@@ -76,7 +83,7 @@ const router = createBrowserRouter([
       {
         element: (
           <ProtectedRoute>
-            <Layout />
+            <VerdantShell />
           </ProtectedRoute>
         ),
         children: [
@@ -119,6 +126,10 @@ const router = createBrowserRouter([
         element: <TestsPage />
       },
       {
+        path: "projects/:projectId/runs",
+        element: <RunsPage />
+      },
+      {
         path: "projects/:projectId/tests/new",
         element: <TestBuilderPage />
       },
@@ -149,8 +160,12 @@ function App() {
             <NotificationProvider>
               <DiscoveryProvider>
                 <AnalysisProvider>
-                  <RouterProvider router={router} />
-                  <NotificationContainer />
+                  <SuiteExecutionProvider>
+                    <PageHelpProvider>
+                      <RouterProvider router={router} />
+                      <NotificationContainer />
+                    </PageHelpProvider>
+                  </SuiteExecutionProvider>
                 </AnalysisProvider>
               </DiscoveryProvider>
             </NotificationProvider>

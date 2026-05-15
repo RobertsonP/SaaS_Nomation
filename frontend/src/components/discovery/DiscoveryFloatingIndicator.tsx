@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle, AlertCircle, Maximize2, X, ChevronDown, ChevronUp, Globe } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Maximize2, X, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import { useDiscoveryContext } from '../../contexts/DiscoveryContext';
 
 export function DiscoveryFloatingIndicator() {
@@ -7,7 +7,6 @@ export function DiscoveryFloatingIndicator() {
   const [expanded, setExpanded] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Elapsed time timer
   useEffect(() => {
     if (!activeDiscovery || activeDiscovery.status !== 'discovering') return;
     const start = Date.now();
@@ -17,19 +16,14 @@ export function DiscoveryFloatingIndicator() {
     return () => clearInterval(timer);
   }, [activeDiscovery?.status]);
 
-  // Only show when minimized (modal handles the full view)
-  if (!activeDiscovery || !isMinimized) {
-    return null;
-  }
+  if (!activeDiscovery || !isMinimized) return null;
 
   const isComplete = activeDiscovery.status === 'complete';
   const isFailed = activeDiscovery.status === 'failed';
   const isRunning = activeDiscovery.status === 'discovering';
 
-  // Get recent discovered URLs (last 5)
   const recentUrls = activeDiscovery.discoveredUrls.slice(-5).reverse();
 
-  // Extract path from URL for display
   const getPathFromUrl = (url: string) => {
     try {
       const parsed = new URL(url);
@@ -39,120 +33,168 @@ export function DiscoveryFloatingIndicator() {
     }
   };
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <div className={`
-        rounded-lg shadow-lg border overflow-hidden
-        ${isComplete
-          ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700'
-          : isFailed
-          ? 'bg-red-50 dark:bg-red-900/40 border-red-200 dark:border-red-700'
-          : 'bg-blue-50 dark:bg-blue-900/40 border-blue-200 dark:border-blue-700'
-        }
-      `}>
-        {/* Main content */}
-        <div className="flex items-center gap-3 px-4 py-3">
-          {/* Status Icon */}
-          {isRunning && (
-            <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0" />
-          )}
-          {isComplete && (
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-          )}
-          {isFailed && (
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-          )}
+  let accentBg = 'var(--info-soft)';
+  let accentEdge = 'var(--info-edge)';
+  let accentFg = 'var(--info)';
+  if (isComplete) {
+    accentBg = 'var(--moss-soft)';
+    accentEdge = 'var(--moss-edge)';
+    accentFg = 'var(--moss)';
+  } else if (isFailed) {
+    accentBg = 'var(--clay-soft)';
+    accentEdge = 'var(--clay-edge)';
+    accentFg = 'var(--clay)';
+  }
 
-          {/* Status Text */}
-          <div className="flex flex-col flex-1 min-w-0">
-            <span className={`text-sm font-medium ${
-              isComplete
-                ? 'text-green-800 dark:text-green-200'
-                : isFailed
-                ? 'text-red-800 dark:text-red-200'
-                : 'text-blue-800 dark:text-blue-200'
-            }`}>
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 50,
+        maxWidth: 360,
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: `1px solid ${accentEdge}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-2)',
+          position: 'relative',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 3,
+            background: accentFg,
+          }}
+        />
+
+        <div className="row" style={{ alignItems: 'center', gap: 10, padding: '10px 14px 10px 16px' }}>
+          <span
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              background: accentBg,
+              border: `1px solid ${accentEdge}`,
+              color: accentFg,
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            {isRunning && <Loader2 size={14} className="animate-spin" />}
+            {isComplete && <CheckCircle2 size={14} />}
+            {isFailed && <AlertCircle size={14} />}
+          </span>
+
+          <div className="col" style={{ flex: 1, minWidth: 0, gap: 1 }}>
+            <span
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: 'var(--ink)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {isRunning && `Discovering: ${activeDiscovery.phase}${elapsedSeconds > 0 ? ` (${elapsedSeconds}s)` : ''}`}
-              {isComplete && 'Discovery Complete'}
-              {isFailed && 'Discovery Failed'}
+              {isComplete && 'Discovery complete'}
+              {isFailed && 'Discovery failed'}
             </span>
-            <span className={`text-xs ${
-              isComplete
-                ? 'text-green-600 dark:text-green-300'
-                : isFailed
-                ? 'text-red-600 dark:text-red-300'
-                : 'text-blue-600 dark:text-blue-300'
-            }`}>
+            <span className="dim tabular" style={{ fontSize: 11 }}>
               {activeDiscovery.pagesFound} / {activeDiscovery.maxPages} pages
             </span>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="row" style={{ gap: 2, flexShrink: 0 }}>
             {isRunning && recentUrls.length > 0 && (
               <button
+                type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="p-1.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300"
+                className="icon-btn"
                 title={expanded ? 'Hide details' : 'Show recent pages'}
               >
-                {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                {expanded ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
               </button>
             )}
             <button
+              type="button"
               onClick={restoreDiscovery}
-              className={`p-1.5 rounded hover:bg-opacity-20 ${
-                isComplete
-                  ? 'hover:bg-green-600 text-green-700 dark:text-green-300'
-                  : isFailed
-                  ? 'hover:bg-red-600 text-red-700 dark:text-red-300'
-                  : 'hover:bg-blue-600 text-blue-700 dark:text-blue-300'
-              }`}
+              className="icon-btn"
               title="View full details"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 size={13} />
             </button>
             {(isComplete || isFailed) && (
               <button
+                type="button"
                 onClick={clearDiscovery}
-                className={`p-1.5 rounded hover:bg-opacity-20 ${
-                  isComplete
-                    ? 'hover:bg-green-600 text-green-700 dark:text-green-300'
-                    : 'hover:bg-red-600 text-red-700 dark:text-red-300'
-                }`}
+                className="icon-btn"
                 title="Dismiss"
               >
-                <X className="w-4 h-4" />
+                <X size={13} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Progress Bar */}
         {isRunning && (
-          <div className="px-4 pb-2">
-            <div className="h-1.5 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+          <div style={{ padding: '0 16px 10px' }}>
+            <div
+              style={{
+                height: 4,
+                background: 'var(--surface-2)',
+                borderRadius: 999,
+                overflow: 'hidden',
+              }}
+            >
               <div
-                className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${activeDiscovery.maxPages > 0 ? Math.min(100, Math.round((activeDiscovery.pagesFound / activeDiscovery.maxPages) * 100)) : 0}%` }}
+                style={{
+                  height: '100%',
+                  width: `${activeDiscovery.maxPages > 0 ? Math.min(100, Math.round((activeDiscovery.pagesFound / activeDiscovery.maxPages) * 100)) : 0}%`,
+                  background: accentFg,
+                  transition: 'width .5s ease',
+                }}
               />
             </div>
           </div>
         )}
 
-        {/* Expanded section - Recent URLs */}
         {expanded && isRunning && recentUrls.length > 0 && (
-          <div className="border-t border-blue-200 dark:border-blue-700 px-4 py-2 max-h-40 overflow-y-auto">
-            <div className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
-              Recent pages found:
+          <div
+            style={{
+              borderTop: `1px solid ${accentEdge}`,
+              padding: '8px 16px',
+              maxHeight: 160,
+              overflowY: 'auto',
+              background: 'var(--surface-2)',
+            }}
+          >
+            <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              Recent pages found
             </div>
-            <div className="space-y-1">
+            <div className="col" style={{ gap: 3 }}>
               {recentUrls.map((url, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400"
-                >
-                  <Globe className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate" title={url}>
+                <div key={idx} className="row mono" style={{ gap: 6, fontSize: 11, color: 'var(--ink-2)' }}>
+                  <Globe size={11} style={{ flexShrink: 0, color: accentFg }} />
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={url}
+                  >
                     {getPathFromUrl(url)}
                   </span>
                 </div>

@@ -4,7 +4,20 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authAPI } from '../../lib/api';
 import { timezonesByRegion } from '../../lib/timezones';
-import { User, Lock, Globe, Moon, Sun, CreditCard, Zap, Users, Calendar } from 'lucide-react';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import {
+  Calendar,
+  CreditCard,
+  Globe,
+  Lock,
+  Loader2,
+  Moon,
+  Sun,
+  User,
+  Users,
+  Zap,
+} from 'lucide-react';
+import { Pill, PillKind } from '../../components/ui/Pill';
 
 interface PlanInfo {
   plan: string;
@@ -23,20 +36,19 @@ export function ProfileSettingsPage() {
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
 
-  // Fetch profile with plan info
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -52,9 +64,8 @@ export function ProfileSettingsPage() {
             maxExecutions: data.organization.maxExecutions || 100,
           });
         }
-        // Update profile data with fetched info
         if (data.timezone) {
-          setProfileData(prev => ({ ...prev, timezone: data.timezone }));
+          setProfileData((prev) => ({ ...prev, timezone: data.timezone }));
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error);
@@ -71,10 +82,9 @@ export function ProfileSettingsPage() {
     try {
       await authAPI.updateProfile({
         name: profileData.name,
-        timezone: profileData.timezone
+        timezone: profileData.timezone,
       });
       showSuccess('Profile Updated', 'Your profile information has been updated.');
-      // Ideally refresh user context here
     } catch (error: any) {
       showError('Update Failed', error.response?.data?.message || 'Failed to update profile');
     } finally {
@@ -85,24 +95,18 @@ export function ProfileSettingsPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate current password
     if (!passwordData.currentPassword) {
       showError('Validation Error', 'Current password is required');
       return;
     }
-
-    // Validate new password
     if (!passwordData.newPassword) {
       showError('Validation Error', 'New password is required');
       return;
     }
-
     if (passwordData.newPassword.length < 8) {
       showError('Validation Error', 'New password must be at least 8 characters long');
       return;
     }
-
-    // Validate password match
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       showError('Validation Error', 'New passwords do not match');
       return;
@@ -112,7 +116,7 @@ export function ProfileSettingsPage() {
     try {
       await authAPI.changePassword({
         currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword
+        newPassword: passwordData.newPassword,
       });
       showSuccess('Password Changed', 'Your password has been updated successfully.');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -123,245 +127,348 @@ export function ProfileSettingsPage() {
     }
   };
 
+  const planKind: PillKind =
+    planInfo?.plan === 'enterprise' ? 'info' : planInfo?.plan === 'pro' ? 'ok' : 'mute';
+  const subscriptionKind: PillKind =
+    planInfo?.subscriptionStatus === 'active'
+      ? 'ok'
+      : planInfo?.subscriptionStatus === 'trialing'
+      ? 'warn'
+      : planInfo?.subscriptionStatus === 'past_due'
+      ? 'err'
+      : 'mute';
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-8">Account Settings</h1>
+    <div className="content" style={{ maxWidth: 920 }}>
+      <div className="page-head">
+        <div>
+          <h1>Account Settings</h1>
+          <div className="sub">Profile, plan, and security for your Nomation account.</div>
+        </div>
+        <div className="row">
+          <PageHelpButton helpKey="profile-settings" />
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="col" style={{ gap: 12 }}>
         {/* Profile Information */}
-        <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <User className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" />
-              Profile Information
-            </h2>
+        <section className="card">
+          <div className="card-head">
+            <span className="card-title row" style={{ gap: 6 }}>
+              <User size={14} className="dim" />
+              <span>Profile Information</span>
+            </span>
           </div>
-          <div className="p-6">
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    value={profileData.name}
-                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={profileData.email}
-                    disabled
-                    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 cursor-not-allowed"
+          <form onSubmit={handleUpdateProfile} className="card-pad col" style={{ gap: 12 }}>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="profile-name">Full Name</label>
+                <input
+                  id="profile-name"
+                  type="text"
+                  value={profileData.name}
+                  onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="profile-email">Email Address</label>
+                <input
+                  id="profile-email"
+                  type="email"
+                  value={profileData.email}
+                  disabled
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                />
+                <span className="hint">Email cannot be changed yet.</span>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="profile-tz">Timezone</label>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    id="profile-tz"
+                    value={profileData.timezone}
+                    onChange={(e) =>
+                      setProfileData({ ...profileData, timezone: e.target.value })
+                    }
+                    style={{ paddingRight: 28, width: '100%' }}
+                  >
+                    {Object.entries(timezonesByRegion).map(([region, zones]) => (
+                      <optgroup key={region} label={region}>
+                        {zones.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            (UTC{tz.offset}) {tz.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <Globe
+                    size={13}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: 'var(--ink-4)',
+                    }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timezone</label>
-                  <div className="relative">
-                    <select
-                      value={profileData.timezone}
-                      onChange={(e) => setProfileData({ ...profileData, timezone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      {Object.entries(timezonesByRegion).map(([region, zones]) => (
-                        <optgroup key={region} label={region}>
-                          {zones.map((tz) => (
-                            <option key={tz.value} value={tz.value}>
-                              (UTC{tz.offset}) {tz.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <Globe className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute right-3 top-3 pointer-events-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Theme</label>
-                  <div className="flex space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setTheme('light')}
-                      className={`flex-1 flex items-center justify-center px-3 py-2 border rounded-lg transition-colors ${
-                        theme === 'light'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      <Sun className="w-4 h-4 mr-2" /> Light
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTheme('dark')}
-                      className={`flex-1 flex items-center justify-center px-3 py-2 border rounded-lg transition-colors ${
-                        theme === 'dark'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      <Moon className="w-4 h-4 mr-2" /> Dark
-                    </button>
-                  </div>
+              <div className="field">
+                <label>Theme</label>
+                <div className="row" style={{ gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('light')}
+                    className={theme === 'light' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                  >
+                    <Sun size={13} />
+                    <span>Light</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('dark')}
+                    className={theme === 'dark' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                  >
+                    <Moon size={13} />
+                    <span>Dark</span>
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div className="flex justify-end pt-4">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isLoading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="row" style={{ justifyContent: 'flex-end', paddingTop: 4 }}>
+              <button type="submit" disabled={isLoading} className="btn btn-primary">
+                {isLoading ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Saving…</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
+              </button>
+            </div>
+          </form>
         </section>
 
         {/* Subscription Plan */}
-        <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <CreditCard className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" />
-              Your Plan
-            </h2>
+        <section className="card">
+          <div className="card-head">
+            <span className="card-title row" style={{ gap: 6 }}>
+              <CreditCard size={14} className="dim" />
+              <span>Your Plan</span>
+            </span>
           </div>
-          <div className="p-6">
+          <div className="card-pad">
             {planLoading ? (
-              <div className="animate-pulse space-y-3">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+              <div className="col" style={{ gap: 8 }}>
+                <div className="skel" style={{ height: 14, width: '40%' }} />
+                <div className="skel" style={{ height: 14, width: '60%' }} />
               </div>
             ) : planInfo ? (
-              <div className="space-y-6">
-                {/* Plan Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center space-x-3">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        planInfo.plan === 'enterprise' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300' :
-                        planInfo.plan === 'pro' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                      }`}>
-                        {planInfo.plan.charAt(0).toUpperCase() + planInfo.plan.slice(1)}
-                      </span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        planInfo.subscriptionStatus === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        planInfo.subscriptionStatus === 'trialing' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        planInfo.subscriptionStatus === 'past_due' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                        'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {planInfo.subscriptionStatus === 'active' ? 'Active' :
-                         planInfo.subscriptionStatus === 'trialing' ? 'Trial' :
-                         planInfo.subscriptionStatus === 'past_due' ? 'Past Due' :
-                         planInfo.subscriptionStatus === 'canceled' ? 'Canceled' :
-                         'Inactive'}
-                      </span>
-                    </div>
-                    {planInfo.currentPeriodEnd && planInfo.subscriptionStatus === 'active' && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        {planInfo.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on {new Date(planInfo.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    )}
-                  </div>
+              <div className="col" style={{ gap: 14 }}>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <Pill kind={planKind}>
+                    {planInfo.plan.charAt(0).toUpperCase() + planInfo.plan.slice(1)}
+                  </Pill>
+                  <Pill kind={subscriptionKind}>
+                    {planInfo.subscriptionStatus === 'active'
+                      ? 'Active'
+                      : planInfo.subscriptionStatus === 'trialing'
+                      ? 'Trial'
+                      : planInfo.subscriptionStatus === 'past_due'
+                      ? 'Past Due'
+                      : planInfo.subscriptionStatus === 'canceled'
+                      ? 'Canceled'
+                      : 'Inactive'}
+                  </Pill>
+                  {planInfo.currentPeriodEnd && planInfo.subscriptionStatus === 'active' && (
+                    <span
+                      className="dim row"
+                      style={{ fontSize: 11.5, gap: 4, alignItems: 'center' }}
+                    >
+                      <Calendar size={12} />
+                      {planInfo.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} on{' '}
+                      {new Date(planInfo.currentPeriodEnd).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
                 </div>
 
-                {/* Usage Limits */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Plan Limits</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
-                      <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm mb-1">
-                        <Zap className="w-4 h-4 mr-1" />
-                        Test Executions
+                <div
+                  style={{
+                    paddingTop: 10,
+                    borderTop: '1px solid var(--hair)',
+                  }}
+                >
+                  <div
+                    className="dim"
+                    style={{
+                      fontSize: 10.5,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      marginBottom: 8,
+                    }}
+                  >
+                    Plan limits
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--hair)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <div className="row dim" style={{ fontSize: 11, gap: 4, marginBottom: 4 }}>
+                        <Zap size={11} />
+                        <span>Test Executions</span>
                       </div>
-                      <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {planInfo.maxExecutions === -1 ? 'Unlimited' : `${planInfo.maxExecutions}/month`}
+                      <div
+                        className="tabular"
+                        style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}
+                      >
+                        {planInfo.maxExecutions === -1
+                          ? 'Unlimited'
+                          : `${planInfo.maxExecutions}/month`}
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
-                      <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm mb-1">
-                        <Users className="w-4 h-4 mr-1" />
-                        Team Members
+                    <div
+                      style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--hair)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <div className="row dim" style={{ fontSize: 11, gap: 4, marginBottom: 4 }}>
+                        <Users size={11} />
+                        <span>Team Members</span>
                       </div>
-                      <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <div
+                        className="tabular"
+                        style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}
+                      >
                         {planInfo.maxUsers === -1 ? 'Unlimited' : planInfo.maxUsers}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Upgrade Button for Free Plan */}
                 {planInfo.plan === 'free' && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Pro Plan Coming Soon</p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Contact support for early access.</p>
+                  <div
+                    style={{
+                      paddingTop: 10,
+                      borderTop: '1px solid var(--hair)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: 'var(--moss-soft)',
+                        border: '1px solid var(--moss-edge)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                        fontSize: 12,
+                        color: 'var(--moss)',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600 }}>Pro Plan Coming Soon</div>
+                      <div style={{ fontSize: 11, marginTop: 2 }}>
+                        Contact support for early access.
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">Unable to load plan information.</p>
+              <p className="dim" style={{ margin: 0 }}>
+                Unable to load plan information.
+              </p>
             )}
           </div>
         </section>
 
         {/* Password Change */}
-        <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <Lock className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" />
-              Security
-            </h2>
+        <section className="card">
+          <div className="card-head">
+            <span className="card-title row" style={{ gap: 6 }}>
+              <Lock size={14} className="dim" />
+              <span>Security</span>
+            </span>
           </div>
-          <div className="p-6">
-            <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
-                <input
-                  type="password"
-                  value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
-                <input
-                  type="password"
-                  value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
-                <input
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50"
-                >
-                  {isLoading ? 'Updating...' : 'Update Password'}
-                </button>
-              </div>
-            </form>
-          </div>
+          <form
+            onSubmit={handleChangePassword}
+            className="card-pad col"
+            style={{ gap: 12, maxWidth: 480 }}
+          >
+            <div className="field">
+              <label htmlFor="cur-pw">Current Password</label>
+              <input
+                id="cur-pw"
+                type="password"
+                autoComplete="current-password"
+                value={passwordData.currentPassword}
+                onChange={(e) =>
+                  setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-pw">New Password</label>
+              <input
+                id="new-pw"
+                type="password"
+                autoComplete="new-password"
+                value={passwordData.newPassword}
+                onChange={(e) =>
+                  setPasswordData({ ...passwordData, newPassword: e.target.value })
+                }
+              />
+              <span className="hint">Minimum 8 characters.</span>
+            </div>
+            <div className="field">
+              <label htmlFor="conf-pw">Confirm New Password</label>
+              <input
+                id="conf-pw"
+                type="password"
+                autoComplete="new-password"
+                value={passwordData.confirmPassword}
+                onChange={(e) =>
+                  setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                }
+              />
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="submit" disabled={isLoading} className="btn btn-primary">
+                {isLoading ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Updating…</span>
+                  </>
+                ) : (
+                  <span>Update Password</span>
+                )}
+              </button>
+            </div>
+          </form>
         </section>
       </div>
     </div>

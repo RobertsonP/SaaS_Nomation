@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { CheckCircle2, Download, FileText, Image as ImageIcon, ListChecks, X, XCircle } from 'lucide-react';
 import { TestStep } from '../../types/test.types';
 
 interface ExecutionResult {
@@ -26,34 +27,19 @@ interface LiveExecutionModalProps {
   result: ExecutionResult;
 }
 
-export function LiveExecutionModal({
-  isOpen,
-  onClose,
-  step,
-  result
-}: LiveExecutionModalProps) {
-  // Handle ESC key
+export function LiveExecutionModal({ isOpen, onClose, step, result }: LiveExecutionModalProps) {
   useEffect(() => {
     if (!isOpen) return;
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
+      if (event.key === 'Escape') onClose();
     };
-
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Prevent background scrolling
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
+    if (isOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = 'unset';
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -61,234 +47,374 @@ export function LiveExecutionModal({
 
   if (!isOpen) return null;
 
-  const getStepIcon = (type: string) => {
-    switch (type) {
-      case 'click': return '👆';
-      case 'doubleclick': return '👆👆';
-      case 'type': return '⌨️';
-      case 'hover': return '🫸';
-      case 'scroll': return '↕️';
-      case 'wait': return '⏳';
-      case 'assert': return '✓';
-      default: return '📝';
-    }
-  };
-
-  const getStatusColor = (success: boolean) => {
-    return success
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : 'bg-red-100 text-red-800 border-red-200';
-  };
-
   const formatTiming = (duration: number) => {
     if (duration < 1000) return `${Math.round(duration)}ms`;
     return `${(duration / 1000).toFixed(2)}s`;
   };
 
+  const accentBg = result.success ? 'var(--moss-soft)' : 'var(--clay-soft)';
+  const accentEdge = result.success ? 'var(--moss-edge)' : 'var(--clay-edge)';
+  const accentFg = result.success ? 'var(--moss)' : 'var(--clay)';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className={`px-6 py-4 border-b border-gray-200 dark:border-gray-700 ${
-          result.success 
-            ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
-            : 'bg-gradient-to-r from-red-500 to-pink-600'
-        } text-white`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="text-2xl">{result.success ? '✅' : '❌'}</div>
-              <div>
-                <h2 className="text-xl font-bold">
-                  {result.success ? 'Step Executed Successfully!' : 'Step Execution Failed'}
-                </h2>
-                <p className="text-sm opacity-90">
-                  Live execution result for test step
-                </p>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal modal-lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div
+          className="modal-head"
+          style={{ background: accentBg, borderBottomColor: accentEdge }}
+        >
+          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: 'var(--surface)',
+                color: accentFg,
+                border: `1px solid ${accentEdge}`,
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {result.success ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+            </span>
+            <div>
+              <div className="modal-title">
+                {result.success ? 'Step executed successfully' : 'Step execution failed'}
+              </div>
+              <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                Live execution result for test step.
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-white hover:text-gray-200 text-2xl font-bold p-2 rounded-full hover:bg-black hover:bg-opacity-20 transition-colors"
-              aria-label="Close modal"
-            >
-              ×
-            </button>
           </div>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onClose}
+            aria-label="Close modal"
+          >
+            <X size={14} />
+          </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
-            {/* Step Information */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
-                <span>📋</span>
-                <span>Step Details</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="modal-body col" style={{ gap: 16, overflowY: 'auto' }}>
+          {/* Step details */}
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 8,
+              padding: 14,
+            }}
+          >
+            <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 10 }}>
+              <FileText size={14} style={{ color: 'var(--ink-2)' }} />
+              <span style={{ fontFamily: 'Inter Tight', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                Step details
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Action
+                </div>
+                <div className="row" style={{ gap: 6, alignItems: 'center', marginTop: 4 }}>
+                  <span
+                    className="pill"
+                    style={{
+                      background: accentBg,
+                      color: accentFg,
+                      borderColor: accentEdge,
+                    }}
+                  >
+                    {step.type.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Description
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink)', marginTop: 4 }}>
+                  {step.description}
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Selector
+              </div>
+              <code
+                className="mono"
+                style={{
+                  display: 'block',
+                  marginTop: 4,
+                  background: 'var(--surface-2)',
+                  padding: 8,
+                  borderRadius: 4,
+                  border: '1px solid var(--hair)',
+                  fontSize: 11.5,
+                  color: 'var(--slate)',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {step.selector}
+              </code>
+            </div>
+            {step.value && (
+              <div style={{ marginTop: 10 }}>
+                <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Value
+                </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    background: 'var(--surface-2)',
+                    padding: 8,
+                    borderRadius: 4,
+                    border: '1px solid var(--hair)',
+                    fontSize: 12.5,
+                    color: 'var(--ink)',
+                  }}
+                >
+                  "{step.value}"
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Execution results */}
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 8,
+              padding: 14,
+            }}
+          >
+            <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 10 }}>
+              <ListChecks size={14} style={{ color: 'var(--ink-2)' }} />
+              <span style={{ fontFamily: 'Inter Tight', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                Execution results
+              </span>
+            </div>
+
+            <div className="col" style={{ gap: 10 }}>
+              <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="dim" style={{ fontSize: 12 }}>Status</span>
+                <span
+                  className="pill"
+                  style={{
+                    background: accentBg,
+                    color: accentFg,
+                    borderColor: accentEdge,
+                  }}
+                >
+                  {result.success ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                  {result.success ? 'Success' : 'Failed'}
+                </span>
+              </div>
+
+              {result.timing && (
+                <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="dim" style={{ fontSize: 12 }}>Duration</span>
+                  <span className="mono tabular" style={{ fontSize: 12, color: 'var(--ink)' }}>
+                    {formatTiming(result.timing.duration)}
+                  </span>
+                </div>
+              )}
+
+              {result.elementFound !== undefined && (
+                <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="dim" style={{ fontSize: 12 }}>Element found</span>
+                  <span
+                    className="row"
+                    style={{
+                      gap: 4,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: result.elementFound ? 'var(--moss)' : 'var(--clay)',
+                    }}
+                  >
+                    {result.elementFound ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                    {result.elementFound ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              )}
+
+              {result.result && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Action</label>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-lg">{getStepIcon(step.type)}</span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.success)}`}>
-                      {step.type.toUpperCase()}
-                    </span>
+                  <div className="dim" style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Result
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      background: 'var(--surface-2)',
+                      padding: 8,
+                      borderRadius: 4,
+                      border: '1px solid var(--hair)',
+                      fontSize: 12,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {result.result}
                   </div>
                 </div>
+              )}
+
+              {result.error && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Description</label>
-                  <div className="mt-1 text-gray-900 dark:text-gray-100">{step.description}</div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Selector</label>
-                <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 font-mono text-sm text-gray-800 dark:text-gray-200 break-all">
-                  {step.selector}
-                </div>
-              </div>
-              {step.value && (
-                <div className="mt-4">
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Value</label>
-                  <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 text-gray-900 dark:text-gray-100">
-                    "{step.value}"
+                  <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--clay)' }}>
+                    Error
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      background: 'var(--clay-soft)',
+                      border: '1px solid var(--clay-edge)',
+                      padding: 8,
+                      borderRadius: 4,
+                      fontSize: 12,
+                      color: 'var(--clay)',
+                    }}
+                  >
+                    {result.error}
                   </div>
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Execution Results */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
-                <span>{result.success ? '🎯' : '⚠️'}</span>
-                <span>Execution Results</span>
-              </h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Status</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.success)}`}>
-                    {result.success ? 'SUCCESS' : 'FAILED'}
-                  </span>
+          {/* Screenshot */}
+          {result.screenshot && (
+            <div
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                borderRadius: 8,
+                padding: 14,
+              }}
+            >
+              <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                <ImageIcon size={14} style={{ color: 'var(--ink-2)' }} />
+                <span style={{ fontFamily: 'Inter Tight', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  Screenshot
+                </span>
+              </div>
+              <div
+                style={{
+                  background: 'var(--bone)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 6,
+                  padding: 10,
+                  textAlign: 'center',
+                }}
+              >
+                <img
+                  src={
+                    result.screenshot.startsWith('data:image/')
+                      ? result.screenshot
+                      : `data:image/png;base64,${result.screenshot}`
+                  }
+                  alt="Step execution screenshot"
+                  style={{ maxWidth: '100%', height: 'auto', borderRadius: 4, maxHeight: 500 }}
+                />
+                <div className="dim" style={{ fontSize: 11, marginTop: 8 }}>
+                  Screenshot taken after step execution
                 </div>
-
-                {result.timing && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Duration</span>
-                    <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">
-                      {formatTiming(result.timing.duration)}
-                    </span>
-                  </div>
-                )}
-
-                {result.elementFound !== undefined && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Element Found</span>
-                    <span className={`text-sm font-medium ${result.elementFound ? 'text-green-600' : 'text-red-600'}`}>
-                      {result.elementFound ? '✓ Yes' : '✗ No'}
-                    </span>
-                  </div>
-                )}
-
-                {result.result && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Result</label>
-                    <div className="mt-1 bg-white dark:bg-gray-700 p-3 rounded border dark:border-gray-600 text-gray-900 dark:text-gray-100">
-                      {result.result}
-                    </div>
-                  </div>
-                )}
-
-                {result.error && (
-                  <div>
-                    <label className="text-sm font-medium text-red-600">Error</label>
-                    <div className="mt-1 bg-red-50 border border-red-200 p-3 rounded text-red-800 text-sm">
-                      {result.error}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
+          )}
 
-            {/* Screenshot */}
-            {result.screenshot && (
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
-                  <span>📸</span>
-                  <span>Screenshot</span>
-                </h3>
-                <div className="bg-white dark:bg-gray-700 p-4 rounded-lg border dark:border-gray-600">
-                  <div className="text-center">
-                    <img
-                      src={result.screenshot.startsWith('data:image/')
-                        ? result.screenshot
-                        : `data:image/png;base64,${result.screenshot}`}
-                      alt="Step execution screenshot"
-                      className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 dark:border-gray-600"
-                      style={{ maxHeight: '500px' }}
-                    />
-                    <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-                      Screenshot taken after step execution
-                    </div>
+          {/* Logs */}
+          {result.logs && result.logs.length > 0 && (
+            <div
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                borderRadius: 8,
+                padding: 14,
+              }}
+            >
+              <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                <FileText size={14} style={{ color: 'var(--ink-2)' }} />
+                <span style={{ fontFamily: 'Inter Tight', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                  Execution logs
+                </span>
+              </div>
+              <div
+                className="mono"
+                style={{
+                  background: 'var(--ink)',
+                  color: '#e6edf3',
+                  padding: 10,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  maxHeight: 240,
+                  overflowY: 'auto',
+                }}
+              >
+                {result.logs.map((log, index) => (
+                  <div
+                    key={index}
+                    className="row"
+                    style={{
+                      gap: 8,
+                      alignItems: 'flex-start',
+                      marginBottom: 2,
+                      color:
+                        log.level === 'error'
+                          ? '#fca5a5'
+                          : log.level === 'warning'
+                          ? '#fbbf24'
+                          : '#e6edf3',
+                    }}
+                  >
+                    <span style={{ color: '#7d8590', fontSize: 10 }}>{log.timestamp}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>
+                      [{log.level}]
+                    </span>
+                    <span style={{ flex: 1 }}>{log.message}</span>
                   </div>
-                </div>
+                ))}
               </div>
-            )}
-
-            {/* Execution Logs */}
-            {result.logs && result.logs.length > 0 && (
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center space-x-2">
-                  <span>📝</span>
-                  <span>Execution Logs</span>
-                </h3>
-                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm max-h-64 overflow-y-auto">
-                  {result.logs.map((log, index) => (
-                    <div key={index} className={`flex items-start space-x-3 mb-1 ${
-                      log.level === 'error' ? 'text-red-300' :
-                      log.level === 'warning' ? 'text-yellow-300' : 'text-gray-100'
-                    }`}>
-                      <span className="text-gray-500 text-xs">{log.timestamp}</span>
-                      <span className="uppercase text-xs font-medium">
-                        [{log.level}]
-                      </span>
-                      <span className="flex-1">{log.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="modal-foot" style={{ justifyContent: 'space-between' }}>
+          <span className="dim" style={{ fontSize: 11.5 }}>
             {result.timing && (
               <span>
                 Executed at {new Date(result.timing.startTime).toLocaleTimeString()}
               </span>
             )}
-          </div>
-          <div className="flex space-x-3">
+          </span>
+          <div className="row" style={{ gap: 6 }}>
             {result.screenshot && (
               <button
+                type="button"
                 onClick={() => {
                   const link = document.createElement('a');
                   link.download = `step-${step.id}-screenshot.png`;
-                  link.href = result.screenshot?.startsWith('data:image/') 
-                    ? result.screenshot 
+                  link.href = result.screenshot?.startsWith('data:image/')
+                    ? result.screenshot
                     : `data:image/png;base64,${result.screenshot || ''}`;
                   link.click();
                 }}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm"
+                className="btn btn-ghost"
               >
-                📥 Download Screenshot
+                <Download size={13} />
+                <span>Download screenshot</span>
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
+            <button type="button" onClick={onClose} className="btn btn-primary">
               Continue
             </button>
           </div>

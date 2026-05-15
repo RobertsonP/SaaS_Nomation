@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronUp, Image as ImageIcon, Target, Video, Zap } from 'lucide-react';
+import { Pill, PillKind } from '../ui/Pill';
+import { StatTile } from '../ui/StatTile';
 import { ExecutionStepCard } from './ExecutionStepCard';
 
 interface ExecutionStepResult {
@@ -29,174 +32,363 @@ interface ExecutionData {
 interface TestExecutionReportProps {
   execution: ExecutionData;
   testName: string;
-  /**
-   * Renders the screenshots gallery and video player when true. Default true.
-   * Some embedded usages (e.g. inside SuiteExecutionReport rows) may want
-   * a more compact view without the gallery.
-   */
   showAttachments?: boolean;
 }
 
 function formatDuration(ms?: number | null): string {
   if (!ms || ms < 0) return '—';
   if (ms < 1000) return `${ms} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(2)} s`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`;
   const minutes = Math.floor(ms / 60_000);
   const seconds = ((ms % 60_000) / 1000).toFixed(1);
   return `${minutes}m ${seconds}s`;
 }
 
-function formatTime(ts?: string | Date | null): string {
-  if (!ts) return '—';
-  const d = typeof ts === 'string' ? new Date(ts) : ts;
-  return d.toLocaleString();
+function statusKind(status: string): PillKind {
+  if (status === 'passed') return 'ok';
+  if (status === 'failed') return 'err';
+  if (status === 'running') return 'info';
+  return 'mute';
 }
 
-export function TestExecutionReport({ execution, testName, showAttachments = true }: TestExecutionReportProps) {
+export function TestExecutionReport({
+  execution,
+  testName,
+  showAttachments = true,
+}: TestExecutionReportProps) {
   const [galleryOpen, setGalleryOpen] = useState(false);
 
   const results = execution.results ?? [];
-  const passed = results.filter(r => r.status === 'passed').length;
-  const failed = results.filter(r => r.status === 'failed').length;
+  const passed = results.filter((r) => r.status === 'passed').length;
+  const failed = results.filter((r) => r.status === 'failed').length;
   const total = results.length;
 
-  const failedIndex = results.findIndex(r => r.status === 'failed');
-  // The failure screenshot is the LAST entry in screenshots[] when a step
-  // failed (the processor pushes the error screenshot before breaking out
-  // of the step loop). Backend stores raw base64 (no data: prefix) — add it
-  // here so <img src> renders correctly in ExecutionStepCard.
+  const failedIndex = results.findIndex((r) => r.status === 'failed');
+  const failedStep = failedIndex >= 0 ? results[failedIndex] : null;
+
+  // Failure screenshot — last entry of execution.screenshots when a step failed.
   const failureScreenshot = (() => {
-    if (failedIndex < 0 || !execution.screenshots || execution.screenshots.length === 0) return undefined;
+    if (failedIndex < 0 || !execution.screenshots || execution.screenshots.length === 0) {
+      return undefined;
+    }
     const last = execution.screenshots[execution.screenshots.length - 1];
     return last.startsWith('data:') ? last : `data:image/png;base64,${last}`;
   })();
 
-  const overallPassed = execution.status === 'passed';
-  const headerStatusClasses = overallPassed
-    ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
-    : execution.status === 'running'
-      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-      : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+  const isFailed = execution.status === 'failed';
+  const isPassed = execution.status === 'passed';
+  const isRunning = execution.status === 'running';
+
+  // Stat tiles — Status / Duration / Steps Passed / Steps Failed.
+  // Network and Console placeholders aren't backend-supplied today.
+  const statusValue = isPassed
+    ? 'Passed'
+    : isFailed
+    ? 'Failed'
+    : isRunning
+    ? 'Running'
+    : execution.status;
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{testName}</h2>
-            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
-              <span>Started: {formatTime(execution.startedAt)}</span>
-              <span>Duration: {formatDuration(execution.duration)}</span>
-              <span>Run ID: <code className="font-mono">{execution.id.slice(0, 8)}…</code></span>
-            </div>
-          </div>
-          <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-medium border ${headerStatusClasses}`}>
-            {execution.status.toUpperCase()}
-          </span>
-        </div>
-
-        {/* Summary tiles */}
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Steps</div>
-            <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{total}</div>
-          </div>
-          <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
-            <div className="text-xs uppercase tracking-wide text-green-700 dark:text-green-300">Passed</div>
-            <div className="mt-1 text-2xl font-semibold text-green-700 dark:text-green-300">{passed}</div>
-          </div>
-          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
-            <div className="text-xs uppercase tracking-wide text-red-700 dark:text-red-300">Failed</div>
-            <div className="mt-1 text-2xl font-semibold text-red-700 dark:text-red-300">{failed}</div>
-          </div>
-        </div>
-
-        {execution.errorMsg && (
-          <div className="mt-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Run-level error</div>
-            <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono">
-              {execution.errorMsg}
-            </pre>
-          </div>
-        )}
+    <div className="col" style={{ gap: 12 }}>
+      {/* 4-tile row matching pages.jsx:247–251 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 10,
+        }}
+      >
+        <StatTile
+          label="Status"
+          value={statusValue}
+          sub={
+            isFailed && failedIndex >= 0
+              ? `step ${failedIndex + 1} of ${total}`
+              : isPassed
+              ? `${total} steps`
+              : undefined
+          }
+        />
+        <StatTile
+          label="Duration"
+          value={formatDuration(execution.duration)}
+          sub={total > 0 ? `${total} step${total === 1 ? '' : 's'}` : undefined}
+        />
+        <StatTile
+          label="Passed"
+          value={passed}
+          sub={total > 0 ? `${Math.round((passed / total) * 100)}% of run` : undefined}
+        />
+        <StatTile
+          label="Failed"
+          value={failed}
+          sub={failed > 0 ? 'check the failure card' : 'none'}
+        />
       </div>
 
-      {/* Steps timeline */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Steps ({total})</h3>
-        {total === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">No step results recorded.</p>
-        ) : (
-          <div className="space-y-2">
-            {results.map((r, i) => (
-              <ExecutionStepCard
-                key={i}
-                index={i}
-                result={r}
-                failureScreenshot={i === failedIndex ? failureScreenshot : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Attachments: video + screenshots gallery */}
-      {showAttachments && (execution.videoPath || (execution.screenshots && execution.screenshots.length > 0)) && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Attachments</h3>
-
-          {execution.videoPath && (
-            <div className="mb-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                Recording
-              </div>
-              <video
-                src={(() => {
-                  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
-                  const t = localStorage.getItem('auth_token');
-                  const q = t ? `?token=${encodeURIComponent(t)}` : '';
-                  return `${apiUrl}/api/execution/${execution.id}/video${q}`;
-                })()}
-                controls
-                className="w-full max-w-3xl rounded border border-gray-200 dark:border-gray-700"
-              />
+      {/* Two-column body: Failure (or Attachments) on the left, All steps on the right */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: total > 0 ? '1fr 1fr' : '1fr',
+          gap: 12,
+        }}
+      >
+        {/* Left column — Failure card when failed; otherwise Attachments card. */}
+        {isFailed && failedStep ? (
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">Failure</span>
+              <Pill kind="err" dot={false}>
+                step {failedIndex + 1}
+              </Pill>
             </div>
-          )}
-
-          {execution.screenshots && execution.screenshots.length > 0 && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setGalleryOpen(o => !o)}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            <div className="card-pad">
+              {failureScreenshot ? (
+                <div
+                  style={{
+                    background: 'var(--bone)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    height: 200,
+                    marginBottom: 10,
+                  }}
+                >
+                  <img
+                    src={failureScreenshot}
+                    alt="Failure screenshot"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="dim"
+                  style={{
+                    height: 200,
+                    marginBottom: 10,
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 6,
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 12,
+                  }}
+                >
+                  No screenshot captured
+                </div>
+              )}
+              <div
+                className="code"
+                style={{
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  fontFamily: 'Geist Mono, ui-monospace, monospace',
+                  fontSize: 11.5,
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  color: 'var(--ink-2)',
+                }}
               >
-                {galleryOpen ? 'Hide' : 'Show'} screenshots ({execution.screenshots.length})
-              </button>
-              {galleryOpen && (
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {execution.screenshots.map((shot, i) => (
-                    <a
-                      key={i}
-                      href={shot.startsWith('data:') ? shot : `data:image/png;base64,${shot}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-blue-400 transition-colors"
+                <span style={{ color: 'var(--ink-4)', fontStyle: 'italic' }}>
+                  {/* description */}// {failedStep.description || `${failedStep.step} step`}
+                </span>
+                {'\n'}
+                <span style={{ color: 'var(--clay)' }}>
+                  Error: {failedStep.error || execution.errorMsg || 'Unknown error'}
+                </span>
+                {failedStep.selector && (
+                  <>
+                    {'\n'}
+                    <span style={{ color: 'var(--ink-4)' }}>→ selector: {failedStep.selector}</span>
+                  </>
+                )}
+                {failedStep.value && (
+                  <>
+                    {'\n'}
+                    <span style={{ color: 'var(--ink-4)' }}>→ value: {failedStep.value}</span>
+                  </>
+                )}
+              </div>
+              <div className="row" style={{ marginTop: 10, gap: 6 }}>
+                <button type="button" className="btn btn-outline btn-sm">
+                  <Target size={12} />
+                  <span>Re-pick element</span>
+                </button>
+                <button type="button" className="btn btn-outline btn-sm">
+                  <Zap size={12} />
+                  <span>Suggest alt selectors</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : showAttachments && (execution.videoPath || (execution.screenshots && execution.screenshots.length > 0)) ? (
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">Attachments</span>
+            </div>
+            <div className="card-pad col" style={{ gap: 14 }}>
+              {execution.videoPath && (
+                <div>
+                  <div
+                    className="row dim"
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      marginBottom: 6,
+                      gap: 6,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Video size={11} />
+                    Recording
+                  </div>
+                  <video
+                    src={(() => {
+                      const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3002';
+                      const t = localStorage.getItem('auth_token');
+                      const q = t ? `?token=${encodeURIComponent(t)}` : '';
+                      return `${apiUrl}/api/execution/${execution.id}/video${q}`;
+                    })()}
+                    controls
+                    style={{
+                      width: '100%',
+                      borderRadius: 6,
+                      border: '1px solid var(--hair)',
+                      background: 'var(--bone)',
+                    }}
+                  />
+                </div>
+              )}
+
+              {execution.screenshots && execution.screenshots.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setGalleryOpen((o) => !o)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ paddingLeft: 0 }}
+                  >
+                    {galleryOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    <ImageIcon size={12} />
+                    <span>
+                      {galleryOpen ? 'Hide' : 'Show'} screenshots ({execution.screenshots.length})
+                    </span>
+                  </button>
+                  {galleryOpen && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                        gap: 8,
+                      }}
                     >
-                      <img
-                        src={shot.startsWith('data:') ? shot : `data:image/png;base64,${shot}`}
-                        alt={`Screenshot ${i + 1}`}
-                        className="w-full h-32 object-cover object-top"
-                        loading="lazy"
-                      />
-                    </a>
-                  ))}
+                      {execution.screenshots.map((shot, i) => (
+                        <a
+                          key={i}
+                          href={shot.startsWith('data:') ? shot : `data:image/png;base64,${shot}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'block',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            border: '1px solid var(--hair)',
+                          }}
+                        >
+                          <img
+                            src={shot.startsWith('data:') ? shot : `data:image/png;base64,${shot}`}
+                            alt={`Screenshot ${i + 1}`}
+                            style={{ width: '100%', height: 80, objectFit: 'cover', objectPosition: 'top' }}
+                            loading="lazy"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
+        ) : null}
+
+        {/* Right column — All steps */}
+        {total > 0 && (
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">All steps</span>
+              <span className="dim tabular" style={{ fontSize: 11 }}>
+                {total}
+              </span>
+            </div>
+            <div>
+              {results.map((r, i) => (
+                <ExecutionStepCard
+                  key={i}
+                  index={i}
+                  result={r}
+                  failureScreenshot={i === failedIndex ? failureScreenshot : undefined}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {execution.errorMsg && !isFailed && (
+        <div
+          style={{
+            padding: 10,
+            background: 'var(--clay-soft)',
+            border: '1px solid var(--clay-edge)',
+            borderRadius: 6,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: 'var(--clay)',
+              marginBottom: 4,
+            }}
+          >
+            Run-level error
+          </div>
+          <pre
+            className="mono"
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: 'var(--clay)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {execution.errorMsg}
+          </pre>
         </div>
       )}
+
+      <div className="row dim" style={{ gap: 12, fontSize: 11.5, flexWrap: 'wrap' }}>
+        <span>
+          Test: <strong style={{ color: 'var(--ink-2)' }}>{testName}</strong>
+        </span>
+        <span>·</span>
+        <span>
+          Run ID: <code className="mono">{execution.id.slice(0, 8)}…</code>
+        </span>
+        <span>·</span>
+        <span>Started: {new Date(execution.startedAt).toLocaleString()}</span>
+      </div>
     </div>
   );
 }

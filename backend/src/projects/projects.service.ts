@@ -59,7 +59,8 @@ export class ProjectsService {
           select: {
             tests: true,
             elements: true,
-            urls: true
+            urls: true,
+            testSuites: true
           }
         }
       },
@@ -77,7 +78,8 @@ export class ProjectsService {
           select: {
             tests: true,
             elements: true,
-            urls: true
+            urls: true,
+            testSuites: true
           }
         }
       },
@@ -106,7 +108,8 @@ export class ProjectsService {
           select: {
             tests: true,
             elements: true,
-            urls: true
+            urls: true,
+            testSuites: true
           }
         }
       },

@@ -53,11 +53,22 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 h-full flex flex-col">
-      {/* OPTIMIZED LAYOUT: 60% element library + 40% test steps */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* LEFT SIDEBAR: Element Library (60% - EXPANDED) */}
-        <div className="w-3/5 border-r border-gray-200 dark:border-gray-700">
+    <div
+      className="col"
+      style={{
+        background: 'var(--paper)',
+        height: '100%',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden', minHeight: 0, alignItems: 'stretch' }}>
+        <div
+          style={{
+            width: '60%',
+            borderRight: '1px solid var(--hair)',
+            background: 'var(--bone)',
+            overflow: 'hidden',
+          }}
+        >
           <ElementLibraryPanel
             key={elementsRefreshKey}
             projectId={projectId}
@@ -72,11 +83,11 @@ export function TestBuilder({ onSave, onCancel, initialSteps = [], projectId, te
             compact={false}
             isLoading={false}
             setShowLivePicker={setShowLivePicker}
+            selectedElementId={selectedElement?.id}
           />
         </div>
 
-        {/* RIGHT PANEL: Test Builder (40% - REDUCED) */}
-        <div className="w-2/5">
+        <div style={{ width: '40%', overflow: 'hidden' }}>
           <TestBuilderPanel
             selectedElement={selectedElement || undefined}
             onClearSelection={() => setSelectedElement(null)}

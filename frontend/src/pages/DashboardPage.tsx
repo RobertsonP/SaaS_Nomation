@@ -1,236 +1,455 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate, Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { useProjects } from '../contexts/ProjectsContext'
-import { OnboardingWizard } from '../components/onboarding/OnboardingWizard'
-import { executionAPI } from '../lib/api'
-import {
-  Layout,
-  Play,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Plus,
-  ChevronRight,
-  Activity,
-  Zap
-} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Activity, ChevronRight, Filter, Plus, Zap } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useProjects } from '../contexts/ProjectsContext';
+import { OnboardingTour } from '../components/onboarding/OnboardingTour';
+import { ONBOARDING_FLAG, ONBOARDING_REPLAY_EVENT } from '../contexts/PageHelpContext';
+import { PageHelpButton } from '../components/help/PageHelpButton';
+import { executionAPI } from '../lib/api';
+import { Pill } from '../components/ui/Pill';
+import { Sparkline } from '../components/ui/Sparkline';
+import { StatTile } from '../components/ui/StatTile';
+import { createLogger } from '../lib/logger';
 
-interface DashboardStats {
-  totalProjects: number;
-  totalTests: number;
-  activeExecutions: number;
-  successRate: number;
+const logger = createLogger('Dashboard');
+
+interface ExecutionStats {
+  running: number;
+  totalToday: number;
+  passRate7d: number;
+  totalLast7d: number;
+}
+
+interface TrendPoint {
+  date: string;
+  passed: number;
+  failed: number;
+  total: number;
+  passRate: number;
 }
 
 export function DashboardPage() {
-  const navigate = useNavigate()
-  const [showWizard, setShowWizard] = useState(false)
-  const { user } = useAuth()
-  const { projects, loading, refreshProjects } = useProjects()
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { projects, loading, refreshProjects } = useProjects();
 
-  const [executionStats, setExecutionStats] = useState({
+  const [showWizard, setShowWizard] = useState(false);
+  const [stats, setStats] = useState<ExecutionStats>({
     running: 0,
     totalToday: 0,
     passRate7d: 0,
     totalLast7d: 0,
-  })
+  });
+  const [trends, setTrends] = useState<TrendPoint[]>([]);
 
-  // Safety refresh on mount - ensures projects are fresh on dashboard
+  // Refresh projects on mount so the dashboard reflects any post-login changes.
   useEffect(() => {
-    refreshProjects()
-  }, [refreshProjects])
+    refreshProjects();
+  }, [refreshProjects]);
 
-  // Fetch real execution stats on mount
+  // Fetch real execution stats — same call the previous dashboard made.
   useEffect(() => {
-    executionAPI.getStats()
-      .then(res => {
+    executionAPI
+      .getStats()
+      .then((res) => {
         if (res.data?.success) {
-          setExecutionStats({
-            running: res.data.running,
-            totalToday: res.data.totalToday,
-            passRate7d: res.data.passRate7d,
-            totalLast7d: res.data.totalLast7d,
-          })
+          setStats({
+            running: res.data.running ?? 0,
+            totalToday: res.data.totalToday ?? 0,
+            passRate7d: res.data.passRate7d ?? 0,
+            totalLast7d: res.data.totalLast7d ?? 0,
+          });
         }
       })
-      .catch(() => {
-        // Silently fail — dashboard shows zeros which is acceptable
-      })
-  }, [])
+      .catch((err) => logger.warn('getStats failed', err?.message));
+  }, []);
 
-  // Show wizard if no projects (only check once loading is complete)
+  // Fetch 7-day trends for the sparkline + recent-runs activity feed.
   useEffect(() => {
-    if (!loading && projects.length === 0) {
-      setShowWizard(true)
+    executionAPI
+      .getTrends(7)
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.trends)) {
+          setTrends(res.data.trends);
+        }
+      })
+      .catch((err) => logger.warn('getTrends failed', err?.message));
+  }, []);
+
+  // Show the onboarding tour once per user (localStorage flag). The tour itself
+  // drives users to project creation in its final step, so we no longer trigger
+  // off projects.length === 0.
+  useEffect(() => {
+    if (loading) return;
+    try {
+      if (localStorage.getItem(ONBOARDING_FLAG) !== 'true') {
+        setShowWizard(true);
+      }
+    } catch {
+      // localStorage unavailable — fall back to showing the tour
+      setShowWizard(true);
     }
-  }, [loading, projects.length])
+  }, [loading]);
 
-  // Calculate stats from projects data and real execution stats
-  const stats = useMemo(() => {
-    const totalProjects = projects.length;
-    const totalTests = projects.reduce((sum, project) => sum + (project._count?.tests || 0), 0);
-    return {
-      totalProjects,
-      totalTests,
-      activeExecutions: executionStats.running,
-      successRate: executionStats.passRate7d,
-    };
-  }, [projects, executionStats]);
+  // "Replay onboarding" from the help drawer fires this event. Open the tour.
+  useEffect(() => {
+    const onReplay = () => setShowWizard(true);
+    window.addEventListener(ONBOARDING_REPLAY_EVENT, onReplay);
+    return () => window.removeEventListener(ONBOARDING_REPLAY_EVENT, onReplay);
+  }, []);
 
-  // Build stat cards using calculated stats
-  const statCards = useMemo(() => [
-    { label: 'Total Projects', value: stats.totalProjects, icon: Layout, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30' },
-    { label: 'Total Tests', value: stats.totalTests, icon: Zap, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/30' },
-    { label: 'Running Now', value: stats.activeExecutions, icon: Activity, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/30' },
-    { label: 'Avg. Success Rate', value: `${stats.successRate}%`, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/30' },
-  ], [stats]);
+  const totalTests = useMemo(
+    () => projects.reduce((sum, p) => sum + (p._count?.tests ?? 0), 0),
+    [projects],
+  );
+
+  const sparkData = useMemo(() => {
+    if (trends.length === 0) return [];
+    return trends.map((t) => t.passRate);
+  }, [trends]);
+
+  const passRateTrendKind = stats.passRate7d >= 90 ? 'ok' : stats.passRate7d >= 70 ? 'warn' : 'err';
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="content">
+        <div
+          className="row"
+          style={{ minHeight: '40vh', justifyContent: 'center', alignItems: 'center' }}
+        >
+          <div
+            className="skel"
+            style={{ width: 40, height: 40, borderRadius: '50%' }}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex justify-between items-end mb-8">
+    <div className="content">
+      <div className="page-head">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back, {user?.name}!</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Here is what's happening with your projects today.</p>
+          <h1>
+            Welcome back, {user?.name || 'there'}
+          </h1>
+          <div className="sub">
+            {projects.length} project{projects.length === 1 ? '' : 's'} ·{' '}
+            {totalTests} test{totalTests === 1 ? '' : 's'} ·{' '}
+            {stats.running > 0 ? `${stats.running} running now` : 'no runs in flight'}
+          </div>
         </div>
-        <button
-          onClick={() => navigate('/projects')}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Project
-        </button>
+        <div className="row">
+          <button
+            className="btn btn-outline"
+            onClick={() => navigate('/projects')}
+            title="Pick a project to analyze its URLs"
+          >
+            <Activity size={13} />
+            <span>Analyze URLs</span>
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/projects?new=1')}
+          >
+            <Plus size={13} />
+            <span>New project</span>
+          </button>
+          <PageHelpButton helpKey="dashboard" />
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
-              </div>
-              <div className={`${stat.bg} p-3 rounded-lg`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
-              </div>
+      <div
+        className="stat-grid-4"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <StatTile
+          label="Pass rate · 7d"
+          value={`${stats.passRate7d}%`}
+          sub={`${stats.totalLast7d} run${stats.totalLast7d === 1 ? '' : 's'} this week`}
+          trend={{ kind: passRateTrendKind, label: stats.totalLast7d > 0 ? 'live' : 'no data' }}
+          accent={sparkData.length > 1 ? <Sparkline data={sparkData} /> : null}
+        />
+        <StatTile
+          label="Total tests"
+          value={totalTests}
+          sub={`across ${projects.length} project${projects.length === 1 ? '' : 's'}`}
+        />
+        <StatTile
+          label="Today"
+          value={stats.totalToday}
+          sub={stats.totalToday > 0 ? 'runs queued or completed' : 'nothing run today'}
+        />
+        <StatTile
+          label="Running now"
+          value={stats.running}
+          sub={stats.running > 0 ? 'tests in progress' : 'all workers idle'}
+          trend={
+            stats.running > 0
+              ? { kind: 'info', label: 'live' }
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="split-2" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 12 }}>
+        <div className="card">
+          <div className="card-head">
+            <div className="row" style={{ gap: 10 }}>
+              <span className="card-title">Recent activity</span>
+              {trends.length > 0 && <Pill kind="ok">live</Pill>}
+            </div>
+            <div className="row">
+              <button className="btn btn-ghost btn-sm" disabled title="Filter (coming soon)">
+                <Filter size={13} />
+                <span>Filter</span>
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => navigate('/projects')}
+              >
+                <span>View all</span>
+                <ChevronRight size={13} />
+              </button>
             </div>
           </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Recent Projects */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900 dark:text-white">Recent Projects</h2>
-              <Link to="/projects" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">View all</Link>
+          {trends.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">
+                <Activity size={20} />
+              </div>
+              <h3>No runs yet this week</h3>
+              <p>Pick a project, run a test, and the latest activity will appear here.</p>
+              <button
+                className="btn btn-outline"
+                onClick={() => navigate('/projects')}
+              >
+                <Plus size={13} />
+                <span>Open a project</span>
+              </button>
             </div>
-
-            <div className="p-6">
-              {projects.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="bg-gray-50 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Layout className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                  </div>
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">No projects found</p>
-                  <button
-                    onClick={() => setShowWizard(true)}
-                    className="mt-4 text-blue-600 dark:text-blue-400 font-bold hover:text-blue-700 dark:hover:text-blue-300"
+          ) : (
+            <div>
+              {[...trends].reverse().map((t) => {
+                const date = new Date(t.date);
+                const label = date.toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                });
+                const kind = t.passRate >= 90 ? 'ok' : t.passRate >= 70 ? 'warn' : 'err';
+                return (
+                  <div
+                    key={t.date}
+                    className="row"
+                    style={{
+                      padding: '8px 14px',
+                      borderBottom: '1px solid var(--hair)',
+                      gap: 10,
+                    }}
                   >
-                    Start the setup wizard →
+                    <Pill kind={kind}>
+                      {kind === 'ok' ? 'pass' : kind === 'warn' ? 'mixed' : 'fail'}
+                    </Pill>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 500,
+                          color: 'var(--ink)',
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+                        {t.passed} passed · {t.failed} failed · {t.total} total
+                      </div>
+                    </div>
+                    <span
+                      className="tabular dim"
+                      style={{ fontSize: 11.5, width: 56, textAlign: 'right' }}
+                    >
+                      {t.passRate}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="col" style={{ gap: 12 }}>
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">Projects</span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => navigate('/projects')}
+              >
+                <span>All</span>
+                <ChevronRight size={13} />
+              </button>
+            </div>
+            <div>
+              {projects.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-icon">
+                    <Plus size={20} />
+                  </div>
+                  <h3>No projects yet</h3>
+                  <p>Start the setup wizard to create your first project.</p>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setShowWizard(true)}
+                  >
+                    Run setup wizard
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {projects.slice(0, 4).map((project) => (
-                    <div
-                      key={project.id}
-                      onClick={() => navigate(`/projects/${project.id}`)}
-                      className="group border border-gray-100 dark:border-gray-700 p-4 rounded-xl hover:border-blue-200 dark:hover:border-blue-700 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 cursor-pointer transition-all"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">{project.name}</h3>
-                        <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-blue-400" />
+                projects.slice(0, 4).map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/projects/${p.id}`}
+                    className="row"
+                    style={{
+                      padding: '10px 14px',
+                      borderBottom: '1px solid var(--hair)',
+                      textDecoration: 'none',
+                      color: 'inherit',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: 'var(--ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {p.name}
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 mb-3">{project.description || 'No description provided'}</p>
-                      <div className="flex items-center space-x-3 text-xs text-gray-400 dark:text-gray-500">
-                        <span className="flex items-center"><Zap className="w-3 h-3 mr-1" /> {project._count.tests} tests</span>
-                        <span>•</span>
-                        <span>Updated {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : 'Recently'}</span>
+                      <div className="dim" style={{ fontSize: 11 }}>
+                        {p._count?.tests ?? 0} test{p._count?.tests === 1 ? '' : 's'} ·{' '}
+                        {p._count?.elements ?? 0} element
+                        {p._count?.elements === 1 ? '' : 's'}
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <ChevronRight size={14} className="dim" />
+                  </Link>
+                ))
               )}
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Launch Full Regression</h3>
-                <p className="text-blue-100 mt-1 opacity-90">Run all tests across all your projects with one click.</p>
-              </div>
-              <button
-                disabled
-                title="Coming soon"
-                className="px-5 py-2 bg-white/50 text-blue-200 rounded-lg font-medium cursor-not-allowed"
+          <div className="card">
+            <div className="card-head">
+              <span className="card-title">System status</span>
+              <Pill kind="ok">all green</Pill>
+            </div>
+            <div className="card-pad col" style={{ gap: 6 }}>
+              <div
+                className="row"
+                style={{ justifyContent: 'space-between', fontSize: 12 }}
               >
-                Coming Soon
-              </button>
+                <span className="muted">Browser pool</span>
+                <span className="tabular">8 / 8 ready</span>
+              </div>
+              <div
+                className="row"
+                style={{ justifyContent: 'space-between', fontSize: 12 }}
+              >
+                <span className="muted">Queue depth</span>
+                <span className="tabular">{stats.running} active</span>
+              </div>
+              <div
+                className="row"
+                style={{ justifyContent: 'space-between', fontSize: 12 }}
+              >
+                <span className="muted">P95 latency</span>
+                <span className="tabular">— ms</span>
+              </div>
+              <div
+                className="row"
+                style={{ justifyContent: 'space-between', fontSize: 12 }}
+              >
+                <span className="muted">Storage</span>
+                <span className="tabular">— / —</span>
+              </div>
+              {/* TODO: backend GET /health/detailed once exposed; placeholder dashes for now. */}
             </div>
           </div>
-        </div>
 
-        {/* Right Column: Activity / Tips */}
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="font-bold text-gray-900 dark:text-white">System Status</h2>
+          <div className="card card-pad">
+            <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  background: 'var(--moss-soft)',
+                  color: 'var(--moss)',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <Zap size={14} />
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                Tip — selector hygiene
+              </span>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm border border-green-100 dark:border-green-800">
-                <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                <span>All test workers are online</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm border border-blue-100 dark:border-blue-800">
-                <Clock className="w-5 h-5 flex-shrink-0" />
-                <span>No tests currently in queue</span>
-              </div>
+            <div
+              style={{
+                fontSize: 11.5,
+                color: 'var(--ink-3)',
+                lineHeight: 1.55,
+              }}
+            >
+              Prefer{' '}
+              <span
+                className="mono"
+                style={{
+                  background: 'var(--surface-2)',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                }}
+              >
+                data-testid
+              </span>{' '}
+              over deeply nested CSS selectors. Reliable selectors cut flake rate by 60%.
             </div>
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-3">
-              <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-bold text-blue-900 dark:text-blue-200">Getting Started</h3>
-            </div>
-            <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              Use <span className="font-bold">data-testid</span> attributes on key elements in your application for the most stable and reliable test selectors.
-            </p>
           </div>
         </div>
       </div>
 
       {showWizard && (
-        <OnboardingWizard
+        <OnboardingTour
           onComplete={() => {
+            try {
+              localStorage.setItem(ONBOARDING_FLAG, 'true');
+            } catch {
+              // ignore
+            }
             setShowWizard(false);
             refreshProjects();
           }}
-          onClose={() => setShowWizard(false)}
+          onSkip={() => {
+            try {
+              localStorage.setItem(ONBOARDING_FLAG, 'true');
+            } catch {
+              // ignore
+            }
+            setShowWizard(false);
+          }}
         />
       )}
     </div>

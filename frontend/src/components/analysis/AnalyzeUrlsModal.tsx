@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { CheckCircle2, Clock, Loader2, Sparkles, X } from 'lucide-react';
 
 interface ProjectUrl {
   id: string;
@@ -20,203 +21,244 @@ export function AnalyzeUrlsModal({
   onClose,
   projectUrls,
   onAnalyze,
-  isAnalyzing = false
+  isAnalyzing = false,
 }: AnalyzeUrlsModalProps) {
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'analyzed' | 'unanalyzed'>('all');
 
-  // Filter URLs based on selected filter
   const filteredUrls = useMemo(() => {
     if (filter === 'all') return projectUrls;
     if (filter === 'analyzed') return projectUrls.filter(u => u.analyzed);
     return projectUrls.filter(u => !u.analyzed);
   }, [projectUrls, filter]);
 
-  // Stats
   const analyzedCount = projectUrls.filter(u => u.analyzed).length;
   const unanalyzedCount = projectUrls.filter(u => !u.analyzed).length;
 
   const handleToggleUrl = (urlId: string) => {
     setSelectedUrls(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(urlId)) {
-        newSet.delete(urlId);
-      } else {
-        newSet.add(urlId);
-      }
-      return newSet;
+      const next = new Set(prev);
+      if (next.has(urlId)) next.delete(urlId);
+      else next.add(urlId);
+      return next;
     });
   };
 
-  const handleSelectAll = () => {
-    setSelectedUrls(new Set(filteredUrls.map(u => u.id)));
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedUrls(new Set());
-  };
-
-  const handleSelectUnanalyzed = () => {
+  const handleSelectAll = () => setSelectedUrls(new Set(filteredUrls.map(u => u.id)));
+  const handleDeselectAll = () => setSelectedUrls(new Set());
+  const handleSelectUnanalyzed = () =>
     setSelectedUrls(new Set(projectUrls.filter(u => !u.analyzed).map(u => u.id)));
-  };
 
   const handleAnalyze = () => {
-    if (selectedUrls.size > 0) {
-      onAnalyze(Array.from(selectedUrls));
-    }
+    if (selectedUrls.size > 0) onAnalyze(Array.from(selectedUrls));
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal modal-lg"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Select URLs to Analyze
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {projectUrls.length} URLs total ({analyzedCount} analyzed, {unanalyzedCount} pending)
-            </p>
+            <div className="modal-title">Select URLs to analyze</div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+              {projectUrls.length} URLs total · {analyzedCount} analyzed · {unanalyzedCount} pending
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <X size={14} />
           </button>
         </div>
 
         {/* Filter tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 px-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === 'all'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            All ({projectUrls.length})
-          </button>
-          <button
-            onClick={() => setFilter('unanalyzed')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === 'unanalyzed'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            Pending ({unanalyzedCount})
-          </button>
-          <button
-            onClick={() => setFilter('analyzed')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              filter === 'analyzed'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            Analyzed ({analyzedCount})
-          </button>
+        <div
+          className="row"
+          style={{
+            gap: 0,
+            borderBottom: '1px solid var(--hair)',
+            padding: '0 20px',
+          }}
+        >
+          {[
+            { id: 'all', label: 'All', count: projectUrls.length },
+            { id: 'unanalyzed', label: 'Pending', count: unanalyzedCount },
+            { id: 'analyzed', label: 'Analyzed', count: analyzedCount },
+          ].map((tab) => {
+            const active = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id as 'all' | 'analyzed' | 'unanalyzed')}
+                style={{
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? 'var(--ink)' : 'var(--ink-3)',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${active ? 'var(--moss)' : 'transparent'}`,
+                  cursor: 'pointer',
+                  transition: 'color .12s ease, border-color .12s ease',
+                }}
+              >
+                {tab.label} <span className="tabular dim">({tab.count})</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Quick actions */}
-        <div className="flex gap-2 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <button
-            onClick={handleSelectAll}
-            className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            Select All
+        <div
+          className="row"
+          style={{
+            gap: 6,
+            padding: 12,
+            borderBottom: '1px solid var(--hair)',
+            background: 'var(--surface-2)',
+          }}
+        >
+          <button type="button" onClick={handleSelectAll} className="btn btn-ghost btn-sm">
+            Select all
           </button>
-          <button
-            onClick={handleDeselectAll}
-            className="px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            Deselect All
+          <button type="button" onClick={handleDeselectAll} className="btn btn-ghost btn-sm">
+            Deselect all
           </button>
           {unanalyzedCount > 0 && (
             <button
+              type="button"
               onClick={handleSelectUnanalyzed}
-              className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+              className="btn btn-outline btn-sm"
+              style={{ color: 'var(--moss)', borderColor: 'var(--moss-edge)' }}
             >
-              Select Unanalyzed
+              Select unanalyzed
             </button>
           )}
         </div>
 
         {/* URL list */}
-        <div className="overflow-y-auto max-h-96 p-4">
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {filteredUrls.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              No URLs match the current filter
+            <div className="empty" style={{ padding: '32px 16px' }}>
+              <p>No URLs match the current filter</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredUrls.map(url => (
-                <label
-                  key={url.id}
-                  className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedUrls.has(url.id)
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUrls.has(url.id)}
-                    onChange={() => handleToggleUrl(url.id)}
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div className="ml-3 flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {url.title || 'Untitled'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {url.url}
-                    </p>
-                  </div>
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                    url.analyzed
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                  }`}>
-                    {url.analyzed ? 'Analyzed' : 'Pending'}
-                  </span>
-                </label>
-              ))}
+            <div className="col" style={{ gap: 6 }}>
+              {filteredUrls.map(url => {
+                const checked = selectedUrls.has(url.id);
+                return (
+                  <label
+                    key={url.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: 10,
+                      borderRadius: 6,
+                      border: `1px solid ${checked ? 'var(--moss)' : 'var(--hair)'}`,
+                      background: checked ? 'var(--moss-soft)' : 'var(--surface)',
+                      cursor: 'pointer',
+                      transition: 'background .12s ease, border-color .12s ease',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => handleToggleUrl(url.id)}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        accentColor: 'var(--moss)',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 500,
+                          color: 'var(--ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {url.title || 'Untitled'}
+                      </div>
+                      <div
+                        className="mono dim"
+                        style={{
+                          fontSize: 11,
+                          marginTop: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {url.url}
+                      </div>
+                    </div>
+                    <span
+                      className="pill"
+                      style={
+                        url.analyzed
+                          ? {
+                              background: 'var(--moss-soft)',
+                              color: 'var(--moss)',
+                              borderColor: 'var(--moss-edge)',
+                            }
+                          : {
+                              background: 'var(--amber-soft)',
+                              color: 'var(--amber)',
+                              borderColor: 'var(--amber-edge)',
+                            }
+                      }
+                    >
+                      {url.analyzed ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                      {url.analyzed ? 'Analyzed' : 'Pending'}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="modal-foot">
+          <span className="dim" style={{ fontSize: 12, marginRight: 'auto' }}>
             {selectedUrls.size} URL{selectedUrls.size !== 1 ? 's' : ''} selected
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAnalyze}
-              disabled={selectedUrls.size === 0 || isAnalyzing}
-              className={`px-4 py-2 text-sm rounded font-medium ${
-                selectedUrls.size === 0 || isAnalyzing
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-            >
-              {isAnalyzing ? 'Analyzing...' : `Analyze ${selectedUrls.size} URL${selectedUrls.size !== 1 ? 's' : ''}`}
-            </button>
-          </div>
+          </span>
+          <button type="button" onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={selectedUrls.size === 0 || isAnalyzing}
+            className="btn btn-success"
+            style={
+              selectedUrls.size === 0 || isAnalyzing
+                ? { opacity: 0.5, cursor: 'not-allowed' }
+                : undefined
+            }
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Analyzing…</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={13} />
+                <span>
+                  Analyze {selectedUrls.size} URL{selectedUrls.size !== 1 ? 's' : ''}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
