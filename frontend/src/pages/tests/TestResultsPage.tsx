@@ -9,6 +9,7 @@ import { useNotification } from '../../contexts/NotificationContext'
 import { Download, Loader2, Mail, Play } from 'lucide-react'
 import { createLogger } from '../../lib/logger'
 import { Pill, PillKind } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 
 const logger = createLogger('TestResultsPage')
 
@@ -299,6 +300,7 @@ export function TestResultsPage() {
               </>
             )}
           </button>
+          <PageHelpButton helpKey="test-results" />
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import { useUrlManagement } from './hooks';
 import { useAnalysisContext } from '../../contexts/AnalysisContext';
 import { ProjectOverviewTab, ProjectUrlsTab, ProjectSiteMapTab, ProjectAuthTab } from './components';
 import { EditSiteModal, EditSiteUrl } from '../../components/projects/EditSiteModal';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 
 const logger = createLogger('ProjectDetails');
 
@@ -687,6 +688,19 @@ export function ProjectDetailsPage() {
               Setup Project
             </button>
           )}
+          <PageHelpButton
+            helpKey={
+              activeTab === 'urls'
+                ? 'project-urls'
+                : activeTab === 'elements'
+                ? 'project-elements'
+                : activeTab === 'auth'
+                ? 'project-auth'
+                : activeTab === 'sitemap'
+                ? 'project-sitemap'
+                : 'project-details'
+            }
+          />
         </div>
       </div>
 

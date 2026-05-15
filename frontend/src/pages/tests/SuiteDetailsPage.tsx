@@ -5,6 +5,7 @@ import { testsAPI, projectsAPI, testSuitesAPI } from '../../lib/api'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { Pill } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 import { createLogger } from '../../lib/logger'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 
@@ -275,6 +276,7 @@ export function SuiteDetailsPage() {
             <Play size={13} />
             <span>Run All Tests</span>
           </button>
+          <PageHelpButton helpKey="suite-details" />
         </div>
       </div>
 

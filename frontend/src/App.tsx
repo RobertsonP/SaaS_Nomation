@@ -10,6 +10,8 @@ import { AnalysisProvider } from './contexts/AnalysisContext'
 import { AnalysisFloatingIndicator } from './components/analysis/AnalysisFloatingIndicator'
 import { SuiteExecutionProvider } from './contexts/SuiteExecutionContext'
 import { SuiteExecutionFloatingIndicator } from './components/execution/SuiteExecutionFloatingIndicator'
+import { PageHelpProvider } from './contexts/PageHelpContext'
+import { PageHelpDrawer } from './components/help/PageHelpDrawer'
 import { NotificationContainer } from './components/notifications/NotificationContainer'
 import { VerdantShell } from './components/layout/VerdantShell'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -56,6 +58,7 @@ function AuthLogoutListener() {
       <DiscoveryFloatingIndicator />
       <AnalysisFloatingIndicator />
       <SuiteExecutionFloatingIndicator />
+      <PageHelpDrawer />
     </>
   );
 }
@@ -158,8 +161,10 @@ function App() {
               <DiscoveryProvider>
                 <AnalysisProvider>
                   <SuiteExecutionProvider>
-                    <RouterProvider router={router} />
-                    <NotificationContainer />
+                    <PageHelpProvider>
+                      <RouterProvider router={router} />
+                      <NotificationContainer />
+                    </PageHelpProvider>
                   </SuiteExecutionProvider>
                 </AnalysisProvider>
               </DiscoveryProvider>

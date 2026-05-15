@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Activity, ChevronRight, Filter, Plus, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects } from '../contexts/ProjectsContext';
-import { OnboardingWizard } from '../components/onboarding/OnboardingWizard';
+import { OnboardingTour } from '../components/onboarding/OnboardingTour';
+import { ONBOARDING_FLAG, ONBOARDING_REPLAY_EVENT } from '../contexts/PageHelpContext';
+import { PageHelpButton } from '../components/help/PageHelpButton';
 import { executionAPI } from '../lib/api';
 import { Pill } from '../components/ui/Pill';
 import { Sparkline } from '../components/ui/Sparkline';
@@ -75,12 +77,27 @@ export function DashboardPage() {
       .catch((err) => logger.warn('getTrends failed', err?.message));
   }, []);
 
-  // Show onboarding wizard automatically when the user has no projects yet.
+  // Show the onboarding tour once per user (localStorage flag). The tour itself
+  // drives users to project creation in its final step, so we no longer trigger
+  // off projects.length === 0.
   useEffect(() => {
-    if (!loading && projects.length === 0) {
+    if (loading) return;
+    try {
+      if (localStorage.getItem(ONBOARDING_FLAG) !== 'true') {
+        setShowWizard(true);
+      }
+    } catch {
+      // localStorage unavailable — fall back to showing the tour
       setShowWizard(true);
     }
-  }, [loading, projects.length]);
+  }, [loading]);
+
+  // "Replay onboarding" from the help drawer fires this event. Open the tour.
+  useEffect(() => {
+    const onReplay = () => setShowWizard(true);
+    window.addEventListener(ONBOARDING_REPLAY_EVENT, onReplay);
+    return () => window.removeEventListener(ONBOARDING_REPLAY_EVENT, onReplay);
+  }, []);
 
   const totalTests = useMemo(
     () => projects.reduce((sum, p) => sum + (p._count?.tests ?? 0), 0),
@@ -139,6 +156,7 @@ export function DashboardPage() {
             <Plus size={13} />
             <span>New project</span>
           </button>
+          <PageHelpButton helpKey="dashboard" />
         </div>
       </div>
 
@@ -414,12 +432,24 @@ export function DashboardPage() {
       </div>
 
       {showWizard && (
-        <OnboardingWizard
+        <OnboardingTour
           onComplete={() => {
+            try {
+              localStorage.setItem(ONBOARDING_FLAG, 'true');
+            } catch {
+              // ignore
+            }
             setShowWizard(false);
             refreshProjects();
           }}
-          onClose={() => setShowWizard(false)}
+          onSkip={() => {
+            try {
+              localStorage.setItem(ONBOARDING_FLAG, 'true');
+            } catch {
+              // ignore
+            }
+            setShowWizard(false);
+          }}
         />
       )}
     </div>

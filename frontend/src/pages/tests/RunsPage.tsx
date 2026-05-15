@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Activity, FlaskConical, Layers, Loader2 } from 'lucide-react';
 import { executionAPI, projectsAPI, testsAPI, testSuitesAPI } from '../../lib/api';
 import { Pill, PillKind } from '../../components/ui/Pill';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNotification } from '../../contexts/NotificationContext';
 import { createLogger } from '../../lib/logger';
 
@@ -178,6 +179,7 @@ export function RunsPage() {
             {loading ? <Loader2 size={13} className="animate-spin" /> : <Activity size={13} />}
             <span>{loading ? 'Loading…' : 'Refresh'}</span>
           </button>
+          <PageHelpButton helpKey="runs" />
         </div>
       </div>
 

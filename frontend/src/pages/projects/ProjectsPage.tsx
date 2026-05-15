@@ -6,6 +6,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useProjects } from '../../contexts/ProjectsContext';
 import { LoadingModal } from '../../components/shared/LoadingModal';
 import { Pill } from '../../components/ui/Pill';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { AuthStep } from '../../types/api.types';
 import { createLogger } from '../../lib/logger';
 
@@ -381,6 +382,7 @@ export function ProjectsPage() {
             <Plus size={13} />
             <span>New project</span>
           </button>
+          <PageHelpButton helpKey="projects" />
         </div>
       </div>
 

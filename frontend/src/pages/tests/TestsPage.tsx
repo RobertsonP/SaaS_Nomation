@@ -10,6 +10,7 @@ import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
 import { Eye, FlaskConical, Loader2, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { Pill } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 
 const logger = createLogger('TestsPage')
 
@@ -238,6 +239,7 @@ export function TestsPage() {
             <Plus size={13} />
             <span>Create Test</span>
           </button>
+          <PageHelpButton helpKey="tests" />
         </div>
       </div>
 

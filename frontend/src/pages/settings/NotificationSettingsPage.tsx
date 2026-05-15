@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { authAPI } from '../../lib/api';
 import { Bell, Check, Clock, Loader2, Mail, Plus, Trash2 } from 'lucide-react';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 
 export function NotificationSettingsPage() {
   const { showSuccess, showError } = useNotification();
@@ -127,6 +128,9 @@ export function NotificationSettingsPage() {
         <div>
           <h1>Notification Settings</h1>
           <div className="sub">Choose what you want to hear about and when.</div>
+        </div>
+        <div className="row">
+          <PageHelpButton helpKey="notification-settings" />
         </div>
       </div>
 

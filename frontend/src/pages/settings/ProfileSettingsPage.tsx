@@ -4,6 +4,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authAPI } from '../../lib/api';
 import { timezonesByRegion } from '../../lib/timezones';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   Calendar,
   CreditCard,
@@ -143,6 +144,9 @@ export function ProfileSettingsPage() {
         <div>
           <h1>Account Settings</h1>
           <div className="sub">Profile, plan, and security for your Nomation account.</div>
+        </div>
+        <div className="row">
+          <PageHelpButton helpKey="profile-settings" />
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { useNotification } from '../../contexts/NotificationContext'
 import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { SuiteExecutionReport } from '../../components/test-results/SuiteExecutionReport'
 import { Pill, PillKind } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 
 interface SuiteExecution {
   id: string
@@ -230,6 +231,7 @@ export function SuiteResultsPage() {
               </>
             )}
           </button>
+          <PageHelpButton helpKey="suite-results" />
         </div>
       </div>
 

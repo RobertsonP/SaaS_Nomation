@@ -19,6 +19,7 @@ import { TestStep } from '../../types/test.types'
 import { LiveExecutionModal } from '../execution/LiveExecutionModal'
 import { StepList } from './StepList'
 import { Pill } from '../ui/Pill'
+import { PageHelpButton } from '../help/PageHelpButton'
 import { useNotification } from '../../contexts/NotificationContext'
 import { createLogger } from '../../lib/logger'
 import {
@@ -940,6 +941,7 @@ export function TestBuilderPanel({
                 >
                   <Trash2 size={13} />
                 </button>
+                <PageHelpButton helpKey="test-builder" />
               </div>
             </div>
           </div>

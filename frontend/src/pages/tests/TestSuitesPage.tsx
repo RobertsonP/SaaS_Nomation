@@ -6,6 +6,7 @@ import { useNotification } from '../../contexts/NotificationContext'
 import { useSuiteExecutionContext } from '../../contexts/SuiteExecutionContext'
 import { RunModePickerModal } from '../../components/tests/RunModePickerModal'
 import { Pill } from '../../components/ui/Pill'
+import { PageHelpButton } from '../../components/help/PageHelpButton'
 import { TestStep } from '../../types/test.types'
 import { createLogger } from '../../lib/logger'
 
@@ -208,6 +209,7 @@ export function TestSuitesPage() {
               <Plus size={13} />
               <span>Create suite</span>
             </button>
+            <PageHelpButton helpKey="suites" />
           </div>
         </div>
 
